@@ -105,6 +105,10 @@ export default function RedbusAnalysisPage() {
   const totalReviews = sum(activeCells.map(c => c.review_count))
   const avgSentiment = average(activeCells.map(c => c.sentiment_score))
   const coveragePct = activeCells.length ? Math.round((activeCells.filter(c => c.sentiment_score != null).length / activeCells.length) * 100) : 0
+  const topTwoShare = freshbusCells.length
+    ? Math.round((freshbusCells.filter(c => (c.competitive_rank ?? 99) <= 2).length / freshbusCells.length) * 100)
+    : null
+
   const advancedChartData = tags.map(tag => {
     const obj: any = { name: tagLabel(tag.id) }
     tagOperators.forEach(op => {
