@@ -422,17 +422,17 @@ export default function RedbusAnalysisPage() {
             <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-400">Each cell shows the sentiment score for that operator on a specific route.</p>
           </div>
           <div className="overflow-x-auto">
-            <div className="min-w-[850px] space-y-2">
-              <div className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 80px)` }}>
+            <div className="min-w-[950px] space-y-2">
+              <div className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 100px)` }}>
                 <span />
-                {operators.map(op => <span key={op.id} className="truncate text-center text-[0.68rem] font-black uppercase text-slate-900 dark:text-slate-200">{op.name}</span>)}
+                {operators.map(op => <span key={op.id} className="text-center text-[0.68rem] font-black uppercase text-slate-900 dark:text-slate-200">{op.name}</span>)}
               </div>
               {displayRoutes.map(route => (
-                <div key={route.id} className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 80px)` }}>
+                <div key={route.id} className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 100px)` }}>
                   <span className="truncate text-xs font-black text-slate-900 dark:text-slate-100">{routeLabel(route.origin, route.destination)}</span>
                   {operators.map(operator => {
                     const cell = activeCells.find(item => item.route_id === route.id && item.operator_id === operator.id)
-                    return <HeatmapCell key={operator.id} value={cell?.sentiment_score ?? null} width={80} height={30} showValue label={`${operator.name} ${routeLabel(route.origin, route.destination)}`} onClick={() => setDrillRouteId(route.id)} />
+                    return <HeatmapCell key={operator.id} value={cell?.sentiment_score ?? null} width={100} height={30} showValue label={`${operator.name} ${routeLabel(route.origin, route.destination)}`} onClick={() => setDrillRouteId(route.id)} />
                   })}
                 </div>
               ))}
@@ -628,15 +628,16 @@ export default function RedbusAnalysisPage() {
       {(() => {
         const totalRoutes = routeRows.length
         const totalLeads = routeRows.filter(r => r.freshRank === 1).length
-        const totalReviews = sum(routeRows.map(r => r.reviewCount))
-        const gaps = routeRows.map(r => r.gap).filter(g => g != null) as number[]
-        const avgGap = gaps.length > 0 ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 0
+        const topThreeCount = routeRows.filter(r => (r.freshRank ?? 99) <= 3).length
+        const criticalCount = routeRows.filter(r => (r.freshRank ?? 99) > 3).length
+        
         const winRate = totalRoutes > 0 ? (totalLeads / totalRoutes) * 100 : 0
+        const topThreeRate = totalRoutes > 0 ? (topThreeCount / totalRoutes) * 100 : 0
         
         return (
           <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="glass-panel p-5">
-              <p className="text-[0.65rem] font-black uppercase tracking-wider text-slate-500">Routes Evaluated</p>
+            <div className="glass-panel p-5 border-b-4 border-b-blue-500">
+              <p className="text-[0.65rem] font-black uppercase tracking-wider text-blue-600">Routes Evaluated</p>
               <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{totalRoutes}</p>
               <p className="mt-0.5 text-xs font-semibold text-slate-500">Active market routes tracked</p>
             </div>
@@ -645,15 +646,15 @@ export default function RedbusAnalysisPage() {
               <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{totalLeads}</p>
               <p className="mt-0.5 text-xs font-semibold text-slate-500">{formatMetric(winRate, 1)}% win rate across network</p>
             </div>
-            <div className="glass-panel p-5">
-              <p className="text-[0.65rem] font-black uppercase tracking-wider text-slate-500">Total Reviews Analyzed</p>
-              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{formatCompact(totalReviews)}</p>
-              <p className="mt-0.5 text-xs font-semibold text-slate-500">Passenger feedback volume</p>
+            <div className="glass-panel p-5 border-b-4 border-b-purple-500">
+              <p className="text-[0.65rem] font-black uppercase tracking-wider text-purple-600">Top 3 Placements</p>
+              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{topThreeCount}</p>
+              <p className="mt-0.5 text-xs font-semibold text-slate-500">{formatMetric(topThreeRate, 1)}% of routes in top 3</p>
             </div>
-            <div className="glass-panel p-5 border-b-4 border-b-orange-500">
-              <p className="text-[0.65rem] font-black uppercase tracking-wider text-orange-600">Avg Market Gap</p>
-              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{avgGap > 0 ? '+' : ''}{formatMetric(avgGap, 2)}</p>
-              <p className="mt-0.5 text-xs font-semibold text-slate-500">Average distance from #1 leader</p>
+            <div className="glass-panel p-5 border-b-4 border-b-rose-500">
+              <p className="text-[0.65rem] font-black uppercase tracking-wider text-rose-600">Critical Attention</p>
+              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{criticalCount}</p>
+              <p className="mt-0.5 text-xs font-semibold text-slate-500">Routes ranking 4th or lower</p>
             </div>
           </section>
         )

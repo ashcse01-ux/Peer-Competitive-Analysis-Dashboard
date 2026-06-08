@@ -379,8 +379,12 @@
   .metric-tip {
     position: relative;
     cursor: help;
-    border-bottom: 1px dotted var(--text-muted);
     text-decoration: none;
+    transition: color 150ms ease;
+  }
+  
+  .metric-tip:hover {
+    color: var(--neon-blue);
   }
 
   span.metric-tip {
