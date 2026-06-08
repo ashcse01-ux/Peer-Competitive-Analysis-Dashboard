@@ -423,13 +423,13 @@ export default function RedbusAnalysisPage() {
           </div>
           <div className="overflow-x-auto">
             <div className="min-w-[780px] space-y-2">
-              <div className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, minmax(68px, 1fr))` }}>
+              <div className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 68px)` }}>
                 <span />
-                {operators.map(op => <span key={op.id} className="truncate text-center text-[0.68rem] font-black uppercase text-slate-600">{op.name}</span>)}
+                {operators.map(op => <span key={op.id} className="truncate text-center text-[0.68rem] font-black uppercase text-slate-800 dark:text-slate-200">{op.name}</span>)}
               </div>
               {displayRoutes.map(route => (
-                <div key={route.id} className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, minmax(68px, 1fr))` }}>
-                  <span className="truncate text-xs font-black text-slate-700">{routeLabel(route.origin, route.destination)}</span>
+                <div key={route.id} className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 68px)` }}>
+                  <span className="truncate text-xs font-black text-slate-800 dark:text-slate-100">{routeLabel(route.origin, route.destination)}</span>
                   {operators.map(operator => {
                     const cell = activeCells.find(item => item.route_id === route.id && item.operator_id === operator.id)
                     return <HeatmapCell key={operator.id} value={cell?.sentiment_score ?? null} width={68} height={30} showValue label={`${operator.name} ${routeLabel(route.origin, route.destination)}`} onClick={() => setDrillRouteId(route.id)} />
@@ -438,76 +438,92 @@ export default function RedbusAnalysisPage() {
               ))}
             </div>
           </div>
-          {/* Route Spread Chart inside this panel */}
-          <div className="mt-8">
-            <div className="mb-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-violet-700">
-                Route Spread
-              </div>
-              <h3 className="mt-2 text-lg font-black text-slate-900">Sentiment Score by Route &amp; Operator</h3>
-              <p className="mt-0.5 text-sm font-semibold text-slate-600">Comparing sentiment scores across all routes to identify performance patterns per operator.</p>
-            </div>
-            <ResponsiveContainer width="100%" height={360}>
-              <BarChart data={barRouteData} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(100,116,139,0.15)" />
-                <XAxis dataKey="name" tick={{ fill: '#475569', fontSize: 11, fontWeight: 800 }} axisLine={false} tickLine={false} />
-                <YAxis domain={[-1, 1]} tick={{ fill: '#475569', fontSize: 12, fontWeight: 700 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: '12px', background: 'rgba(15,20,30,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }} itemStyle={{ fontWeight: 900 }} />
-                <Legend wrapperStyle={{ paddingTop: '16px', fontSize: 13, fontWeight: 900 }} />
-                {operators.map(operator => <Bar key={operator.id} dataKey={operator.name} name={operator.name} fill={operator.color} radius={[6, 6, 0, 0]} />)}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
         </div>
         <div className="glass-panel p-4 sm:p-6">
           <div className="mb-5">
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-emerald-700 dark:text-[#34d399]">
               Operator Strength
             </div>
-            <h3 className="mt-3 text-xl font-black tracking-tight text-slate-900 dark:text-white">
-              <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">Avg Sentiment &amp; Avg Market Rank</span>
-            </h3>
-            <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-400">Aggregated scores across all active routes.</p>
           </div>
-          <div className="space-y-5 mt-2">
-            {operatorScores.map((operator, idx) => {
-              const sentimentPct = operator.avgSentiment == null ? 0 : ((operator.avgSentiment + 1) / 2) * 100
-              const maxRank = 6
-              const rankPct = operator.avgRank == null ? 0 : Math.max(0, ((maxRank + 1 - operator.avgRank) / maxRank) * 100)
-              return (
-                <div key={operator.id} className="space-y-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white" style={{ background: operator.color }}>{idx + 1}</span>
-                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">{operator.name}</p>
-                  </div>
-                  {/* Avg Sentiment bar */}
-                  <div className="space-y-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Avg Sentiment</span>
-                      <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">{formatMetric(operator.avgSentiment, 2)}</span>
+          <div className="space-y-8">
+            <div>
+              <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
+                <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">Average Sentiment</span>
+              </h3>
+              <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-400 mb-4">Aggregated sentiment score across all active routes.</p>
+              <div className="space-y-4">
+                {[...operatorScores].sort((a, b) => (b.avgSentiment ?? -1) - (a.avgSentiment ?? -1)).map((operator, idx) => {
+                  const sentimentPct = operator.avgSentiment == null ? 0 : ((operator.avgSentiment + 1) / 2) * 100
+                  return (
+                    <div key={`sent-${operator.id}`} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white shadow" style={{ background: operator.color }}>{idx + 1}</span>
+                          <p className="text-sm font-black text-slate-800 dark:text-slate-100">{operator.name}</p>
+                        </div>
+                        <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{formatMetric(operator.avgSentiment, 2)}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10 shadow-inner">
+                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${sentimentPct}%`, background: `linear-gradient(90deg, ${operator.color}80, ${operator.color})` }} />
+                      </div>
                     </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${sentimentPct}%`, background: `linear-gradient(90deg, ${operator.color}80, ${operator.color})` }} />
+                  )
+                })}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
+                <span className="bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">Average Market Rank</span>
+              </h3>
+              <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-400 mb-4">Aggregated competitive ranking across all active routes.</p>
+              <div className="space-y-4">
+                {[...operatorScores].sort((a, b) => (a.avgRank ?? 99) - (b.avgRank ?? 99)).map((operator, idx) => {
+                  const maxRank = 6
+                  const rankPct = operator.avgRank == null ? 0 : Math.max(0, ((maxRank + 1 - operator.avgRank) / maxRank) * 100)
+                  return (
+                    <div key={`rank-${operator.id}`} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white shadow" style={{ background: operator.color }}>{idx + 1}</span>
+                          <p className="text-sm font-black text-slate-800 dark:text-slate-100">{operator.name}</p>
+                        </div>
+                        <span className="text-sm font-black text-blue-600 dark:text-blue-400">#{formatMetric(operator.avgRank, 1)}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10 shadow-inner">
+                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${rankPct}%`, background: `linear-gradient(90deg, #3b82f680, #3b82f6)` }} />
+                      </div>
                     </div>
-                  </div>
-                  {/* Avg Rank bar */}
-                  <div className="space-y-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Avg Rank</span>
-                      <span className="text-xs font-black text-blue-600 dark:text-blue-400">#{formatMetric(operator.avgRank, 1)}</span>
-                    </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${rankPct}%`, background: 'linear-gradient(90deg, #3b82f680, #3b82f6)' }} />
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* 6 Route Insight Boxes */}
+      <section className="glass-panel p-4 sm:p-8">
+        <div className="mb-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-violet-700">
+            Route Spread
+          </div>
+          <h3 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
+            <span className="bg-gradient-to-r from-violet-500 to-indigo-500 bg-clip-text text-transparent">Sentiment Score by Route &amp; Operator</span>
+          </h3>
+          <p className="mt-1 text-sm font-semibold text-slate-600">Comparing sentiment scores across all routes to identify performance patterns per operator.</p>
+        </div>
+        <ResponsiveContainer width="100%" height={450}>
+          <BarChart data={barRouteData} margin={{ top: 20, right: 10, left: -20, bottom: 40 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(100,116,139,0.15)" />
+            <XAxis dataKey="name" tick={{ fill: '#475569', fontSize: 11, fontWeight: 800 }} axisLine={false} tickLine={false} />
+            <YAxis domain={[-1, 1]} tick={{ fill: '#475569', fontSize: 13, fontWeight: 800 }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={{ borderRadius: '12px', background: 'rgba(15,20,30,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }} itemStyle={{ fontWeight: 900 }} />
+            <Legend wrapperStyle={{ paddingTop: '20px', fontSize: 15, fontWeight: 900 }} />
+            {operators.map(operator => <Bar key={operator.id} dataKey={operator.name} name={operator.name} fill={operator.color} radius={[6, 6, 0, 0]} />)}
+          </BarChart>
+        </ResponsiveContainer>
+      </section>
+
+      {/* 9 Route Insight Boxes */}
       {(() => {
         const scored = routeRows.filter(r => r.freshRating != null)
         const sorted = [...scored].sort((a, b) => (b.freshRating ?? 0) - (a.freshRating ?? 0))
@@ -515,21 +531,27 @@ export default function RedbusAnalysisPage() {
         const worst = sorted[sorted.length - 1]
         const topSentiment = [...scored].sort((a, b) => (b.freshSentiment ?? -2) - (a.freshSentiment ?? -2))[0]
         const topLeader = [...scored].sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0))[0]
-        const topWin = [...scored].filter(r => (r.gap ?? 0) > 0).sort((a, b) => (b.gap ?? 0) - (a.gap ?? 0))[0]
+        const topWin = [...scored].filter(r => r.freshRank === 1).sort((a, b) => (b.gap ?? 0) - (a.gap ?? 0))[0]
         const mostReviewed = [...scored].sort((a, b) => (b.reviewCount ?? 0) - (a.reviewCount ?? 0))[0]
+        const hardestOpponent = [...scored].sort((a, b) => (b.leaderRating ?? 0) - (a.leaderRating ?? 0))[0]
+        const worstSentiment = [...scored].sort((a, b) => (a.freshSentiment ?? 2) - (b.freshSentiment ?? 2))[0]
+        const closestBattle = [...scored].filter(r => r.freshRank !== 1).sort((a, b) => Math.abs(a.gap ?? 99) - Math.abs(b.gap ?? 99))[0]
         const insights = [
           { icon: '🏆', label: 'Best Performing Route', value: best?.label ?? '—', sub: best ? `FreshBus avg rating: ${formatMetric(best.freshRating, 2)}` : '', color: '#10b981' },
           { icon: '⚠️', label: 'Weakest Route', value: worst?.label ?? '—', sub: worst ? `FreshBus avg rating: ${formatMetric(worst.freshRating, 2)}` : '', color: '#f43f5e' },
-          { icon: '😊', label: 'Highest Passenger Sentiment', value: topSentiment?.label ?? '—', sub: topSentiment ? `Sentiment score: ${formatMetric(topSentiment.freshSentiment, 2)}` : '', color: '#06b6d4' },
-          { icon: '📉', label: 'Biggest Competitor Gap', value: topLeader?.label ?? '—', sub: topLeader ? `Gap vs leader (${topLeader.leaderName}): ${formatMetric(topLeader.gap, 2)}` : '', color: '#f97316' },
           { icon: '🥇', label: 'FreshBus Market-Leading Route', value: topWin?.label ?? '—', sub: topWin ? `Leading by +${formatMetric(topWin.gap, 2)} over market` : 'No routes where FreshBus leads', color: '#8b5cf6' },
+          { icon: '😊', label: 'Highest Passenger Sentiment', value: topSentiment?.label ?? '—', sub: topSentiment ? `Sentiment score: ${formatMetric(topSentiment.freshSentiment, 2)}` : '', color: '#06b6d4' },
+          { icon: '😠', label: 'Lowest Passenger Sentiment', value: worstSentiment?.label ?? '—', sub: worstSentiment ? `Sentiment score: ${formatMetric(worstSentiment.freshSentiment, 2)}` : '', color: '#ef4444' },
+          { icon: '📉', label: 'Biggest Competitor Gap', value: topLeader?.label ?? '—', sub: topLeader ? `Gap vs leader (${topLeader.leaderName}): ${formatMetric(topLeader.gap, 2)}` : '', color: '#f97316' },
+          { icon: '⚔️', label: 'Closest Market Battle', value: closestBattle?.label ?? '—', sub: closestBattle ? `Just ${Math.abs(closestBattle.gap ?? 0).toFixed(2)} behind ${closestBattle.leaderName}` : '', color: '#eab308' },
+          { icon: '🔥', label: 'Strongest Opponent Route', value: hardestOpponent?.label ?? '—', sub: hardestOpponent ? `${hardestOpponent.leaderName} scores a massive ${formatMetric(hardestOpponent.leaderRating, 2)}` : '', color: '#dc2626' },
           { icon: '📊', label: 'Highest Review Volume Route', value: mostReviewed?.label ?? '—', sub: mostReviewed ? `${formatCompact(mostReviewed.reviewCount)} total reviews across operators` : '', color: '#0077b6' },
         ]
         return (
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {insights.map((ins, i) => (
               <div key={i} className="glass-panel flex gap-4 p-5" style={{ borderLeft: `4px solid ${ins.color}` }}>
-                <span className="text-2xl">{ins.icon}</span>
+                <span className="text-3xl">{ins.icon}</span>
                 <div>
                   <p className="text-[0.65rem] font-black uppercase tracking-wider" style={{ color: ins.color }}>{ins.label}</p>
                   <p className="mt-1 text-sm font-black text-slate-800">{ins.value}</p>
@@ -565,34 +587,36 @@ export default function RedbusAnalysisPage() {
           <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-blue-700">
             FreshBus Route Table
           </div>
-          <h2 className="mt-3 text-xl font-black tracking-tight text-slate-900">Route-by-Route Competitive Standing</h2>
+          <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
+            <span className="bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">Route-by-Route Competitive Standing</span>
+          </h2>
           <p className="mt-1 text-sm font-semibold text-slate-600">FreshBus rank, average rating, and gap vs. the market leader on every active route.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="data-table min-w-[940px]">
             <thead>
               <tr>
-                <th>Route</th>
-                <th><MetricTip tip={tip('competitiveRank')}>FreshBus Rank</MetricTip></th>
-                <th>FreshBus Avg Rating</th>
-                <th>Route Leader</th>
-                <th>Market Leader Avg Rating</th>
-                <th><MetricTip tip={tip('leaderGap')}>Leader Gap</MetricTip></th>
-                <th><MetricTip tip={tip('sentiment')}>Sentiment</MetricTip></th>
-                <th>Count of Avg Rating</th>
+                <th className="text-center">Route</th>
+                <th className="text-center"><MetricTip tip={tip('competitiveRank')}>FreshBus Rank</MetricTip></th>
+                <th className="text-center">FreshBus Avg Rating</th>
+                <th className="text-center">Route Leader</th>
+                <th className="text-center">Market Leader Avg Rating</th>
+                <th className="text-center"><MetricTip tip={tip('leaderGap')}>Leader Gap</MetricTip></th>
+                <th className="text-center"><MetricTip tip={tip('sentiment')}>Sentiment</MetricTip></th>
+                <th className="text-center">Count of Avg Rating</th>
               </tr>
             </thead>
             <tbody>
               {sortedRouteRows.map(row => (
                 <tr key={row.route_id}>
-                  <td className="font-black">{row.label}</td>
-                  <td className="font-black"><span className={cx('rounded-full px-2.5 py-1 text-xs font-black', rankClass(row.freshRank))}>{row.freshRank != null ? `#${row.freshRank}` : '—'}</span></td>
-                  <td className="font-black text-theme-primary">{row.freshRating ? formatMetric(row.freshRating, 2) : '—'}</td>
-                  <td>{row.leaderName}</td>
-                  <td className="font-black text-theme-primary">{row.leaderRating ? formatMetric(row.leaderRating, 2) : '—'}</td>
-                  <td className={cx('font-black', (row.gap ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700')}>{row.gap != null ? (row.gap >= 0 ? '+' : '') + formatMetric(row.gap, 2) : '—'}</td>
-                  <td className="font-black text-theme-secondary">{formatMetric(row.freshSentiment, 2)}</td>
-                  <td>{formatCompact(row.reviewCount)}</td>
+                  <td className="font-black text-center">{row.label}</td>
+                  <td className="font-black text-center"><span className={cx('rounded-full px-2.5 py-1 text-xs font-black', rankClass(row.freshRank))}>{row.freshRank != null ? `#${row.freshRank}` : '—'}</span></td>
+                  <td className="font-black text-theme-primary text-center">{row.freshRating ? formatMetric(row.freshRating, 2) : '—'}</td>
+                  <td className="text-center">{row.leaderName}</td>
+                  <td className="font-black text-theme-primary text-center">{row.leaderRating ? formatMetric(row.leaderRating, 2) : '—'}</td>
+                  <td className={cx('font-black text-center', (row.gap ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700')}>{row.gap != null ? (row.gap >= 0 ? '+' : '') + formatMetric(row.gap, 2) : '—'}</td>
+                  <td className="font-black text-theme-secondary text-center">{formatMetric(row.freshSentiment, 2)}</td>
+                  <td className="text-center">{formatCompact(row.reviewCount)}</td>
                 </tr>
               ))}
             </tbody>
@@ -600,18 +624,7 @@ export default function RedbusAnalysisPage() {
         </div>
       </section>
 
-      <section className="glass-panel p-4 sm:p-5">
-        <SectionHeader eyebrow="Action focus" title="Highest-pressure FreshBus routes" titleTip={tip('actionFocus')} trailing={<Target size={20} className="text-[#f45d48]" />} />
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          {sortedRouteRows.filter(r => r.gap != null).sort((a, b) => (b.gap ?? 0) - (a.gap ?? 0)).slice(0, 3).map(row => (
-            <article key={row.route_id} className="rounded-lg border border-slate-900/10 bg-white/60 p-4">
-              <p className="text-sm font-black">{row.label}</p>
-              <p className="mt-2 text-2xl font-black text-rose-700">{formatMetric(row.gap, 2)}</p>
-              <p className="mt-1 text-xs text-slate-500">Leader: {row.leaderName}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+      {/* Removing old action focus section to replace with the 9 insights */}
     </div>
   )
 }
