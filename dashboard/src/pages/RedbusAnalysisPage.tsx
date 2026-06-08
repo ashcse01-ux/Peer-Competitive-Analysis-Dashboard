@@ -523,34 +523,22 @@ export default function RedbusAnalysisPage() {
         </ResponsiveContainer>
       </section>
 
-      {/* 9 Route Insight Boxes */}
+      {/* Route Spread Sentiment Insights */}
       {(() => {
         const scored = routeRows.filter(r => r.freshRating != null)
-        const sorted = [...scored].sort((a, b) => (b.freshRating ?? 0) - (a.freshRating ?? 0))
-        const best = sorted[0]
-        const worst = sorted[sorted.length - 1]
         const topSentiment = [...scored].sort((a, b) => (b.freshSentiment ?? -2) - (a.freshSentiment ?? -2))[0]
-        const topLeader = [...scored].sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0))[0]
-        const topWin = [...scored].filter(r => r.freshRank === 1).sort((a, b) => (b.freshRating ?? 0) - (a.freshRating ?? 0))[0]
-        const mostReviewed = [...scored].sort((a, b) => (b.reviewCount ?? 0) - (a.reviewCount ?? 0))[0]
-        const hardestOpponent = [...scored].filter(r => r.leaderName !== 'FreshBus').sort((a, b) => (b.leaderRating ?? 0) - (a.leaderRating ?? 0))[0]
         const worstSentiment = [...scored].sort((a, b) => (a.freshSentiment ?? 2) - (b.freshSentiment ?? 2))[0]
-        const closestBattle = [...scored].filter(r => r.freshRank !== 1).sort((a, b) => Math.abs(a.gap ?? 99) - Math.abs(b.gap ?? 99))[0]
+        const sentLeader = [...operatorScores].sort((a, b) => (b.avgSentiment ?? -2) - (a.avgSentiment ?? -2))[0]
+        
         const insights = [
-          { icon: '🏆', label: 'Best Performing Route', value: best?.label ?? '—', sub: best ? `FreshBus avg rating: ${formatMetric(best.freshRating, 2)}` : '', color: '#10b981' },
-          { icon: '⚠️', label: 'Weakest Route', value: worst?.label ?? '—', sub: worst ? `FreshBus avg rating: ${formatMetric(worst.freshRating, 2)}` : '', color: '#f43f5e' },
-          { icon: '🥇', label: 'FreshBus Market-Leading Route', value: topWin?.label ?? '—', sub: topWin ? `Rank #1 with a ${formatMetric(topWin.freshRating, 2)} rating` : 'No routes where FreshBus leads', color: '#8b5cf6' },
           { icon: '😊', label: 'Highest Passenger Sentiment', value: topSentiment?.label ?? '—', sub: topSentiment ? `Sentiment score: ${formatMetric(topSentiment.freshSentiment, 2)}` : '', color: '#06b6d4' },
           { icon: '😠', label: 'Lowest Passenger Sentiment', value: worstSentiment?.label ?? '—', sub: worstSentiment ? `Sentiment score: ${formatMetric(worstSentiment.freshSentiment, 2)}` : '', color: '#ef4444' },
-          { icon: '📉', label: 'Biggest Competitor Gap', value: topLeader?.label ?? '—', sub: topLeader ? `Gap vs leader (${topLeader.leaderName}): ${formatMetric(topLeader.gap, 2)}` : '', color: '#f97316' },
-          { icon: '⚔️', label: 'Closest Market Battle', value: closestBattle?.label ?? '—', sub: closestBattle ? `Just ${Math.abs(closestBattle.gap ?? 0).toFixed(2)} behind ${closestBattle.leaderName}` : '', color: '#eab308' },
-          { icon: '🔥', label: 'Strongest Opponent Route', value: hardestOpponent?.label ?? '—', sub: hardestOpponent ? `${hardestOpponent.leaderName} dominates with a ${formatMetric(hardestOpponent.leaderRating, 2)} rating` : '', color: '#dc2626' },
-          { icon: '📊', label: 'Highest Review Volume Route', value: mostReviewed?.label ?? '—', sub: mostReviewed ? `${formatCompact(mostReviewed.reviewCount)} total reviews across operators` : '', color: '#0077b6' },
+          { icon: '🌟', label: 'Top Sentiment Operator', value: sentLeader?.name ?? '—', sub: sentLeader ? `Network avg sentiment: ${formatMetric(sentLeader.avgSentiment, 2)}` : '', color: '#10b981' },
         ]
         return (
-          <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <section className="mt-8 grid gap-4 sm:grid-cols-3">
             {insights.map((ins, i) => (
-              <div key={i} className="glass-panel flex gap-4 p-5" style={{ borderLeft: `4px solid ${ins.color}` }}>
+              <div key={`sent-ins-${i}`} className="glass-panel flex gap-4 p-5" style={{ borderLeft: `4px solid ${ins.color}` }}>
                 <span className="text-3xl">{ins.icon}</span>
                 <div>
                   <p className="text-[0.65rem] font-black uppercase tracking-wider" style={{ color: ins.color }}>{ins.label}</p>
@@ -634,29 +622,64 @@ export default function RedbusAnalysisPage() {
         const winRate = totalRoutes > 0 ? (totalLeads / totalRoutes) * 100 : 0
         const topThreeRate = totalRoutes > 0 ? (topThreeCount / totalRoutes) * 100 : 0
         
+        const scored = routeRows.filter(r => r.freshRating != null)
+        const sorted = [...scored].sort((a, b) => (b.freshRating ?? 0) - (a.freshRating ?? 0))
+        const best = sorted[0]
+        const worst = sorted[sorted.length - 1]
+        const topLeader = [...scored].sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0))[0]
+        const topWin = [...scored].filter(r => r.freshRank === 1).sort((a, b) => (b.freshRating ?? 0) - (a.freshRating ?? 0))[0]
+        const mostReviewed = [...scored].sort((a, b) => (b.reviewCount ?? 0) - (a.reviewCount ?? 0))[0]
+        const hardestOpponent = [...scored].filter(r => r.leaderName !== 'FreshBus').sort((a, b) => (b.leaderRating ?? 0) - (a.leaderRating ?? 0))[0]
+        const closestBattle = [...scored].filter(r => r.freshRank !== 1).sort((a, b) => Math.abs(a.gap ?? 99) - Math.abs(b.gap ?? 99))[0]
+        
+        const insights = [
+          { icon: '🏆', label: 'Best Performing Route', value: best?.label ?? '—', sub: best ? `FreshBus avg rating: ${formatMetric(best.freshRating, 2)}` : '', color: '#10b981' },
+          { icon: '⚠️', label: 'Weakest Route', value: worst?.label ?? '—', sub: worst ? `FreshBus avg rating: ${formatMetric(worst.freshRating, 2)}` : '', color: '#f43f5e' },
+          { icon: '🥇', label: 'FreshBus Market-Leading Route', value: topWin?.label ?? '—', sub: topWin ? `Rank #1 with a ${formatMetric(topWin.freshRating, 2)} rating` : 'No routes where FreshBus leads', color: '#8b5cf6' },
+          { icon: '📉', label: 'Biggest Competitor Gap', value: topLeader?.label ?? '—', sub: topLeader ? `Gap vs leader (${topLeader.leaderName}): ${formatMetric(topLeader.gap, 2)}` : '', color: '#f97316' },
+          { icon: '⚔️', label: 'Closest Market Battle', value: closestBattle?.label ?? '—', sub: closestBattle ? `Just ${Math.abs(closestBattle.gap ?? 0).toFixed(2)} behind ${closestBattle.leaderName}` : '', color: '#eab308' },
+          { icon: '🔥', label: 'Strongest Opponent Route', value: hardestOpponent?.label ?? '—', sub: hardestOpponent ? `${hardestOpponent.leaderName} dominates with a ${formatMetric(hardestOpponent.leaderRating, 2)} rating` : '', color: '#dc2626' },
+          { icon: '📊', label: 'Highest Review Volume Route', value: mostReviewed?.label ?? '—', sub: mostReviewed ? `${formatCompact(mostReviewed.reviewCount)} total reviews across operators` : '', color: '#0077b6' },
+        ]
+
         return (
-          <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="glass-panel p-5 border-b-4 border-b-blue-500">
-              <p className="text-[0.65rem] font-black uppercase tracking-wider text-blue-600">Routes Evaluated</p>
-              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{totalRoutes}</p>
-              <p className="mt-0.5 text-xs font-semibold text-slate-500">Active market routes tracked</p>
-            </div>
-            <div className="glass-panel p-5 border-b-4 border-b-emerald-500">
-              <p className="text-[0.65rem] font-black uppercase tracking-wider text-emerald-600">FreshBus Leads</p>
-              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{totalLeads}</p>
-              <p className="mt-0.5 text-xs font-semibold text-slate-500">{formatMetric(winRate, 1)}% win rate across network</p>
-            </div>
-            <div className="glass-panel p-5 border-b-4 border-b-purple-500">
-              <p className="text-[0.65rem] font-black uppercase tracking-wider text-purple-600">Top 3 Placements</p>
-              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{topThreeCount}</p>
-              <p className="mt-0.5 text-xs font-semibold text-slate-500">{formatMetric(topThreeRate, 1)}% of routes in top 3</p>
-            </div>
-            <div className="glass-panel p-5 border-b-4 border-b-rose-500">
-              <p className="text-[0.65rem] font-black uppercase tracking-wider text-rose-600">Critical Attention</p>
-              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{criticalCount}</p>
-              <p className="mt-0.5 text-xs font-semibold text-slate-500">Routes ranking 4th or lower</p>
-            </div>
-          </section>
+          <div className="space-y-6">
+            <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="glass-panel p-5 border-b-4 border-b-blue-500">
+                <p className="text-[0.65rem] font-black uppercase tracking-wider text-blue-600">Routes Evaluated</p>
+                <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{totalRoutes}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500">Active market routes tracked</p>
+              </div>
+              <div className="glass-panel p-5 border-b-4 border-b-emerald-500">
+                <p className="text-[0.65rem] font-black uppercase tracking-wider text-emerald-600">FreshBus Leads</p>
+                <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{totalLeads}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500">{formatMetric(winRate, 1)}% win rate across network</p>
+              </div>
+              <div className="glass-panel p-5 border-b-4 border-b-purple-500">
+                <p className="text-[0.65rem] font-black uppercase tracking-wider text-purple-600">Top 3 Placements</p>
+                <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{topThreeCount}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500">{formatMetric(topThreeRate, 1)}% of routes in top 3</p>
+              </div>
+              <div className="glass-panel p-5 border-b-4 border-b-rose-500">
+                <p className="text-[0.65rem] font-black uppercase tracking-wider text-rose-600">Critical Attention</p>
+                <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{criticalCount}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500">Routes ranking 4th or lower</p>
+              </div>
+            </section>
+            
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {insights.map((ins, i) => (
+                <div key={`table-ins-${i}`} className="glass-panel flex gap-4 p-5" style={{ borderLeft: `4px solid ${ins.color}` }}>
+                  <span className="text-3xl">{ins.icon}</span>
+                  <div>
+                    <p className="text-[0.65rem] font-black uppercase tracking-wider" style={{ color: ins.color }}>{ins.label}</p>
+                    <p className="mt-1 text-sm font-black text-slate-800">{ins.value}</p>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-500">{ins.sub}</p>
+                  </div>
+                </div>
+              ))}
+            </section>
+          </div>
         )
       })()}
     </div>
