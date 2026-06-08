@@ -324,12 +324,12 @@ export default function RedbusAnalysisPage() {
         </div>
         <div className="mt-4">
           <ResponsiveContainer width="100%" height={500}>
-            <BarChart data={advancedChartData} margin={{ top: 20, right: 10, left: -20, bottom: 60 }}>
+            <BarChart data={advancedChartData} margin={{ top: 20, right: 10, left: -20, bottom: 40 }}>
               <CartesianGrid className="chart-grid" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" tick={<CustomXAxisTick />} height={80} axisLine={false} tickLine={false} label={{ value: 'Review Dimensions', position: 'insideBottom', offset: -10, fill: 'currentColor', className: 'text-slate-500 dark:text-slate-400 font-bold text-sm' }} />
+              <XAxis dataKey="name" tick={<CustomXAxisTick />} height={60} axisLine={false} tickLine={false} />
               <YAxis domain={[3, 5]} tickCount={6} tick={{ fill: 'currentColor', className: 'text-slate-600 dark:text-slate-400' }} fontSize={13} fontWeight={800} axisLine={false} tickLine={false} />
               <Tooltip cursor={{ fill: 'var(--bg-elevated)' }} contentStyle={{ borderRadius: '12px', background: 'rgba(15,20,25,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }} itemStyle={{ fontWeight: 900 }} />
-              <Legend wrapperStyle={{ paddingTop: '20px', fontSize: 12, fontWeight: 900 }} />
+              <Legend wrapperStyle={{ paddingTop: '20px', fontSize: 15, fontWeight: 900 }} />
               {tagOperators.map(op => (
                 <Bar key={op.operator_slug} dataKey={op.operator_slug} name={op.operator_name} fill={operatorColor(op.operator_slug)} radius={[6, 6, 0, 0]} barSize={14} />
               ))}
@@ -338,37 +338,62 @@ export default function RedbusAnalysisPage() {
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
-        <div className="glass-panel p-4 sm:p-5">
-          <SectionHeader eyebrow={t('tags.correlation')} title={t('tags.correlationDesc')} titleTip={tip('correlation')} />
-          <div className="overflow-x-auto">
-            <div className="min-w-[520px] grid gap-1" style={{ gridTemplateColumns: `100px repeat(${tagIds.length}, 1fr)` }}>
-              <span />
-              {tagIds.map(id => <span key={id} className="truncate text-center text-[0.6rem] font-black uppercase text-theme-muted">{tagLabel(id).split(' ')[0]}</span>)}
-              {tagIds.map((rowId, ri) => (
-                <React.Fragment key={rowId}>
-                  <span className="truncate text-[0.65rem] font-black text-theme-secondary">{tagLabel(rowId).split(' ')[0]}</span>
-                  {tagIds.map((colId, ci) => {
-                    const isDiag = ri === ci
-                    const corr = isDiag ? 1 : correlations.find(c => (c.tag_a === rowId && c.tag_b === colId) || (c.tag_a === colId && c.tag_b === rowId))?.correlation ?? 0
-                    return <div key={`${rowId}-${colId}`} className="corr-cell flex h-8 items-center justify-center text-[0.65rem] font-black" style={{ background: isDiag ? 'var(--bg-elevated)' : corrColor(corr), opacity: isDiag ? 0.4 : 1 }}>{!isDiag && corr.toFixed(2)}</div>
-                  })}
-                </React.Fragment>
-              ))}
-            </div>
+      <section className="glass-panel overflow-hidden p-4 sm:p-8">
+        <div className="mb-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-purple-600 dark:text-[#a855f7]">
+            Tag Correlation Matrix
+          </div>
+          <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
+            <span className="bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent dark:from-[#818cf8] dark:to-[#c084fc]">How review dimensions move together across the market</span>
+          </h2>
+          <p className="mt-2 max-w-4xl text-sm font-bold leading-relaxed text-slate-600 dark:text-slate-400">
+            This heatmap displays the mathematical correlation between different rating dimensions. 
+            A score closer to <span className="text-emerald-500 font-black border-b border-emerald-500">1.0</span> means they are highly intertwined (if a passenger rates one highly, they almost always rate the other highly). 
+            A score closer to <span className="text-rose-500 font-black border-b border-rose-500">0.0</span> indicates the ratings are completely independent of each other.
+          </p>
+        </div>
+        <div className="overflow-x-auto pb-4">
+          <div className="min-w-[800px] grid gap-1" style={{ gridTemplateColumns: `120px repeat(${tagIds.length}, 1fr)` }}>
+            <span />
+            {tagIds.map(id => <span key={id} className="truncate text-center text-xs font-black uppercase text-slate-500">{tagLabel(id).split(' ')[0]}</span>)}
+            {tagIds.map((rowId, ri) => (
+              <React.Fragment key={rowId}>
+                <span className="truncate text-xs font-black text-slate-700 dark:text-slate-300">{tagLabel(rowId)}</span>
+                {tagIds.map((colId, ci) => {
+                  const isDiag = ri === ci
+                  const corr = isDiag ? 1 : correlations.find(c => (c.tag_a === rowId && c.tag_b === colId) || (c.tag_a === colId && c.tag_b === rowId))?.correlation ?? 0
+                  return (
+                    <div 
+                      key={`${rowId}-${colId}`} 
+                      className="corr-cell flex h-10 items-center justify-center rounded text-xs font-black transition-transform hover:scale-110 cursor-default shadow-sm" 
+                      style={{ background: isDiag ? 'rgba(100,116,139,0.1)' : corrColor(corr), color: isDiag ? 'transparent' : 'inherit' }}
+                      title={`${tagLabel(rowId)} and ${tagLabel(colId)} have a correlation of ${corr.toFixed(2)}`}
+                    >
+                      {!isDiag && corr.toFixed(2)}
+                    </div>
+                  )
+                })}
+              </React.Fragment>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="border-t border-[var(--border-subtle)] pt-2">
-        <SectionHeader eyebrow="Route analysis" title="Route-level sentiment, volume & FreshBus gaps" titleTip={tip('redbus')} />
-      </section>
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KPICard label="Tracked Routes" value={routes.length} tip={tip('trackedRoutes')} caption={`${coveragePct}% coverage`} icon={<MapIcon size={20} />} accent="#0077b6" />
-        <KPICard label="Total Reviews" value={formatCompact(totalReviews)} tip={tip('reviewVolume')} caption="Route review volume" icon={<Layers3 size={20} />} accent="#00a676" />
-        <KPICard label="Avg Sentiment" value={formatMetric(avgSentiment, 2)} tip={tip('sentiment')} caption="All route cells" icon={<Gauge size={20} />} accent="#ffb000" />
-        <KPICard label="FreshBus Top-2" value={topTwoShare} unit={topTwoShare != null ? '%' : ''} tip={tip('topTwo')} caption="Rank 1 or 2 routes" icon={<Trophy size={20} />} accent="#f45d48" />
+      <section className="glass-panel overflow-hidden p-4 sm:p-8">
+        <div className="mb-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-orange-600 dark:text-[#f97316]">
+            Route Analysis
+          </div>
+          <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
+            <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent dark:from-[#fb923c] dark:to-[#fbbf24]">Route-level sentiment, volume & FreshBus gaps</span>
+          </h2>
+          <p className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">Detailed breakdown of competitor presence and sentiment split by individual routes.</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <KPICard label="Tracked Routes" value={routes.length} tip={tip('trackedRoutes')} caption={`${coveragePct}% coverage`} icon={<MapIcon size={20} />} accent="#0077b6" />
+          <KPICard label="Avg Sentiment" value={formatMetric(avgSentiment, 2)} tip={tip('sentiment')} caption="All route cells" icon={<Gauge size={20} />} accent="#ffb000" />
+          <KPICard label="FreshBus Top-2" value={topTwoShare} unit={topTwoShare != null ? '%' : ''} tip={tip('topTwo')} caption="Rank 1 or 2 routes" icon={<Trophy size={20} />} accent="#f45d48" />
+        </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1fr_360px]">
@@ -382,7 +407,7 @@ export default function RedbusAnalysisPage() {
               </div>
               {displayRoutes.map(route => (
                 <div key={route.id} className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, minmax(68px, 1fr))` }}>
-                  <span className="truncate text-xs font-black text-slate-600">{routeLabel(route.origin, route.destination)}</span>
+                  <span className="truncate text-xs font-black text-slate-600 dark:text-slate-300">{routeLabel(route.origin, route.destination)}</span>
                   {operators.map(operator => {
                     const cell = activeCells.find(item => item.route_id === route.id && item.operator_id === operator.id)
                     return <HeatmapCell key={operator.id} value={cell?.sentiment_score ?? null} width={68} height={30} showValue label={`${operator.name} ${routeLabel(route.origin, route.destination)}`} onClick={() => setDrillRouteId(route.id)} />
@@ -393,23 +418,22 @@ export default function RedbusAnalysisPage() {
           </div>
         </div>
         <div className="glass-panel p-4 sm:p-5">
-          <SectionHeader eyebrow="Operator strength" title="Average sentiment and rank" titleTip={tip('sentiment')} />
-          <div className="space-y-3">
+          <SectionHeader eyebrow="Operator strength" title="Average sentiment and rank" titleTip={tip('sentiment')} subtitle="Aggregate sentiment analysis across all matching routes." />
+          <div className="space-y-4 mt-6">
             {operatorScores.map(operator => (
-              <div key={operator.id} className="border-b border-slate-900/10 pb-3 last:border-b-0">
+              <div key={operator.id} className="border-b border-slate-900/10 dark:border-white/10 pb-4 last:border-b-0">
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-black">{operator.name}</p>
-                  <span className="text-xs font-black text-slate-500">Avg rank {formatMetric(operator.avgRank, 1)}</span>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-black text-slate-800 dark:text-slate-200">{operator.name}</p>
+                    <span className="rounded bg-slate-100 dark:bg-white/5 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">Rank {formatMetric(operator.avgRank, 1)}</span>
+                  </div>
+                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{formatMetric(operator.avgSentiment, 2)}</span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-slate-900/5">
-                  <div className="h-full rounded-full" style={{ width: `${operator.avgSentiment == null ? 0 : ((operator.avgSentiment + 1) / 2) * 100}%`, backgroundColor: operator.color }} />
+                <div className="h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${operator.avgSentiment == null ? 0 : ((operator.avgSentiment + 1) / 2) * 100}%`, backgroundColor: operator.color }} />
                 </div>
               </div>
             ))}
-          </div>
-          <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
-            <p className="text-sm font-black">{sentimentLeader?.name ?? 'No data'}</p>
-            <p className="text-xs font-bold text-emerald-700">{formatMetric(sentimentLeader?.avgSentiment, 2)} avg route sentiment</p>
           </div>
         </div>
       </section>
