@@ -105,27 +105,13 @@ export default function RedbusAnalysisPage() {
   const totalReviews = sum(activeCells.map(c => c.review_count))
   const avgSentiment = average(activeCells.map(c => c.sentiment_score))
   const coveragePct = activeCells.length ? Math.round((activeCells.filter(c => c.sentiment_score != null).length / activeCells.length) * 100) : 0
-  const topTwoShare = freshbusCells.length
-    ? Math.round((freshbusCells.filter(c => (c.competitive_rank ?? 99) <= 2).length / freshbusCells.length) * 100)
-    : null
-
-  const barData = tagOperators.map(op => ({
-    name: op.operator_name.slice(0, 10),
-    score: selectedTag === 'overall' ? op.composite_tag_score : (op.tags.find(item => item.tag_id === selectedTag)?.score ?? 0),
-    fill: operatorColor(op.operator_slug),
-  })).sort((a, b) => b.score - a.score)
-
-  const radarData = freshbusTags && tagLeader ? tags.map(tag => ({
-    tag: tagLabel(tag.id).slice(0, 12),
-    freshbus: freshbusTags.tags.find(item => item.tag_id === tag.id)?.score ?? 0,
-    leader: tagLeader.tags.find(item => item.tag_id === tag.id)?.score ?? 0,
-  })) : []
-
-  const gapData = freshbusTags && tagLeader ? tags.map(tag => {
-    const fb = freshbusTags.tags.find(item => item.tag_id === tag.id)?.score ?? 0
-    const ld = tagLeader.tags.find(item => item.tag_id === tag.id)?.score ?? 0
-    return { tag: tagLabel(tag.id), gap: Number((fb - ld).toFixed(2)) }
-  }).sort((a, b) => a.gap - b.gap) : []
+  const advancedChartData = tags.map(tag => {
+    const obj: any = { name: tagLabel(tag.id) }
+    tagOperators.forEach(op => {
+      obj[op.operator_slug] = op.tags.find(t => t.tag_id === tag.id)?.score ?? 0
+    })
+    return obj
+  })
 
   const operatorScores = operators.map(operator => {
     const rows = activeCells.filter(c => c.operator_id === operator.id && c.sentiment_score != null)
@@ -183,15 +169,15 @@ export default function RedbusAnalysisPage() {
               titleTip={tip('reviewClassification')}
             />
           </div>
-          <div className="glass-panel p-3">
-            <MetricTip tip="Filter to one origin-destination pair" as="label" className="mb-1 block text-xs font-black uppercase text-theme-muted">Route direction</MetricTip>
+          <div className="flex items-center">
             <select
-              className="h-10 max-w-full rounded-full border border-slate-900/10 bg-white/80 px-3 text-sm font-bold text-[#14211f] outline-none"
+              className="glass-panel h-11 min-w-[220px] cursor-pointer appearance-none rounded-xl border border-white/10 bg-white/5 px-5 text-sm font-black text-theme-primary outline-none transition-colors hover:bg-white/10 focus:border-[var(--neon-blue)] focus:ring-1 focus:ring-[var(--neon-blue)]"
               value={activeRouteFilter ?? ''}
               onChange={e => setActiveRouteFilter(e.target.value === '' ? null : Number(e.target.value))}
+              style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23a1a1aa\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1.2em 1.2em' }}
             >
-              <option value="">All directions</option>
-              {routes.map(route => <option key={route.id} value={route.id}>{routeLabel(route.origin, route.destination)}</option>)}
+              <option value="" className="bg-slate-900 font-bold">-- All Routes --</option>
+              {routes.map(route => <option key={route.id} value={route.id} className="bg-slate-900 font-bold">{routeLabel(route.origin, route.destination)}</option>)}
             </select>
           </div>
         </div>
@@ -211,13 +197,16 @@ export default function RedbusAnalysisPage() {
 
       {/* Operator tag leaderboard — moved to top */}
       <section className="glass-panel overflow-hidden">
-        <div className="border-b border-[var(--border-subtle)] p-4 sm:p-5">
+        <div className="flex flex-col gap-4 border-b border-[var(--border-subtle)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <SectionHeader
             eyebrow="Operator tag leaderboard"
-            title={`All 9 dimensions · Market avg ${formatMetric(marketAvg, 2)}`}
-            eyebrowTip={tip('compositeTagScore')}
-            titleTip={tip('marketAvg')}
+            title="All 9 dimensions"
+            titleTip={tip('dimensionScore')}
           />
+          <div className="flex shrink-0 flex-col items-end justify-center rounded-xl border border-[var(--neon-blue)]/30 bg-[var(--neon-blue)]/10 px-5 py-2.5 shadow-[0_0_15px_rgba(0,212,255,0.15)]">
+            <span className="text-[0.65rem] font-black uppercase tracking-wider text-[var(--neon-blue)]">Average composite score across market</span>
+            <span className="text-2xl font-black text-white drop-shadow-md">{formatMetric(marketAvg, 2)}</span>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="data-table min-w-[1100px]">
@@ -226,7 +215,7 @@ export default function RedbusAnalysisPage() {
                 <th><MetricTip tip={tip('rank')}>Rank</MetricTip></th>
                 <th>Operator</th>
                 <th><MetricTip tip={tip('compositeTagScore')}>Composite</MetricTip></th>
-                {tags.map(tag => <th key={tag.id}><MetricTip tip={tagLabel(tag.id)}>{tagLabel(tag.id).split(' ')[0]}</MetricTip></th>)}
+                {tags.map(tag => <th key={tag.id} className="whitespace-nowrap"><MetricTip tip={tagLabel(tag.id)}>{tagLabel(tag.id)}</MetricTip></th>)}
               </tr>
             </thead>
             <tbody>
@@ -252,37 +241,26 @@ export default function RedbusAnalysisPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KPICard label={t('tags.composite')} value={formatMetric(freshbusTags?.composite_tag_score, 2)} tip={tip('compositeTagScore')} caption={`Rank #${freshbusTags?.rank ?? '—'}`} icon={<Gauge size={20} />} accent="var(--neon-blue)" />
-        <KPICard label={t('tags.reviews')} value={tagOperators.reduce((n, o) => n + o.review_count, 0).toLocaleString('en-IN')} tip={tip('taggedReviews')} caption="Tagged reviews" icon={<Layers3 size={20} />} accent="var(--neon-yellow)" />
+      <section className="grid gap-4 sm:grid-cols-3">
+        <KPICard label={t('tags.composite')} value={formatMetric(freshbusTags?.composite_tag_score, 2)} tip={tip('compositeTagScore')} caption={`Freshbus - Rank #${freshbusTags?.rank ?? '—'}`} icon={<Gauge size={20} />} accent="var(--neon-blue)" />
         <KPICard label={t('tags.strongest')} value={insights?.freshbus_strength ? tagLabel(insights.freshbus_strength) : '—'} tip={tip('strongestDimension')} caption="FreshBus advantage" icon={<Sparkles size={20} />} accent="var(--neon-green)" />
         <KPICard label={t('tags.weakest')} value={insights?.freshbus_gap ? tagLabel(insights.freshbus_gap) : '—'} tip={tip('weakestDimension')} caption="Improvement priority" icon={<Target size={20} />} accent="var(--neon-orange)" />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
-        <div className="glass-panel p-4 sm:p-5">
-          <SectionHeader eyebrow={t('tags.operatorCompare')} title={`${selectedTag === 'overall' ? 'Overall composite' : tagLabel(selectedTag)} scores`} titleTip={tip('dimensionScore')} />
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={barData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-              <CartesianGrid className="chart-grid" vertical={false} />
-              <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 5]} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="score" name="Score" radius={[8, 8, 0, 0]}>{barData.map((e, i) => <Cell key={i} fill={e.fill} />)}</Bar>
+      <section className="glass-panel overflow-hidden p-4 sm:p-5">
+        <SectionHeader eyebrow="Advanced Visual Analytics" title="Comprehensive Market Tag Matrix" titleTip="Full breakdown of all operators across all 9 dimensions." />
+        <div className="mt-6">
+          <ResponsiveContainer width="100%" height={450}>
+            <BarChart data={advancedChartData} margin={{ top: 20, right: 10, left: -20, bottom: 60 }}>
+              <CartesianGrid className="chart-grid" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 800 }} angle={-35} textAnchor="end" axisLine={false} tickLine={false} />
+              <YAxis domain={[3, 5]} tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <Tooltip cursor={{ fill: 'var(--bg-elevated)' }} contentStyle={{ borderRadius: '12px', background: 'rgba(15,20,25,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }} itemStyle={{ fontWeight: 900 }} />
+              <Legend wrapperStyle={{ paddingTop: '20px', fontSize: 12, fontWeight: 900 }} />
+              {tagOperators.map(op => (
+                <Bar key={op.operator_slug} dataKey={op.operator_slug} name={op.operator_name} fill={operatorColor(op.operator_slug)} radius={[6, 6, 0, 0]} barSize={14} />
+              ))}
             </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="glass-panel p-4 sm:p-5">
-          <SectionHeader eyebrow={t('tags.radar')} title={t('tags.freshbusFocus')} titleTip={tip('radar')} trailing={<Award size={20} className="text-[var(--neon-yellow)]" />} />
-          <ResponsiveContainer width="100%" height={320}>
-            <RadarChart data={radarData} outerRadius="72%">
-              <PolarGrid stroke="var(--chart-grid)" />
-              <PolarAngleAxis dataKey="tag" tick={{ fill: 'var(--text-muted)', fontSize: 9, fontWeight: 700 }} />
-              <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fill: 'var(--text-muted)', fontSize: 9 }} axisLine={false} />
-              <Radar name="FreshBus" dataKey="freshbus" stroke="#00d4ff" fill="#00d4ff" fillOpacity={0.2} strokeWidth={2.5} />
-              <Radar name={tagLeader?.operator_name ?? 'Leader'} dataKey="leader" stroke="#ffea00" fill="#ffea00" fillOpacity={0.12} strokeWidth={2} />
-              <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-            </RadarChart>
           </ResponsiveContainer>
         </div>
       </section>
@@ -305,17 +283,6 @@ export default function RedbusAnalysisPage() {
                 </React.Fragment>
               ))}
             </div>
-          </div>
-        </div>
-        <div className="glass-panel p-4 sm:p-5">
-          <SectionHeader eyebrow={t('tags.gapAnalysis')} title={`FreshBus vs ${tagLeader?.operator_name ?? 'Leader'}`} titleTip={tip('tagGap')} trailing={<Zap size={20} className="text-[var(--neon-pink)]" />} />
-          <div className="space-y-2">
-            {gapData.map(item => (
-              <div key={item.tag} className="flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
-                <span className="w-28 shrink-0 truncate text-xs font-black">{item.tag}</span>
-                <span className={cx('ml-auto text-xs font-black', item.gap >= 0 ? 'text-emerald-500' : 'text-rose-500')}>{item.gap >= 0 ? '+' : ''}{item.gap.toFixed(2)}</span>
-              </div>
-            ))}
           </div>
         </div>
       </section>
