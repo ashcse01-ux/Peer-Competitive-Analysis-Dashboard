@@ -422,17 +422,17 @@ export default function RedbusAnalysisPage() {
             <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-400">Each cell shows the sentiment score for that operator on a specific route.</p>
           </div>
           <div className="overflow-x-auto">
-            <div className="min-w-[780px] space-y-2">
-              <div className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 68px)` }}>
+            <div className="min-w-[850px] space-y-2">
+              <div className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 80px)` }}>
                 <span />
-                {operators.map(op => <span key={op.id} className="truncate text-center text-[0.68rem] font-black uppercase text-slate-800 dark:text-slate-200">{op.name}</span>)}
+                {operators.map(op => <span key={op.id} className="truncate text-center text-[0.68rem] font-black uppercase text-slate-900 dark:text-slate-200">{op.name}</span>)}
               </div>
               {displayRoutes.map(route => (
-                <div key={route.id} className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 68px)` }}>
-                  <span className="truncate text-xs font-black text-slate-800 dark:text-slate-100">{routeLabel(route.origin, route.destination)}</span>
+                <div key={route.id} className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 80px)` }}>
+                  <span className="truncate text-xs font-black text-slate-900 dark:text-slate-100">{routeLabel(route.origin, route.destination)}</span>
                   {operators.map(operator => {
                     const cell = activeCells.find(item => item.route_id === route.id && item.operator_id === operator.id)
-                    return <HeatmapCell key={operator.id} value={cell?.sentiment_score ?? null} width={68} height={30} showValue label={`${operator.name} ${routeLabel(route.origin, route.destination)}`} onClick={() => setDrillRouteId(route.id)} />
+                    return <HeatmapCell key={operator.id} value={cell?.sentiment_score ?? null} width={80} height={30} showValue label={`${operator.name} ${routeLabel(route.origin, route.destination)}`} onClick={() => setDrillRouteId(route.id)} />
                   })}
                 </div>
               ))}
@@ -459,7 +459,7 @@ export default function RedbusAnalysisPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white shadow" style={{ background: operator.color }}>{idx + 1}</span>
-                          <p className="text-sm font-black text-slate-800 dark:text-slate-100">{operator.name}</p>
+                          <p className="text-sm font-black text-slate-900 dark:text-slate-100">{operator.name}</p>
                         </div>
                         <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{formatMetric(operator.avgSentiment, 2)}</span>
                       </div>
@@ -485,7 +485,7 @@ export default function RedbusAnalysisPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white shadow" style={{ background: operator.color }}>{idx + 1}</span>
-                          <p className="text-sm font-black text-slate-800 dark:text-slate-100">{operator.name}</p>
+                          <p className="text-sm font-black text-slate-900 dark:text-slate-100">{operator.name}</p>
                         </div>
                         <span className="text-sm font-black text-blue-600 dark:text-blue-400">#{formatMetric(operator.avgRank, 1)}</span>
                       </div>
@@ -531,20 +531,20 @@ export default function RedbusAnalysisPage() {
         const worst = sorted[sorted.length - 1]
         const topSentiment = [...scored].sort((a, b) => (b.freshSentiment ?? -2) - (a.freshSentiment ?? -2))[0]
         const topLeader = [...scored].sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0))[0]
-        const topWin = [...scored].filter(r => r.freshRank === 1).sort((a, b) => (b.gap ?? 0) - (a.gap ?? 0))[0]
+        const topWin = [...scored].filter(r => r.freshRank === 1).sort((a, b) => (b.freshRating ?? 0) - (a.freshRating ?? 0))[0]
         const mostReviewed = [...scored].sort((a, b) => (b.reviewCount ?? 0) - (a.reviewCount ?? 0))[0]
-        const hardestOpponent = [...scored].sort((a, b) => (b.leaderRating ?? 0) - (a.leaderRating ?? 0))[0]
+        const hardestOpponent = [...scored].filter(r => r.leaderName !== 'FreshBus').sort((a, b) => (b.leaderRating ?? 0) - (a.leaderRating ?? 0))[0]
         const worstSentiment = [...scored].sort((a, b) => (a.freshSentiment ?? 2) - (b.freshSentiment ?? 2))[0]
         const closestBattle = [...scored].filter(r => r.freshRank !== 1).sort((a, b) => Math.abs(a.gap ?? 99) - Math.abs(b.gap ?? 99))[0]
         const insights = [
           { icon: '🏆', label: 'Best Performing Route', value: best?.label ?? '—', sub: best ? `FreshBus avg rating: ${formatMetric(best.freshRating, 2)}` : '', color: '#10b981' },
           { icon: '⚠️', label: 'Weakest Route', value: worst?.label ?? '—', sub: worst ? `FreshBus avg rating: ${formatMetric(worst.freshRating, 2)}` : '', color: '#f43f5e' },
-          { icon: '🥇', label: 'FreshBus Market-Leading Route', value: topWin?.label ?? '—', sub: topWin ? `Leading by +${formatMetric(topWin.gap, 2)} over market` : 'No routes where FreshBus leads', color: '#8b5cf6' },
+          { icon: '🥇', label: 'FreshBus Market-Leading Route', value: topWin?.label ?? '—', sub: topWin ? `Rank #1 with a ${formatMetric(topWin.freshRating, 2)} rating` : 'No routes where FreshBus leads', color: '#8b5cf6' },
           { icon: '😊', label: 'Highest Passenger Sentiment', value: topSentiment?.label ?? '—', sub: topSentiment ? `Sentiment score: ${formatMetric(topSentiment.freshSentiment, 2)}` : '', color: '#06b6d4' },
           { icon: '😠', label: 'Lowest Passenger Sentiment', value: worstSentiment?.label ?? '—', sub: worstSentiment ? `Sentiment score: ${formatMetric(worstSentiment.freshSentiment, 2)}` : '', color: '#ef4444' },
           { icon: '📉', label: 'Biggest Competitor Gap', value: topLeader?.label ?? '—', sub: topLeader ? `Gap vs leader (${topLeader.leaderName}): ${formatMetric(topLeader.gap, 2)}` : '', color: '#f97316' },
           { icon: '⚔️', label: 'Closest Market Battle', value: closestBattle?.label ?? '—', sub: closestBattle ? `Just ${Math.abs(closestBattle.gap ?? 0).toFixed(2)} behind ${closestBattle.leaderName}` : '', color: '#eab308' },
-          { icon: '🔥', label: 'Strongest Opponent Route', value: hardestOpponent?.label ?? '—', sub: hardestOpponent ? `${hardestOpponent.leaderName} scores a massive ${formatMetric(hardestOpponent.leaderRating, 2)}` : '', color: '#dc2626' },
+          { icon: '🔥', label: 'Strongest Opponent Route', value: hardestOpponent?.label ?? '—', sub: hardestOpponent ? `${hardestOpponent.leaderName} dominates with a ${formatMetric(hardestOpponent.leaderRating, 2)} rating` : '', color: '#dc2626' },
           { icon: '📊', label: 'Highest Review Volume Route', value: mostReviewed?.label ?? '—', sub: mostReviewed ? `${formatCompact(mostReviewed.reviewCount)} total reviews across operators` : '', color: '#0077b6' },
         ]
         return (
@@ -624,7 +624,40 @@ export default function RedbusAnalysisPage() {
         </div>
       </section>
 
-      {/* Removing old action focus section to replace with the 9 insights */}
+      {/* Table Summary Insights */}
+      {(() => {
+        const totalRoutes = routeRows.length
+        const totalLeads = routeRows.filter(r => r.freshRank === 1).length
+        const totalReviews = sum(routeRows.map(r => r.reviewCount))
+        const gaps = routeRows.map(r => r.gap).filter(g => g != null) as number[]
+        const avgGap = gaps.length > 0 ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 0
+        const winRate = totalRoutes > 0 ? (totalLeads / totalRoutes) * 100 : 0
+        
+        return (
+          <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="glass-panel p-5">
+              <p className="text-[0.65rem] font-black uppercase tracking-wider text-slate-500">Routes Evaluated</p>
+              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{totalRoutes}</p>
+              <p className="mt-0.5 text-xs font-semibold text-slate-500">Active market routes tracked</p>
+            </div>
+            <div className="glass-panel p-5 border-b-4 border-b-emerald-500">
+              <p className="text-[0.65rem] font-black uppercase tracking-wider text-emerald-600">FreshBus Leads</p>
+              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{totalLeads}</p>
+              <p className="mt-0.5 text-xs font-semibold text-slate-500">{formatMetric(winRate, 1)}% win rate across network</p>
+            </div>
+            <div className="glass-panel p-5">
+              <p className="text-[0.65rem] font-black uppercase tracking-wider text-slate-500">Total Reviews Analyzed</p>
+              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{formatCompact(totalReviews)}</p>
+              <p className="mt-0.5 text-xs font-semibold text-slate-500">Passenger feedback volume</p>
+            </div>
+            <div className="glass-panel p-5 border-b-4 border-b-orange-500">
+              <p className="text-[0.65rem] font-black uppercase tracking-wider text-orange-600">Avg Market Gap</p>
+              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{avgGap > 0 ? '+' : ''}{formatMetric(avgGap, 2)}</p>
+              <p className="mt-0.5 text-xs font-semibold text-slate-500">Average distance from #1 leader</p>
+            </div>
+          </section>
+        )
+      })()}
     </div>
   )
 }
