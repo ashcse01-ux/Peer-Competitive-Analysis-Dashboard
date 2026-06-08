@@ -105,11 +105,11 @@ const CustomXAxisTick = ({ x, y, payload }: any) => {
   const words = payload.value.split(' ')
   return (
     <g transform={`translate(${x},${y})`}>
-      <text x={0} y={15} textAnchor="middle" fill="var(--text-muted)" fontSize={12} fontWeight={800}>
+      <text x={0} y={15} textAnchor="middle" fill="currentColor" className="text-slate-600 dark:text-slate-400" fontSize={13} fontWeight={800}>
         {words[0]}
       </text>
       {words.length > 1 && (
-        <text x={0} y={30} textAnchor="middle" fill="var(--text-muted)" fontSize={12} fontWeight={800}>
+        <text x={0} y={32} textAnchor="middle" fill="currentColor" className="text-slate-600 dark:text-slate-400" fontSize={13} fontWeight={800}>
           {words.slice(1).join(' ')}
         </text>
       )}
@@ -280,7 +280,7 @@ export default function RedbusAnalysisPage() {
                 <th><MetricTip tip={tip('rank')}>Rank</MetricTip></th>
                 <th>Operator</th>
                 <th className="text-center"><MetricTip tip={tip('compositeTagScore')}>Composite</MetricTip></th>
-                {tags.map(tag => <th key={tag.id} className="text-center max-w-[90px] whitespace-normal break-words leading-snug"><MetricTip tip={tagLabel(tag.id)}>{tagLabel(tag.id)}</MetricTip></th>)}
+                {tags.map(tag => <th key={tag.id} className="text-center min-w-[100px] whitespace-normal leading-snug"><MetricTip tip={tagLabel(tag.id)}>{tagLabel(tag.id)}</MetricTip></th>)}
               </tr>
             </thead>
             <tbody>
@@ -318,16 +318,16 @@ export default function RedbusAnalysisPage() {
             Advanced Visual Analytics
           </div>
           <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
-            Comprehensive <span className="bg-gradient-to-r from-pink-500 to-violet-500 bg-clip-text text-transparent dark:from-[#ff00a0] dark:to-[#7a00ff]">Market Tag Matrix</span>
+            <span className="bg-gradient-to-r from-pink-500 to-violet-500 bg-clip-text text-transparent dark:from-[#ff00a0] dark:to-[#7a00ff]">Comprehensive Market Tag Matrix</span>
           </h2>
           <p className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">Head-to-head performance across all operational categories</p>
         </div>
         <div className="mt-4">
-          <ResponsiveContainer width="100%" height={480}>
-            <BarChart data={advancedChartData} margin={{ top: 20, right: 10, left: -20, bottom: 40 }}>
+          <ResponsiveContainer width="100%" height={500}>
+            <BarChart data={advancedChartData} margin={{ top: 20, right: 10, left: -20, bottom: 60 }}>
               <CartesianGrid className="chart-grid" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" tick={<CustomXAxisTick />} height={60} axisLine={false} tickLine={false} />
-              <YAxis domain={[3, 5]} tickCount={6} tick={{ fill: 'var(--text-muted)', fontSize: 13, fontWeight: 800 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="name" tick={<CustomXAxisTick />} height={80} axisLine={false} tickLine={false} label={{ value: 'Review Dimensions', position: 'insideBottom', offset: -10, fill: 'currentColor', className: 'text-slate-500 dark:text-slate-400 font-bold text-sm' }} />
+              <YAxis domain={[3, 5]} tickCount={6} tick={{ fill: 'currentColor', className: 'text-slate-600 dark:text-slate-400' }} fontSize={13} fontWeight={800} axisLine={false} tickLine={false} />
               <Tooltip cursor={{ fill: 'var(--bg-elevated)' }} contentStyle={{ borderRadius: '12px', background: 'rgba(15,20,25,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }} itemStyle={{ fontWeight: 900 }} />
               <Legend wrapperStyle={{ paddingTop: '20px', fontSize: 12, fontWeight: 900 }} />
               {tagOperators.map(op => (
