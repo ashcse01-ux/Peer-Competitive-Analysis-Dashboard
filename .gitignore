@@ -1,0 +1,27 @@
+# Real environment file — never commit secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Node / Frontend
+node_modules/
+**/node_modules/
+dist/
+build/
+.npm/
+
+# Local binaries and downloads
+node-v*/
+node.tar.gz
+*.tar.gz
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/

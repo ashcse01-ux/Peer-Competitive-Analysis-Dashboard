@@ -1,0 +1,26 @@
+{
+  "freshbus": {
+    "google_play": "com.freshbus.app",
+    "ios_app_store": "6446029083"
+  },
+  "neugo": {
+    "google_play": "com.gcm.nuego",
+    "ios_app_store": "1614748106"
+  },
+  "flixbus": {
+    "google_play": "de.flixbus.app",
+    "ios_app_store": "778437357"
+  },
+  "zingbus": {
+    "google_play": "com.zingbusbtoc.zingbus",
+    "ios_app_store": "1600049529"
+  },
+  "leafy": {
+    "google_play": "com.leafybus.booking",
+    "ios_app_store": "6756869933"
+  },
+  "intrcity": {
+    "google_play": "bus.tickets.intrcity",
+    "ios_app_store": "1493367638"
+  }
+}

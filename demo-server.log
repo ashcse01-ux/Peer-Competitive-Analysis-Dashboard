@@ -1,0 +1,268 @@
+
+============================================================
+  FreshBus Competitor Dashboard — Demo Server
+============================================================
+  Dashboard : http://localhost:8000
+  API docs  : http://localhost:8000/api/docs
+  Health    : http://localhost:8000/health
+============================================================
+
+INFO:     127.0.0.1:50108 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50108 - "GET /assets/index-DqJ4vqWP.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57392 - "GET /assets/index-Bmo0I34g.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50108 - "GET /assets/OverviewPage-DuMPBXJn.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57392 - "GET /assets/KPICard--o1_5Ubr.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56331 - "GET /assets/trophy-DpgWqeaL.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56331 - "GET /assets/layers-ChIAHw3a.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56331 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57392 - "GET /api/v1/metrics/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54576 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54576 - "GET /assets/index-DqJ4vqWP.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52343 - "GET /assets/index-Bmo0I34g.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52343 - "GET /assets/OverviewPage-DuMPBXJn.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54576 - "GET /assets/KPICard--o1_5Ubr.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54576 - "GET /assets/layers-ChIAHw3a.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52343 - "GET /assets/trophy-DpgWqeaL.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54576 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54576 - "GET /api/v1/metrics/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62911 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51476 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51476 - "GET /app-store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51476 - "GET /assets/index-DqJ4vqWP.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51476 - "GET /assets/index-Bmo0I34g.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51476 - "GET /assets/AppStorePage-C-9xKS_s.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58270 - "GET /assets/HeatmapCell-Cth6E8Uh.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51476 - "GET /assets/LineChart-DmH4Nfle.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58270 - "GET /assets/KPICard--o1_5Ubr.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:58270 - "GET /assets/layers-ChIAHw3a.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:58270 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58270 - "GET /api/v1/history/google_play HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51476 - "GET /api/v1/metrics/app-store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59973 - "GET /api/v1/history/ios_app_store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56043 - "GET /api/v1/reviews/top HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56043 - "GET /google-reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59973 - "GET /api/v1/reviews/top?operator_slug=freshbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51476 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59973 - "GET /assets/GooglePage-DP1jvmS6.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56043 - "GET /assets/x-BfC3jLdk.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51476 - "GET /api/v1/reviews/top?source=google_reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56043 - "GET /api/v1/history/google_reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59973 - "GET /api/v1/metrics/google-reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59973 - "GET /redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56043 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51476 - "GET /assets/trophy-DpgWqeaL.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:59973 - "GET /assets/RedbusPage-BxiHj0wk.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53887 - "GET /redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53887 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53603 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53603 - "GET /assets/index-BDBShbui.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55600 - "GET /assets/index-Bmo0I34g.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53603 - "GET /assets/OverviewPage-CocECXlf.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55600 - "GET /assets/KPICard-ClbOKOca.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55502 - "GET /assets/trophy-DPvlyacv.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55502 - "GET /assets/layers-BuByipg-.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53603 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55600 - "GET /api/v1/metrics/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55600 - "GET /app-store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55600 - "GET /assets/index-BDBShbui.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:53603 - "GET /assets/index-Bmo0I34g.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:53603 - "GET /assets/AppStorePage-bksEpw2v.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56189 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55502 - "GET /assets/LineChart-DfssW5tY.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65102 - "GET /assets/KPICard-ClbOKOca.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55600 - "GET /assets/HeatmapCell-nA0EtP1p.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58121 - "GET /assets/layers-BuByipg-.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55600 - "GET /api/v1/history/google_play HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55502 - "GET /api/v1/metrics/app-store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56189 - "GET /api/v1/history/ios_app_store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58121 - "GET /api/v1/reviews/top HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58121 - "GET /api/v1/reviews/top?operator_slug=freshbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58121 - "GET /google-reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58121 - "GET /assets/index-BDBShbui.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:56189 - "GET /assets/index-Bmo0I34g.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:56189 - "GET /assets/GooglePage-ctOHhRBC.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58121 - "GET /assets/KPICard-ClbOKOca.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:65102 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58121 - "GET /assets/x-CakDCczf.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55502 - "GET /assets/HeatmapCell-nA0EtP1p.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55600 - "GET /assets/LineChart-DfssW5tY.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:56189 - "GET /api/v1/reviews/top?source=google_reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55600 - "GET /api/v1/metrics/google-reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55502 - "GET /api/v1/history/google_reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55502 - "GET /redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55600 - "GET /assets/index-Bmo0I34g.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55502 - "GET /assets/index-BDBShbui.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:53603 - "GET /assets/x-CakDCczf.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55502 - "GET /assets/RedbusPage-BXnJ7hwo.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56189 - "GET /assets/HeatmapCell-nA0EtP1p.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55600 - "GET /assets/KPICard-ClbOKOca.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:58121 - "GET /assets/layers-BuByipg-.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:65102 - "GET /assets/trophy-DPvlyacv.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:53603 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53603 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55149 - "GET /redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55149 - "GET /assets/index-BDBShbui.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55149 - "GET /assets/index-Bmo0I34g.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55149 - "GET /assets/RedbusPage-BXnJ7hwo.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55149 - "GET /assets/KPICard-ClbOKOca.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55149 - "GET /assets/HeatmapCell-nA0EtP1p.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55149 - "GET /assets/layers-BuByipg-.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55149 - "GET /assets/trophy-DPvlyacv.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55149 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64637 - "GET /assets/x-CakDCczf.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55149 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64650 - "GET /app-store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52108 - "GET /assets/index-Bmo0I34g.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:64650 - "GET /assets/index-BDBShbui.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:64650 - "GET /assets/AppStorePage-bksEpw2v.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:64650 - "GET /assets/KPICard-ClbOKOca.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:57187 - "GET /assets/LineChart-DfssW5tY.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52108 - "GET /assets/HeatmapCell-nA0EtP1p.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:60882 - "GET /assets/layers-BuByipg-.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:64650 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60882 - "GET /api/v1/history/google_play HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64650 - "GET /api/v1/metrics/app-store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57187 - "GET /api/v1/reviews/top HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52108 - "GET /api/v1/history/ios_app_store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52108 - "GET /api/v1/reviews/top?operator_slug=freshbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52108 - "GET /google-reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52108 - "GET /assets/GooglePage-ctOHhRBC.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52108 - "GET /assets/x-CakDCczf.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:57187 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57187 - "GET /api/v1/metrics/google-reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52108 - "GET /api/v1/history/google_reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64650 - "GET /api/v1/reviews/top?source=google_reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52254 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52254 - "GET /assets/index-BDBShbui.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52254 - "GET /assets/index-Bmo0I34g.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52254 - "GET /assets/OverviewPage-CocECXlf.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52254 - "GET /assets/KPICard-ClbOKOca.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52254 - "GET /assets/trophy-DPvlyacv.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52254 - "GET /assets/layers-BuByipg-.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52254 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52254 - "GET /api/v1/metrics/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52254 - "GET /redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53396 - "GET /assets/HeatmapCell-nA0EtP1p.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52254 - "GET /assets/RedbusPage-BXnJ7hwo.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:53396 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52254 - "GET /assets/x-CakDCczf.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:53396 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63850 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51904 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51904 - "GET /?final=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51904 - "GET /assets/index-BFrrHu72.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51215 - "GET /assets/index-CfCLwUrD.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51215 - "GET /assets/KPICard-D3xM5g4k.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51904 - "GET /assets/OverviewPage-Dd30VTeU.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51904 - "GET /assets/trophy-pwoQbh6F.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51904 - "GET /assets/layers-jj7ADM8d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51904 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51215 - "GET /api/v1/metrics/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51215 - "GET /redbus?final=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51904 - "GET /assets/index-CfCLwUrD.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51215 - "GET /assets/index-BFrrHu72.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51215 - "GET /assets/RedbusPage-CEzi7-E1.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51904 - "GET /assets/HeatmapCell-CVOJC_eX.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50977 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57897 - "GET /assets/x-BZmEiDR5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51215 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57352 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55344 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55344 - "GET /assets/index-BFrrHu72.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55344 - "GET /assets/index-CfCLwUrD.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55344 - "GET /assets/OverviewPage-Dd30VTeU.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55344 - "GET /assets/KPICard-D3xM5g4k.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55344 - "GET /assets/trophy-pwoQbh6F.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55344 - "GET /assets/layers-jj7ADM8d.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55344 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55344 - "GET /api/v1/metrics/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62128 - "GET /assets/AppStorePage-CEp3ROmY.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53777 - "GET /assets/LineChart-DNOYwKmn.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64870 - "GET /assets/HeatmapCell-CVOJC_eX.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:53777 - "GET /api/v1/metrics/app-store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64870 - "GET /api/v1/history/ios_app_store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62128 - "GET /api/v1/history/google_play HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50096 - "GET /api/v1/reviews/top HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50096 - "GET /api/v1/reviews/top?operator_slug=freshbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50096 - "GET /assets/GooglePage-BNEqhi70.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62128 - "GET /assets/x-BZmEiDR5.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:50096 - "GET /api/v1/metrics/google-reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62128 - "GET /api/v1/history/google_reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64870 - "GET /api/v1/reviews/top?source=google_reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64870 - "GET /assets/RedbusPage-CEzi7-E1.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:64870 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56411 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62985 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64179 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51512 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63491 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54527 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61528 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62984 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64840 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57329 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60332 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57659 - "GET /app-store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63493 - "GET /assets/OverviewPage-DBXrq39N.js HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57659 - "GET /assets/ChartTooltip-C5StQveb.js HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63493 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57659 - "GET /favicon.ico HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57659 - "GET /assets/index-BFrrHu72.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63493 - "GET /assets/index-CfCLwUrD.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57659 - "GET /assets/AppStorePage-CEp3ROmY.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63493 - "GET /assets/KPICard-D3xM5g4k.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57659 - "GET /assets/HeatmapCell-CVOJC_eX.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57659 - "GET /assets/layers-jj7ADM8d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63493 - "GET /assets/LineChart-DNOYwKmn.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63493 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57659 - "GET /favicon.ico HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57659 - "GET /api/v1/metrics/app-store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63493 - "GET /api/v1/history/google_play HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57659 - "GET /api/v1/history/ios_app_store HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63493 - "GET /api/v1/reviews/top HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63493 - "GET /api/v1/reviews/top?operator_slug=freshbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55844 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56317 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50404 - "GET /assets/GooglePage-BNEqhi70.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50404 - "GET /assets/x-BZmEiDR5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50404 - "GET /favicon.ico HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50404 - "GET /api/v1/metrics/google-reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50404 - "GET /api/v1/history/google_reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50404 - "GET /api/v1/reviews/top?source=google_reviews HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49254 - "GET /assets/RedbusPage-CEzi7-E1.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60256 - "GET /favicon.ico HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65068 - "GET /assets/trophy-pwoQbh6F.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65068 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64837 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58235 - "GET /api/v1/metrics/redbus/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58235 - "GET /api/v1/metrics/redbus/21 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57739 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60974 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57344 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60845 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56207 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50244 - "GET /api/v1/metrics/redbus/21 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59374 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50191 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58185 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63713 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49671 - "GET /api/v1/metrics/redbus/21 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55485 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53383 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52354 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62969 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59429 - "GET /api/v1/metrics/redbus/21 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49671 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65216 - "GET /api/v1/metrics/redbus/21 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49936 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56528 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56390 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58101 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65407 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61911 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51794 - "GET /api/v1/refresh/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65031 - "GET /api/v1/metrics/redbus HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60893 - "GET /api/v1/metrics/redbus/21 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54314 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54314 - "GET /api/v1/metrics/redbus/tags HTTP/1.1" 422 Unprocessable Content
