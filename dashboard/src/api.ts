@@ -1,5 +1,8 @@
 /**
  * api.ts — React Query wrappers for all API endpoints. Task 10.2
+ * 
+ * In "static mode" (GitHub Pages), data is loaded from pre-built JSON files
+ * under /api-static/. When a live backend is available, it uses the real API.
  */
 import axios from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -8,6 +11,34 @@ import type { ReviewClassificationResponse } from './lib/reviewDimensions'
 const BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? ''
 
 const http = axios.create({ baseURL: BASE })
+
+// ── Static fallback for GitHub Pages ──────────────────────────────────────
+
+const STATIC_BASE = import.meta.env.BASE_URL + 'api-static'
+let _staticMode: boolean | null = null
+
+async function isStaticMode(): Promise<boolean> {
+  if (_staticMode !== null) return _staticMode
+  try {
+    await http.get('/api/v1/operators', { timeout: 3000 })
+    _staticMode = false
+  } catch {
+    _staticMode = true
+  }
+  return _staticMode
+}
+
+async function staticJson<T>(filename: string): Promise<T> {
+  const resp = await axios.get<T>(`${STATIC_BASE}/${filename}`)
+  return resp.data
+}
+
+async function fetchWithFallback<T>(apiFn: () => Promise<T>, staticFile: string): Promise<T> {
+  if (await isStaticMode()) {
+    return staticJson<T>(staticFile)
+  }
+  return apiFn()
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -61,22 +92,19 @@ export interface TopReviewGroup {
 }
 
 export interface RefreshStatus {
-  cycle_id?: number; status: string
-  fetch_phase?: string; operators_ready?: number; last_error?: string | null
-  triggered_at?: string; completed_at?: string; stale_sources?: string[]
+  cycle_id: number; status: string; fetch_phase: string | null
+  operators_ready: number; last_error: string | null
+  triggered_at: string | null; completed_at: string | null
+  stale_sources: string[]
 }
 
 export interface RedbusTag {
-  id: string; label: string
-}
-
-export interface OperatorTagScore {
-  tag_id: string; label: string; score: number; max: number
+  id: string; label: string; category: string
 }
 
 export interface RedbusTagOperator {
-  operator_id: number; operator_name: string; operator_slug: string
-  tags: OperatorTagScore[]
+  operator_slug: string; operator_name: string
+  tags: { tag_id: string; score: number; review_count: number }[]
   composite_tag_score: number
   review_count: number
   rank: number
@@ -103,32 +131,61 @@ export interface RedbusTagsResponse {
 // ── Fetchers ───────────────────────────────────────────────────────────────
 
 const fetch = {
-  operators:      ()                => http.get<Operator[]>('/api/v1/operators').then(r => r.data),
-  overview:       ()                => http.get<{operators: OverviewOperator[]}>('/api/v1/metrics/overview').then(r => r.data),
-  appStore:       ()                => http.get<{data: AppStoreEntry[]}>('/api/v1/metrics/app-store').then(r => r.data),
-  googleReviews:  (from?: string, to?: string) => {
-    const params: Record<string,string> = {}
-    if (from) params.from = from
-    if (to)   params.to   = to
-    return http.get<{data: GoogleEntry[]}>('/api/v1/metrics/google-reviews', { params }).then(r => r.data)
-  },
-  redbus:         ()                => http.get<{data: RedbusCell[]}>('/api/v1/metrics/redbus').then(r => r.data),
+  operators:      ()                => fetchWithFallback(
+    () => http.get<Operator[]>('/api/v1/operators').then(r => r.data),
+    'operators.json'
+  ),
+  overview:       ()                => fetchWithFallback(
+    () => http.get<{operators: OverviewOperator[]}>('/api/v1/metrics/overview').then(r => r.data),
+    'overview.json'
+  ),
+  appStore:       ()                => fetchWithFallback(
+    () => http.get<{data: AppStoreEntry[]}>('/api/v1/metrics/app-store').then(r => r.data),
+    'app-store.json'
+  ),
+  googleReviews:  (from?: string, to?: string) => fetchWithFallback(
+    () => {
+      const params: Record<string,string> = {}
+      if (from) params.from = from
+      if (to)   params.to   = to
+      return http.get<{data: GoogleEntry[]}>('/api/v1/metrics/google-reviews', { params }).then(r => r.data)
+    },
+    'google-reviews.json'
+  ),
+  redbus:         ()                => fetchWithFallback(
+    () => http.get<{data: RedbusCell[]}>('/api/v1/metrics/redbus').then(r => r.data),
+    'redbus.json'
+  ),
   redbusRoute:    (id: number)      => http.get(`/api/v1/metrics/redbus/${id}`).then(r => r.data),
-  history:        (source: string)  => http.get<{source:string, series: HistorySeries[]}>(`/api/v1/history/${source}`).then(r => r.data),
-  topReviews:     (slug?: string, source?: string) => {
-    const params: Record<string,string> = {}
-    if (slug)   params.operator_slug = slug
-    if (source) params.source        = source
-    return http.get<{reviews: TopReviewGroup[]}>('/api/v1/reviews/top', { params }).then(r => r.data)
-  },
-  refreshStatus:  ()                => http.get<RefreshStatus>('/api/v1/refresh/status').then(r => r.data),
-  redbusTags:     (routeId?: number) => {
-    const params: Record<string, any> = {}
-    if (routeId) params.route_id = routeId
-    return http.get<RedbusTagsResponse>('/api/v1/metrics/redbus/tags', { params }).then(r => r.data)
-  },
-  reviewClassification: (source: string) =>
-    http.get<ReviewClassificationResponse>(`/api/v1/metrics/review-classification/${source}`).then(r => r.data),
+  history:        (source: string)  => fetchWithFallback(
+    () => http.get<{source:string, series: HistorySeries[]}>(`/api/v1/history/${source}`).then(r => r.data),
+    `history-${source}.json`
+  ),
+  topReviews:     (slug?: string, source?: string) => fetchWithFallback(
+    () => {
+      const params: Record<string,string> = {}
+      if (slug)   params.operator_slug = slug
+      if (source) params.source        = source
+      return http.get<{reviews: TopReviewGroup[]}>('/api/v1/reviews/top', { params }).then(r => r.data)
+    },
+    'reviews-top.json'
+  ),
+  refreshStatus:  ()                => fetchWithFallback(
+    () => http.get<RefreshStatus>('/api/v1/refresh/status').then(r => r.data),
+    'refresh-status.json'
+  ),
+  redbusTags:     (routeId?: number) => fetchWithFallback(
+    () => {
+      const params: Record<string, any> = {}
+      if (routeId) params.route_id = routeId
+      return http.get<RedbusTagsResponse>('/api/v1/metrics/redbus/tags', { params }).then(r => r.data)
+    },
+    'redbus-tags.json'
+  ),
+  reviewClassification: (source: string) => fetchWithFallback(
+    () => http.get<ReviewClassificationResponse>(`/api/v1/metrics/review-classification/${source}`).then(r => r.data),
+    `review-classification-${source}.json`
+  ),
   triggerRefresh: () => http.post<{ message: string }>('/api/v1/refresh/trigger').then(r => r.data),
 }
 
