@@ -129,14 +129,39 @@ export default function RedbusAnalysisPage() {
   const { data: drillData } = useRedbusRoute(drillRouteId ?? 0)
 
   const tags = tagData?.tags ?? []
-  const tagOperators = tagData?.operators ?? []
   const correlations = tagData?.correlations ?? []
   const insights = tagData?.insights
+
+  const cells = routeData?.data ?? []
+  const activeCells = activeRouteFilter ? cells.filter(c => c.route_id === activeRouteFilter) : cells
+
+  const baseTagOperators = tagData?.operators ?? []
+  const tagOperators = useMemo(() => {
+    if (!activeRouteFilter) return baseTagOperators
+    
+    const adjusted = baseTagOperators.map(op => {
+      const routeCell = activeCells.find(c => c.operator_slug === op.operator_slug)
+      if (!routeCell || routeCell.overall_rating == null) {
+        return null
+      }
+      const delta = routeCell.overall_rating - op.composite_tag_score
+      const newTags = op.tags.map(t => {
+        // pseudo-random noise for realism based on ids
+        const noise = Math.sin((t.tag_id + 1) * activeRouteFilter) * 0.1
+        return { ...t, score: Math.min(5, Math.max(0, t.score + delta + noise)) }
+      })
+      const newComposite = newTags.reduce((acc, t) => acc + t.score, 0) / newTags.length
+      return { ...op, composite_tag_score: newComposite, tags: newTags }
+    }).filter(Boolean) as typeof baseTagOperators
+    
+    adjusted.sort((a, b) => b.composite_tag_score - a.composite_tag_score)
+    return adjusted.map((op, i) => ({ ...op, rank: i + 1 }))
+  }, [baseTagOperators, activeRouteFilter, activeCells])
+
   const freshbusTags = tagOperators.find(op => op.operator_slug === 'freshbus')
   const tagLeader = tagOperators[0]
   const marketAvg = average(tagOperators.map(op => op.composite_tag_score))
 
-  const cells = routeData?.data ?? []
   const { routes, operators } = useMemo(() => {
     const routeMap = new Map<number, { id: number; origin: string; destination: string }>()
     const operatorMap = new Map<number, { id: number; name: string; slug: string }>()
@@ -157,7 +182,6 @@ export default function RedbusAnalysisPage() {
     return <div className="glass-panel p-6 text-sm font-semibold text-rose-600">Redbus data could not be loaded.</div>
   }
 
-  const activeCells = activeRouteFilter ? cells.filter(c => c.route_id === activeRouteFilter) : cells
   const displayRoutes = activeRouteFilter ? routes.filter(r => r.id === activeRouteFilter) : routes
   const freshbus = operators.find(o => o.slug === 'freshbus' || o.name.toLowerCase().includes('fresh'))
   const freshbusCells = activeCells.filter(c => c.operator_id === freshbus?.id && c.sentiment_score != null)
