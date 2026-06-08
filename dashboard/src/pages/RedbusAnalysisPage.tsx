@@ -339,35 +339,49 @@ export default function RedbusAnalysisPage() {
       </section>
 
       <section className="glass-panel overflow-hidden p-4 sm:p-8">
-        <div className="mb-6">
+        <div className="mb-8">
           <div className="inline-flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-purple-600 dark:text-[#a855f7]">
             Tag Correlation Matrix
           </div>
           <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
             <span className="bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent dark:from-[#818cf8] dark:to-[#c084fc]">How review dimensions move together across the market</span>
           </h2>
-          <p className="mt-2 max-w-4xl text-sm font-bold leading-relaxed text-slate-600 dark:text-slate-400">
-            This heatmap displays the mathematical correlation between different rating dimensions. 
-            A score closer to <span className="text-emerald-500 font-black border-b border-emerald-500">1.0</span> means they are highly intertwined (if a passenger rates one highly, they almost always rate the other highly). 
-            A score closer to <span className="text-rose-500 font-black border-b border-rose-500">0.0</span> indicates the ratings are completely independent of each other.
+          <p className="mt-3 max-w-4xl text-justify text-sm font-semibold leading-7 text-slate-600 dark:text-slate-400">
+            This heatmap shows how closely two rating dimensions are mathematically linked across all passenger reviews.
+            A value near <span className="text-emerald-500 font-black">1.0</span> = strong link (passengers who rate one high, rate the other high too).
+            A value near <span className="text-rose-500 font-black">0.0</span> = independent (the two categories are rated separately).
+            Use this to identify which experiences are bundled together in a passenger's mind.
           </p>
         </div>
         <div className="overflow-x-auto pb-4">
-          <div className="min-w-[800px] grid gap-1" style={{ gridTemplateColumns: `120px repeat(${tagIds.length}, 1fr)` }}>
+          <div className="grid gap-[3px]" style={{ gridTemplateColumns: `160px repeat(${tagIds.length}, 1fr)` }}>
+            {/* top-left blank */}
             <span />
-            {tagIds.map(id => <span key={id} className="truncate text-center text-xs font-black uppercase text-slate-500">{tagLabel(id).split(' ')[0]}</span>)}
+            {/* column headers - abbreviated + bold */}
+            {tagIds.map(id => (
+              <div key={id} className="flex items-end justify-center pb-2">
+                <span className="text-center text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">{tagLabel(id).split(' ')[0]}</span>
+              </div>
+            ))}
             {tagIds.map((rowId, ri) => (
               <React.Fragment key={rowId}>
-                <span className="truncate text-xs font-black text-slate-700 dark:text-slate-300">{tagLabel(rowId)}</span>
+                {/* row label — full readable name */}
+                <div className="flex items-center pr-3">
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100">{tagLabel(rowId)}</span>
+                </div>
                 {tagIds.map((colId, ci) => {
                   const isDiag = ri === ci
                   const corr = isDiag ? 1 : correlations.find(c => (c.tag_a === rowId && c.tag_b === colId) || (c.tag_a === colId && c.tag_b === rowId))?.correlation ?? 0
                   return (
-                    <div 
-                      key={`${rowId}-${colId}`} 
-                      className="corr-cell flex h-10 items-center justify-center rounded text-xs font-black transition-transform hover:scale-110 cursor-default shadow-sm" 
-                      style={{ background: isDiag ? 'rgba(100,116,139,0.1)' : corrColor(corr), color: isDiag ? 'transparent' : 'inherit' }}
-                      title={`${tagLabel(rowId)} and ${tagLabel(colId)} have a correlation of ${corr.toFixed(2)}`}
+                    <div
+                      key={`${rowId}-${colId}`}
+                      className="flex h-11 items-center justify-center rounded-md text-xs font-black transition-all duration-200 hover:scale-110 hover:shadow-lg cursor-default"
+                      style={{
+                        background: isDiag ? 'rgba(148,163,184,0.15)' : corrColor(corr),
+                        color: isDiag ? 'transparent' : '#fff',
+                        textShadow: isDiag ? 'none' : '0 1px 2px rgba(0,0,0,0.3)',
+                      }}
+                      title={isDiag ? tagLabel(rowId) : `${tagLabel(rowId)} ↔ ${tagLabel(colId)}: ${corr.toFixed(2)} correlation`}
                     >
                       {!isDiag && corr.toFixed(2)}
                     </div>
@@ -385,9 +399,9 @@ export default function RedbusAnalysisPage() {
             Route Analysis
           </div>
           <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
-            <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent dark:from-[#fb923c] dark:to-[#fbbf24]">Route-level sentiment, volume & FreshBus gaps</span>
+            <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent dark:from-[#fb923c] dark:to-[#fbbf24]">Route-Level Sentiment &amp; Ranking Analysis</span>
           </h2>
-          <p className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">Detailed breakdown of competitor presence and sentiment split by individual routes.</p>
+          <p className="mt-1 text-sm font-bold text-justify leading-relaxed text-slate-500 dark:text-slate-400">Detailed breakdown of competitor sentiment and ranking split by individual routes.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
           <KPICard label="Tracked Routes" value={routes.length} tip={tip('trackedRoutes')} caption={`${coveragePct}% coverage`} icon={<MapIcon size={20} />} accent="#0077b6" />
@@ -397,17 +411,24 @@ export default function RedbusAnalysisPage() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1fr_360px]">
-        <div className="glass-panel p-4 sm:p-5">
-          <SectionHeader eyebrow="Sentiment heatmap" title="Route by operator score" titleTip={tip('heatmap')} subtitle="Click any cell for route drill-down" />
+        <div className="glass-panel p-4 sm:p-6">
+          <div className="mb-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-cyan-600 dark:text-[#22d3ee]">
+            </div>
+            <h3 className="mt-3 text-xl font-black tracking-tight text-slate-900 dark:text-white">
+              <span className="bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">Route × Operator Score Matrix</span>
+            </h3>
+            <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">Each cell shows the sentiment score for that operator on a specific route. Click a cell to explore the full route breakdown.</p>
+          </div>
           <div className="overflow-x-auto">
             <div className="min-w-[780px] space-y-2">
               <div className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, minmax(68px, 1fr))` }}>
                 <span />
-                {operators.map(op => <span key={op.id} className="truncate text-center text-[0.68rem] font-black uppercase text-slate-400">{op.name}</span>)}
+                {operators.map(op => <span key={op.id} className="truncate text-center text-[0.68rem] font-black uppercase text-slate-500 dark:text-slate-300">{op.name}</span>)}
               </div>
               {displayRoutes.map(route => (
                 <div key={route.id} className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, minmax(68px, 1fr))` }}>
-                  <span className="truncate text-xs font-black text-slate-600 dark:text-slate-300">{routeLabel(route.origin, route.destination)}</span>
+                  <span className="truncate text-xs font-black text-slate-700 dark:text-slate-200">{routeLabel(route.origin, route.destination)}</span>
                   {operators.map(operator => {
                     const cell = activeCells.find(item => item.route_id === route.id && item.operator_id === operator.id)
                     return <HeatmapCell key={operator.id} value={cell?.sentiment_score ?? null} width={68} height={30} showValue label={`${operator.name} ${routeLabel(route.origin, route.destination)}`} onClick={() => setDrillRouteId(route.id)} />
@@ -417,20 +438,42 @@ export default function RedbusAnalysisPage() {
             </div>
           </div>
         </div>
-        <div className="glass-panel p-4 sm:p-5">
-          <SectionHeader eyebrow="Operator strength" title="Average sentiment and rank" titleTip={tip('sentiment')} subtitle="Aggregate sentiment analysis across all matching routes." />
-          <div className="space-y-4 mt-6">
-            {operatorScores.map(operator => (
-              <div key={operator.id} className="border-b border-slate-900/10 dark:border-white/10 pb-4 last:border-b-0">
-                <div className="mb-2 flex items-center justify-between">
+        <div className="glass-panel p-4 sm:p-6">
+          <div className="mb-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-emerald-600 dark:text-[#34d399]">
+              Operator Strength
+            </div>
+            <h3 className="mt-3 text-xl font-black tracking-tight text-slate-900 dark:text-white">
+              <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">Average Sentiment &amp; Market Rank</span>
+            </h3>
+            <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">Aggregated sentiment score across all active routes, relative to market ranking.</p>
+          </div>
+          <div className="space-y-5 mt-2">
+            {operatorScores.map((operator, idx) => (
+              <div key={operator.id} className="space-y-1.5">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-black text-slate-800 dark:text-slate-200">{operator.name}</p>
-                    <span className="rounded bg-slate-100 dark:bg-white/5 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">Rank {formatMetric(operator.avgRank, 1)}</span>
+                    <span
+                      className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white"
+                      style={{ background: operator.color }}
+                    >
+                      {idx + 1}
+                    </span>
+                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">{operator.name}</p>
                   </div>
-                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{formatMetric(operator.avgSentiment, 2)}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Rank {formatMetric(operator.avgRank, 1)}</span>
+                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{formatMetric(operator.avgSentiment, 2)}</span>
+                  </div>
                 </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${operator.avgSentiment == null ? 0 : ((operator.avgSentiment + 1) / 2) * 100}%`, backgroundColor: operator.color }} />
+                <div className="relative h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${operator.avgSentiment == null ? 0 : ((operator.avgSentiment + 1) / 2) * 100}%`,
+                      background: `linear-gradient(90deg, ${operator.color}99, ${operator.color})`,
+                    }}
+                  />
                 </div>
               </div>
             ))}
