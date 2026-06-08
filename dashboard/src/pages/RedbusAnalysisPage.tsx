@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Award, Gauge, Layers3, Map as MapIcon, Sparkles, Target, Trophy, X, Zap } from 'lucide-react'
+import { Award, ChevronDown, Gauge, Layers3, Map as MapIcon, Sparkles, Target, Trophy, X, Zap } from 'lucide-react'
 import { useRedbus, useRedbusRoute, useRedbusTags } from '../api'
 import ChartTooltip from '../components/ChartTooltip'
 import HeatmapCell from '../components/HeatmapCell'
@@ -56,6 +56,49 @@ function corrColor(value: number): string {
   if (value >= 0.4) return 'rgba(0, 119, 255, 0.65)'
   if (value >= 0.2) return 'rgba(255, 234, 0, 0.55)'
   return 'rgba(255, 107, 53, 0.45)'
+}
+
+function RouteDropdown({ routes, activeRouteFilter, setActiveRouteFilter }: any) {
+  const [open, setOpen] = useState(false)
+  const activeLabel = activeRouteFilter
+    ? routeLabel(routes.find((r: any) => r.id === activeRouteFilter)?.origin ?? '', routes.find((r: any) => r.id === activeRouteFilter)?.destination ?? '')
+    : '-- All Routes --'
+
+  return (
+    <div className="relative z-50">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="glass-panel flex h-11 w-[260px] items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 text-sm font-black text-theme-primary shadow-sm outline-none transition-all hover:border-[var(--neon-blue)] hover:bg-[var(--bg-elevated)]"
+      >
+        <span className="truncate">{activeLabel}</span>
+        <ChevronDown size={16} className={cx('text-theme-muted transition-transform duration-200', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 max-h-[300px] w-[300px] overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-white/90 p-2 shadow-2xl backdrop-blur-2xl dark:bg-[#0f141a]/95">
+          <button
+            type="button"
+            onClick={() => { setActiveRouteFilter(null); setOpen(false) }}
+            className={cx('w-full rounded-lg px-4 py-3 text-left text-sm font-black transition-colors', !activeRouteFilter ? 'bg-blue-50 text-blue-600 dark:bg-[#00d4ff]/10 dark:text-[#00d4ff]' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white')}
+          >
+            -- All Routes --
+          </button>
+          {routes.map((r: any) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => { setActiveRouteFilter(r.id); setOpen(false) }}
+              className={cx('w-full rounded-lg px-4 py-3 text-left text-sm font-black transition-colors', activeRouteFilter === r.id ? 'bg-blue-50 text-blue-600 dark:bg-[#00d4ff]/10 dark:text-[#00d4ff]' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white')}
+            >
+              {routeLabel(r.origin, r.destination)}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && <div className="fixed inset-0 z-[-1]" onClick={() => setOpen(false)} />}
+    </div>
+  )
 }
 
 export default function RedbusAnalysisPage() {
@@ -162,27 +205,24 @@ export default function RedbusAnalysisPage() {
 
   return (
     <div className="space-y-7">
-      <section className="hero-glow glass-panel-strong p-6 sm:p-8">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <SectionHeader
-              eyebrow="Redbus analysis"
-              title="Reviews, tag classification & route-wise breakdown"
-              subtitle="Ratings, 9 review tags, and per-route sentiment — all in one place."
-              eyebrowTip={tip('redbus')}
-              titleTip={tip('reviewClassification')}
-            />
+      <section className="hero-glow glass-panel-strong p-6 sm:p-10">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--neon-blue)]/30 bg-[var(--neon-blue)]/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-blue-600 dark:text-[var(--neon-blue)]">
+              Redbus Analysis Dashboard
+            </div>
+            <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl dark:text-white">
+              Reviews, Tag Classification <br />
+              <span className="bg-gradient-to-r from-blue-600 to-emerald-500 bg-clip-text text-transparent dark:from-[#00d4ff] dark:to-[#00ff88]">
+                & Route-Wise Breakdown
+              </span>
+            </h1>
+            <p className="text-sm font-bold leading-relaxed text-slate-500 dark:text-slate-400">
+              A comprehensive view of customer feedback across 9 distinct review dimensions. Analyze per-route sentiment, compare competitors head-to-head, and pinpoint exactly where FreshBus leads the market.
+            </p>
           </div>
           <div className="flex items-center">
-            <select
-              className="glass-panel h-11 min-w-[220px] cursor-pointer appearance-none rounded-xl border border-white/10 bg-white/5 px-5 text-sm font-black text-theme-primary outline-none transition-colors hover:bg-white/10 focus:border-[var(--neon-blue)] focus:ring-1 focus:ring-[var(--neon-blue)]"
-              value={activeRouteFilter ?? ''}
-              onChange={e => setActiveRouteFilter(e.target.value === '' ? null : Number(e.target.value))}
-              style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23a1a1aa\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1.2em 1.2em' }}
-            >
-              <option value="" className="bg-slate-900 font-bold">-- All Routes --</option>
-              {routes.map(route => <option key={route.id} value={route.id} className="bg-slate-900 font-bold">{routeLabel(route.origin, route.destination)}</option>)}
-            </select>
+            <RouteDropdown routes={routes} activeRouteFilter={activeRouteFilter} setActiveRouteFilter={setActiveRouteFilter} />
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -201,15 +241,14 @@ export default function RedbusAnalysisPage() {
 
       {/* Operator tag leaderboard — moved to top */}
       <section className="glass-panel overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-[var(--border-subtle)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <SectionHeader
-            eyebrow="Operator tag leaderboard"
-            title="All 9 dimensions"
-            titleTip={tip('dimensionScore')}
-          />
-          <div className="flex shrink-0 flex-col items-end justify-center rounded-xl border border-[var(--neon-blue)]/30 bg-[var(--neon-blue)]/10 px-5 py-2.5 shadow-[0_0_15px_rgba(0,212,255,0.15)]">
-            <span className="text-[0.65rem] font-black uppercase tracking-wider text-[var(--neon-blue)]">Average composite score across market</span>
-            <span className="text-2xl font-black text-white drop-shadow-md">{formatMetric(marketAvg, 2)}</span>
+        <div className="flex flex-col gap-4 border-b border-[var(--border-subtle)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6 bg-slate-50/50 dark:bg-black/20">
+          <div>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white">Operator Tag Leaderboard</h2>
+            <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">Comparing all operators across 9 performance dimensions</p>
+          </div>
+          <div className="flex shrink-0 flex-col items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10 px-6 py-3 shadow-sm backdrop-blur-md dark:border-[var(--neon-blue)]/30 dark:bg-[var(--neon-blue)]/10 dark:shadow-[0_0_15px_rgba(0,212,255,0.1)]">
+            <span className="text-[0.65rem] font-black uppercase tracking-wider text-blue-700 dark:text-[var(--neon-blue)]">Average market score</span>
+            <span className="text-3xl font-black text-slate-800 dark:text-white drop-shadow-sm">{formatMetric(marketAvg, 2)}</span>
           </div>
         </div>
         <div className="overflow-x-auto">

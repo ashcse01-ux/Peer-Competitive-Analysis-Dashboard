@@ -161,12 +161,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               isStale ? 'border-amber-400/40 bg-amber-500/10 text-amber-500' : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-500',
             )}>
               <Activity size={14} />
-              {isStale ? t('status.stale') : t('status.live')}
+              {isStale ? t('status.stale') : 'Current Data'}
             </span>
-            <MetricTip tip={tip('lastRefresh')} className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-semibold text-theme-muted">
-              <RefreshCw size={14} />
-              {lastRefresh}
-            </MetricTip>
           </div>
         </div>
       </header>
