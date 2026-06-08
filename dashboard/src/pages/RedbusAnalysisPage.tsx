@@ -101,6 +101,22 @@ function RouteDropdown({ routes, activeRouteFilter, setActiveRouteFilter }: any)
   )
 }
 
+const CustomXAxisTick = ({ x, y, payload }: any) => {
+  const words = payload.value.split(' ')
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={15} textAnchor="middle" fill="var(--text-muted)" fontSize={12} fontWeight={800}>
+        {words[0]}
+      </text>
+      {words.length > 1 && (
+        <text x={0} y={30} textAnchor="middle" fill="var(--text-muted)" fontSize={12} fontWeight={800}>
+          {words.slice(1).join(' ')}
+        </text>
+      )}
+    </g>
+  )
+}
+
 export default function RedbusAnalysisPage() {
   const { t, tagLabel } = useTranslation()
   const { activeRouteFilter, setActiveRouteFilter } = useDashboardStore()
@@ -160,6 +176,12 @@ export default function RedbusAnalysisPage() {
     return obj
   })
 
+  const fbTags = freshbusTags?.tags ?? []
+  const fbMaxScore = fbTags.length ? Math.max(...fbTags.map(t => t.score)) : 0
+  const strongestTagsLabel = fbTags.length ? fbTags.filter(t => t.score === fbMaxScore).map(t => tagLabel(t.tag_id)).join(' & ') : '—'
+  const fbMinScore = fbTags.length ? Math.min(...fbTags.map(t => t.score)) : 0
+  const weakestTagsLabel = fbTags.length ? fbTags.filter(t => t.score === fbMinScore).map(t => tagLabel(t.tag_id)).join(' & ') : '—'
+
   const operatorScores = operators.map(operator => {
     const rows = activeCells.filter(c => c.operator_id === operator.id && c.sentiment_score != null)
     return { ...operator, avgSentiment: average(rows.map(r => r.sentiment_score)), avgRank: average(rows.map(r => r.competitive_rank)), coverage: rows.length }
@@ -205,7 +227,7 @@ export default function RedbusAnalysisPage() {
 
   return (
     <div className="space-y-7">
-      <section className="hero-glow glass-panel-strong p-6 sm:p-10">
+      <section className="relative z-40 hero-glow glass-panel-strong p-6 sm:p-10">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--neon-blue)]/30 bg-[var(--neon-blue)]/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-blue-600 dark:text-[var(--neon-blue)]">
@@ -247,7 +269,7 @@ export default function RedbusAnalysisPage() {
             <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">Comparing all operators across 9 performance dimensions</p>
           </div>
           <div className="flex shrink-0 flex-col items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10 px-6 py-3 shadow-sm backdrop-blur-md dark:border-[var(--neon-blue)]/30 dark:bg-[var(--neon-blue)]/10 dark:shadow-[0_0_15px_rgba(0,212,255,0.1)]">
-            <span className="text-[0.65rem] font-black uppercase tracking-wider text-blue-700 dark:text-[var(--neon-blue)]">Average market score</span>
+            <span className="bg-gradient-to-r from-blue-600 to-emerald-500 bg-clip-text text-transparent dark:from-[#00d4ff] dark:to-[#00ff88] text-[0.65rem] font-black uppercase tracking-wider">Average market score</span>
             <span className="text-3xl font-black text-slate-800 dark:text-white drop-shadow-sm">{formatMetric(marketAvg, 2)}</span>
           </div>
         </div>
@@ -257,8 +279,8 @@ export default function RedbusAnalysisPage() {
               <tr>
                 <th><MetricTip tip={tip('rank')}>Rank</MetricTip></th>
                 <th>Operator</th>
-                <th><MetricTip tip={tip('compositeTagScore')}>Composite</MetricTip></th>
-                {tags.map(tag => <th key={tag.id} className="whitespace-nowrap"><MetricTip tip={tagLabel(tag.id)}>{tagLabel(tag.id)}</MetricTip></th>)}
+                <th className="text-center"><MetricTip tip={tip('compositeTagScore')}>Composite</MetricTip></th>
+                {tags.map(tag => <th key={tag.id} className="text-center max-w-[90px] whitespace-normal break-words leading-snug"><MetricTip tip={tagLabel(tag.id)}>{tagLabel(tag.id)}</MetricTip></th>)}
               </tr>
             </thead>
             <tbody>
@@ -271,9 +293,9 @@ export default function RedbusAnalysisPage() {
                       <span className="font-black text-theme-primary">{op.operator_name}</span>
                     </div>
                   </td>
-                  <td className="font-black">{formatMetric(op.composite_tag_score, 2)}</td>
+                  <td className="text-center font-black">{formatMetric(op.composite_tag_score, 2)}</td>
                   {op.tags.map(tag => (
-                    <td key={tag.tag_id} className={cx('font-bold', tag.score >= 4.2 ? 'text-emerald-500' : tag.score < 3.5 ? 'text-rose-500' : 'text-theme-secondary')}>
+                    <td key={tag.tag_id} className={cx('text-center font-bold', tag.score >= 4.2 ? 'text-emerald-500' : tag.score < 3.5 ? 'text-rose-500' : 'text-theme-secondary')}>
                       {formatMetric(tag.score, 1)}
                     </td>
                   ))}
@@ -286,18 +308,26 @@ export default function RedbusAnalysisPage() {
 
       <section className="grid gap-4 sm:grid-cols-3">
         <KPICard label={t('tags.composite')} value={formatMetric(freshbusTags?.composite_tag_score, 2)} tip={tip('compositeTagScore')} caption={`Freshbus - Rank #${freshbusTags?.rank ?? '—'}`} icon={<Gauge size={20} />} accent="var(--neon-blue)" />
-        <KPICard label={t('tags.strongest')} value={insights?.freshbus_strength ? tagLabel(insights.freshbus_strength) : '—'} tip={tip('strongestDimension')} caption="FreshBus advantage" icon={<Sparkles size={20} />} accent="var(--neon-green)" />
-        <KPICard label={t('tags.weakest')} value={insights?.freshbus_gap ? tagLabel(insights.freshbus_gap) : '—'} tip={tip('weakestDimension')} caption="Improvement priority" icon={<Target size={20} />} accent="var(--neon-orange)" />
+        <KPICard label={t('tags.strongest')} value={strongestTagsLabel} tip={tip('strongestDimension')} caption="FreshBus advantage" icon={<Sparkles size={20} />} accent="var(--neon-green)" />
+        <KPICard label={t('tags.weakest')} value={weakestTagsLabel} tip={tip('weakestDimension')} caption="Improvement priority" icon={<Target size={20} />} accent="var(--neon-orange)" />
       </section>
 
-      <section className="glass-panel overflow-hidden p-4 sm:p-5">
-        <SectionHeader eyebrow="Advanced Visual Analytics" title="Comprehensive Market Tag Matrix" titleTip="Full breakdown of all operators across all 9 dimensions." />
-        <div className="mt-6">
-          <ResponsiveContainer width="100%" height={450}>
-            <BarChart data={advancedChartData} margin={{ top: 20, right: 10, left: -20, bottom: 60 }}>
+      <section className="glass-panel overflow-hidden p-4 sm:p-8">
+        <div className="mb-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--neon-pink)]/30 bg-[var(--neon-pink)]/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-pink-600 dark:text-[var(--neon-pink)]">
+            Advanced Visual Analytics
+          </div>
+          <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
+            Comprehensive <span className="bg-gradient-to-r from-pink-500 to-violet-500 bg-clip-text text-transparent dark:from-[#ff00a0] dark:to-[#7a00ff]">Market Tag Matrix</span>
+          </h2>
+          <p className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">Head-to-head performance across all operational categories</p>
+        </div>
+        <div className="mt-4">
+          <ResponsiveContainer width="100%" height={480}>
+            <BarChart data={advancedChartData} margin={{ top: 20, right: 10, left: -20, bottom: 40 }}>
               <CartesianGrid className="chart-grid" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 800 }} angle={-35} textAnchor="end" axisLine={false} tickLine={false} />
-              <YAxis domain={[3, 5]} tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="name" tick={<CustomXAxisTick />} height={60} axisLine={false} tickLine={false} />
+              <YAxis domain={[3, 5]} tickCount={6} tick={{ fill: 'var(--text-muted)', fontSize: 13, fontWeight: 800 }} axisLine={false} tickLine={false} />
               <Tooltip cursor={{ fill: 'var(--bg-elevated)' }} contentStyle={{ borderRadius: '12px', background: 'rgba(15,20,25,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }} itemStyle={{ fontWeight: 900 }} />
               <Legend wrapperStyle={{ paddingTop: '20px', fontSize: 12, fontWeight: 900 }} />
               {tagOperators.map(op => (
