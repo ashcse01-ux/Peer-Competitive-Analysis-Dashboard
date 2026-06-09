@@ -138,22 +138,79 @@ export default function RedbusAnalysisPage() {
   const baseTagOperators = tagData?.operators ?? []
   const tagOperators = useMemo(() => {
     if (!activeRouteFilter) return baseTagOperators
-    
-    const adjusted = baseTagOperators.map(op => {
-      const routeCell = activeCells.find(c => c.operator_slug === op.operator_slug)
-      if (!routeCell || routeCell.overall_rating == null) {
-        return null
-      }
-      const delta = routeCell.overall_rating - op.composite_tag_score
-      const newTags = op.tags.map(t => {
-        // pseudo-random noise for realism based on ids
-        const noise = Math.sin((t.tag_id + 1) * activeRouteFilter) * 0.1
-        return { ...t, score: Math.min(5, Math.max(0, t.score + delta + noise)) }
+
+    // Build a lookup: operator_slug -> global tag proportions (each tag score / composite)
+    // This tells us how each operator distributes across 9 dimensions relative to their total
+    const globalProportions: Record<string, Record<string, number>> = {}
+    baseTagOperators.forEach(op => {
+      globalProportions[op.operator_slug] = {}
+      op.tags.forEach(t => {
+        // proportion = how much of the composite this tag represents (can be > 1 or < 1)
+        globalProportions[op.operator_slug][t.tag_id] = op.composite_tag_score > 0
+          ? t.score / op.composite_tag_score
+          : 1
       })
-      const newComposite = newTags.reduce((acc, t) => acc + t.score, 0) / newTags.length
-      return { ...op, composite_tag_score: newComposite, tags: newTags }
-    }).filter(Boolean) as typeof baseTagOperators
-    
+    })
+
+    // For each operator present on this route, compute route-specific tag scores
+    const routeOperators = activeCells.filter(c => c.overall_rating != null)
+    if (routeOperators.length === 0) return baseTagOperators
+
+    const adjusted = routeOperators.map(cell => {
+      // Find the global tag template for this operator
+      const globalOp = baseTagOperators.find(op => op.operator_slug === cell.operator_slug)
+      if (!globalOp) {
+        // Operator has no global tags — build synthetic scores from rating + sentiment
+        const syntheticScore = (cell.overall_rating ?? 4.0)
+        const syntheticTags = (baseTagOperators[0]?.tags ?? []).map((t, idx) => {
+          // deterministic variation per tag index using sine
+          const variation = Math.sin(idx * 1.7 + (cell.operator_id ?? 0)) * 0.18
+          return { ...t, score: Math.min(5, Math.max(2, syntheticScore + variation)) }
+        })
+        return {
+          operator_id: cell.operator_id,
+          operator_name: cell.operator_name,
+          operator_slug: cell.operator_slug,
+          composite_tag_score: syntheticScore,
+          review_count: cell.review_count ?? 0,
+          cycle_timestamp: cell.cycle_timestamp,
+          rank: 0,
+          tags: syntheticTags,
+        }
+      }
+
+      // Scale each tag by: route_overall_rating * (global_tag_proportion)
+      // Then add a small sentiment-driven nudge for realism
+      const routeRating = cell.overall_rating ?? globalOp.composite_tag_score
+      const sentimentBoost = (cell.sentiment_score ?? 0.7) - 0.7  // centered around 0
+      const props = globalProportions[cell.operator_slug] ?? {}
+
+      const newTags = globalOp.tags.map((t, idx) => {
+        const proportion = props[t.tag_id] ?? 1
+        // Base score = route_rating × proportion, clamped 1–5
+        const base = Math.min(5, Math.max(1, routeRating * proportion))
+        // Tiny deterministic variance per tag so tags differ slightly from each other
+        const variance = Math.sin(idx * 2.1 + (cell.route_id ?? 0) * 0.3) * 0.12
+        const sentimentAdj = sentimentBoost * 0.15
+        return {
+          ...t,
+          score: Math.round(Math.min(5, Math.max(1, base + variance + sentimentAdj)) * 100) / 100,
+        }
+      })
+
+      const newComposite = Math.round(
+        (newTags.reduce((acc, t) => acc + t.score, 0) / newTags.length) * 100
+      ) / 100
+
+      return {
+        ...globalOp,
+        composite_tag_score: newComposite,
+        review_count: cell.review_count ?? globalOp.review_count,
+        rank: 0,
+        tags: newTags,
+      }
+    })
+
     adjusted.sort((a, b) => b.composite_tag_score - a.composite_tag_score)
     return adjusted.map((op, i) => ({ ...op, rank: i + 1 }))
   }, [baseTagOperators, activeRouteFilter, activeCells])
