@@ -272,14 +272,23 @@ export default function RedbusAnalysisPage() {
   const routeRows = displayRoutes.map(route => {
     const routeCells = activeCells.filter(c => c.route_id === route.id)
     const scored = routeCells.filter(c => c.overall_rating != null)
-    const leader = [...scored].sort((a, b) => (b.overall_rating ?? -2) - (a.overall_rating ?? -2))[0]
+    
+    // Dynamically sort operators by overall rating on this specific route
+    const sortedByRating = [...scored].sort((a, b) => (b.overall_rating ?? -2) - (a.overall_rating ?? -2))
+    const leader = sortedByRating[0]
+    
     const freshCell = routeCells.find(c => c.operator_id === freshbus?.id)
+    const freshRank = freshCell?.overall_rating != null 
+      ? sortedByRating.findIndex(c => c.operator_id === freshCell.operator_id) + 1 
+      : null
+      
     const gap = leader?.overall_rating != null && freshCell?.overall_rating != null
       ? freshCell.overall_rating - leader.overall_rating : null
+      
     return {
       route_id: route.id,
       label: routeLabel(route.origin, route.destination),
-      freshRank: freshCell?.competitive_rank ?? null,
+      freshRank,
       freshRating: freshCell?.overall_rating ?? null,
       freshSentiment: freshCell?.sentiment_score ?? null,
       leaderName: leader?.operator_name ?? 'No data',
@@ -288,7 +297,7 @@ export default function RedbusAnalysisPage() {
       operatorsCount: scored.length,
       reviewCount: sum(routeCells.map(c => c.review_count)),
     }
-  }).filter(r => r.operatorsCount >= 4)
+  }).filter(r => r.operatorsCount >= 3)
   const sortedRouteRows = [...routeRows].sort((a, b) => {
     if (sortKey === 'rank') return (a.freshRank ?? 99) - (b.freshRank ?? 99)
     if (sortKey === 'sentiment') return (b.freshSentiment ?? -2) - (a.freshSentiment ?? -2)
@@ -727,24 +736,24 @@ export default function RedbusAnalysisPage() {
           <div className="space-y-6">
             <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="glass-panel p-5 border-b-4 border-b-blue-500">
-                <p className="text-[0.65rem] font-black uppercase tracking-wider text-blue-600">Routes Evaluated</p>
-                <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{totalRoutes}</p>
-                <p className="mt-0.5 text-xs font-semibold text-slate-500">Active market routes tracked</p>
+                <p className="text-[0.65rem] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">Routes Evaluated</p>
+                <p className="mt-2 text-2xl font-black text-theme-primary">{totalRoutes}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400">Active market routes tracked</p>
               </div>
               <div className="glass-panel p-5 border-b-4 border-b-emerald-500">
-                <p className="text-[0.65rem] font-black uppercase tracking-wider text-emerald-600">FreshBus Leads</p>
-                <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{totalLeads}</p>
-                <p className="mt-0.5 text-xs font-semibold text-slate-500">{formatMetric(winRate, 1)}% win rate across network</p>
+                <p className="text-[0.65rem] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">FreshBus Leads</p>
+                <p className="mt-2 text-2xl font-black text-theme-primary">{totalLeads}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400">{formatMetric(winRate, 1)}% win rate across network</p>
               </div>
               <div className="glass-panel p-5 border-b-4 border-b-purple-500">
-                <p className="text-[0.65rem] font-black uppercase tracking-wider text-purple-600">Top 3 Placements</p>
-                <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{topThreeCount}</p>
-                <p className="mt-0.5 text-xs font-semibold text-slate-500">{formatMetric(topThreeRate, 1)}% of routes in top 3</p>
+                <p className="text-[0.65rem] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">Top 3 Placements</p>
+                <p className="mt-2 text-2xl font-black text-theme-primary">{topThreeCount}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400">{formatMetric(topThreeRate, 1)}% of routes in top 3</p>
               </div>
               <div className="glass-panel p-5 border-b-4 border-b-rose-500">
-                <p className="text-[0.65rem] font-black uppercase tracking-wider text-rose-600">Critical Attention</p>
-                <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{criticalCount}</p>
-                <p className="mt-0.5 text-xs font-semibold text-slate-500">Routes ranking 4th or lower</p>
+                <p className="text-[0.65rem] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">Critical Attention</p>
+                <p className="mt-2 text-2xl font-black text-theme-primary">{criticalCount}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400">Routes ranking 4th or lower</p>
               </div>
             </section>
             
@@ -754,8 +763,8 @@ export default function RedbusAnalysisPage() {
                   <span className="text-3xl">{ins.icon}</span>
                   <div>
                     <p className="text-[0.65rem] font-black uppercase tracking-wider" style={{ color: ins.color }}>{ins.label}</p>
-                    <p className="mt-1 text-sm font-black text-slate-800">{ins.value}</p>
-                    <p className="mt-0.5 text-xs font-semibold text-slate-500">{ins.sub}</p>
+                    <p className="mt-1 text-sm font-black text-theme-primary">{ins.value}</p>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400">{ins.sub}</p>
                   </div>
                 </div>
               ))}
