@@ -109,11 +109,10 @@ export default function AppleStorePage() {
         </span>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <KPICard label="Average Rating" value={formatStarRating(avgRating)} tip={tip('avgRating')} caption="All operators" icon={<Star size={20} />} accent="#16A34A" />
         <KPICard label="Highest Rated" value={best?.name ?? null} tip={tip('rank')} caption={formatStarRating(best?.rating)} icon={<Gauge size={20} />} accent="#2563EB" />
         <KPICard label="Best Review Mood" value={moodLeader?.name ?? null} tip={tip('mood')} caption={formatMetric(moodLeader?.sentiment, 2)} icon={<TrendingUp size={20} />} accent="#F97316" />
-        <KPICard label="Total Reviews" value={totalReviews.toLocaleString('en-IN')} tip={tip('reviewCount')} caption="Across all apps" icon={<Apple size={20} />} accent="#9333EA" />
       </section>
 
       <section className="glass-panel p-4 sm:p-5">
@@ -152,8 +151,8 @@ export default function AppleStorePage() {
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={ratingBarData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
               <CartesianGrid className="chart-grid" vertical={false} />
-              <XAxis dataKey="name" tick={{ fill: '#334155', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 5]} tick={{ fill: '#334155', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 5]} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} />
               <Bar dataKey="rating" name="Rating" fill="#16A34A" radius={[5, 5, 0, 0]} />
             </BarChart>
@@ -164,8 +163,8 @@ export default function AppleStorePage() {
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={trendData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
               <CartesianGrid className="chart-grid" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: '#334155', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[-1, 1]} tick={{ fill: '#334155', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="month" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[-1, 1]} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
               {summaries.map(s => (
@@ -183,11 +182,11 @@ export default function AppleStorePage() {
             <div className="min-w-[760px] space-y-2">
               <div className="grid items-center gap-2" style={{ gridTemplateColumns: `170px repeat(${heatMonths.length}, minmax(54px, 1fr))` }}>
                 <span />
-                {heatMonths.map(m => <span key={m} className="text-center text-[0.68rem] font-black uppercase text-slate-700 dark:text-slate-300">{m.slice(0, 7)}</span>)}
+                {heatMonths.map(m => <span key={m} className="text-center text-[0.68rem] font-black uppercase text-theme-primary">{m.slice(0, 7)}</span>)}
               </div>
               {visible.map(s => (
                 <div key={s.slug} className="grid items-center gap-2" style={{ gridTemplateColumns: `170px repeat(${heatMonths.length}, minmax(54px, 1fr))` }}>
-                  <span className="truncate text-xs font-black text-slate-800 dark:text-slate-200">{s.name}</span>
+                  <span className="truncate text-xs font-black text-theme-primary">{s.name}</span>
                   {heatMonths.map(m => {
                     const pt = iosHistory?.series.find(x => x.operator_slug === s.slug && x.month === m)
                     return <HeatmapCell key={m} value={pt?.avg_rating ?? null} min={1} max={5} width={58} height={28} showValue />

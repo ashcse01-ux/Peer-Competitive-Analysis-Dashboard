@@ -515,11 +515,11 @@ export default function RedbusAnalysisPage() {
             <div className="min-w-[950px] space-y-2">
               <div className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 100px)` }}>
                 <span />
-                {operators.map(op => <span key={op.id} className="text-center text-[0.68rem] font-black uppercase text-slate-900 dark:text-slate-200">{op.name}</span>)}
+                {operators.map(op => <span key={op.id} className="text-center text-[0.68rem] font-black uppercase text-theme-primary">{op.name}</span>)}
               </div>
               {displayRoutes.map(route => (
                 <div key={route.id} className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 100px)` }}>
-                  <span className="truncate text-xs font-black text-slate-900 dark:text-slate-100">{routeLabel(route.origin, route.destination)}</span>
+                  <span className="truncate text-xs font-black text-theme-primary">{routeLabel(route.origin, route.destination)}</span>
                   {operators.map(operator => {
                     const cell = activeCells.find(item => item.route_id === route.id && item.operator_id === operator.id)
                     return <HeatmapCell key={operator.id} value={cell?.sentiment_score ?? null} width={100} height={30} showValue label={`${operator.name} ${routeLabel(route.origin, route.destination)}`} onClick={() => setDrillRouteId(route.id)} />
@@ -604,8 +604,8 @@ export default function RedbusAnalysisPage() {
         <ResponsiveContainer width="100%" height={450}>
           <BarChart data={barRouteData} margin={{ top: 20, right: 10, left: -20, bottom: 40 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(100,116,139,0.15)" />
-            <XAxis dataKey="name" tick={{ fill: '#475569', fontSize: 11, fontWeight: 800 }} axisLine={false} tickLine={false} />
-            <YAxis domain={[-1, 1]} tick={{ fill: '#475569', fontSize: 13, fontWeight: 800 }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 800 }} axisLine={false} tickLine={false} />
+            <YAxis domain={[-1, 1]} tick={{ fill: 'var(--text-secondary)', fontSize: 13, fontWeight: 800 }} axisLine={false} tickLine={false} />
             <Tooltip contentStyle={{ borderRadius: '12px', background: 'rgba(15,20,30,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }} itemStyle={{ fontWeight: 900 }} />
             <Legend wrapperStyle={{ paddingTop: '20px', fontSize: 15, fontWeight: 900 }} />
             {operators.map(operator => <Bar key={operator.id} dataKey={operator.name} name={operator.name} fill={operator.color} radius={[6, 6, 0, 0]} />)}

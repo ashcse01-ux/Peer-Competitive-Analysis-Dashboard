@@ -289,10 +289,10 @@ export default function OverviewPage() {
           <ResponsiveContainer width="100%" height={340}>
             <BarChart data={barData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
               <CartesianGrid className="chart-grid" vertical={false} />
-              <XAxis dataKey="metric" tick={{ fill: '#334155', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 5]} tick={{ fill: '#334155', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="metric" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 5]} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(0,119,182,0.05)' }} />
-              <Legend wrapperStyle={{ color: '#334155', fontSize: 12, fontWeight: 700 }} />
+              <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }} />
               {operators.map((op, index) => (
                 <Bar key={op.slug} dataKey={op.slug} name={op.name} fill={operatorColor(op.slug)} radius={[5, 5, 0, 0]} />
               ))}
@@ -308,8 +308,8 @@ export default function OverviewPage() {
           <ResponsiveContainer width="100%" height={340}>
             <RadarChart data={radarData} outerRadius="74%">
               <PolarGrid stroke="rgba(20,33,31,0.12)" />
-              <PolarAngleAxis dataKey="metric" tick={{ fill: '#334155', fontSize: 11, fontWeight: 700 }} />
-              <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} />
+              <PolarAngleAxis dataKey="metric" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} />
+              <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} axisLine={false} />
               {operators.map((op, index) => (
                 <Radar
                   key={op.slug}
@@ -321,7 +321,7 @@ export default function OverviewPage() {
                   strokeWidth={2}
                 />
               ))}
-              <Legend wrapperStyle={{ color: '#334155', fontSize: 11, fontWeight: 700 }} />
+              <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} />
             </RadarChart>
           </ResponsiveContainer>
         </div>
@@ -344,7 +344,7 @@ export default function OverviewPage() {
                 dataKey="composite"
                 name="Composite"
                 domain={[0, 5]}
-                tick={{ fill: '#334155', fontSize: 11 }}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
               />
@@ -353,7 +353,7 @@ export default function OverviewPage() {
                 dataKey="route"
                 name="Route Sentiment"
                 domain={[0, 5]}
-                tick={{ fill: '#334155', fontSize: 11 }}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
               />
