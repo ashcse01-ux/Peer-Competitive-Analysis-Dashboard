@@ -68,7 +68,7 @@ export default function GooglePlayPage() {
   const activeSlug = selectedOp ?? summaries[0]?.slug ?? null
   const { data: reviews } = useTopReviews(activeSlug ?? undefined, SOURCE)
 
-  if (isLoading) return <div className="glass-panel p-6 text-sm font-semibold text-slate-500">Loading Google Play metrics…</div>
+  if (isLoading) return <div className="glass-panel p-6 text-sm font-semibold text-slate-600 dark:text-slate-400">Loading Android app metrics…</div>
   if (isError) return <div className="glass-panel p-6 text-sm font-semibold text-rose-600">Google Play data could not be loaded.</div>
 
   const visible = selectedOp ? summaries.filter(s => s.slug === selectedOp) : summaries
@@ -96,7 +96,7 @@ export default function GooglePlayPage() {
       <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           <SectionHeader
-            eyebrow="Google Play Store"
+            eyebrow="Android App Reviews"
             title="Android app ratings, reviews & topic classification"
             subtitle="Star ratings plus 15 review topics so nobody reads reviews one by one."
             eyebrowTip={tip('googlePlay')}
@@ -130,14 +130,14 @@ export default function GooglePlayPage() {
           {visible.map(s => (
             <article key={s.slug} className="rounded-lg border border-slate-900/10 bg-white/60 p-4">
               <div className="flex items-start justify-between gap-3">
-                <p className="truncate text-sm font-black text-[#14211f]">{s.name}</p>
+                <p className="truncate text-sm font-black text-theme-primary">{s.name}</p>
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black text-white" style={{ backgroundColor: s.color }}>{getInitials(s.name)}</span>
               </div>
-              {s.downloads && <p className="mt-1 text-xs font-bold text-slate-500">{s.downloads} downloads</p>}
+              {s.downloads && <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-400">{s.downloads} downloads</p>}
               <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                <div><p className="text-lg font-black">{formatMetric(s.rating, 2)}</p><p className="text-[0.68rem] font-bold uppercase text-slate-400">Rating</p></div>
-                <div><p className="text-lg font-black">{formatMetric(s.sentiment, 2)}</p><p className="text-[0.68rem] font-bold uppercase text-slate-400">Mood</p></div>
-                <div><p className={cx('text-lg font-black', (s.gap ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700')}>{formatDelta(s.gap) ?? '—'}</p><p className="text-[0.68rem] font-bold uppercase text-slate-400">Gap</p></div>
+                <div><p className="text-lg font-black">{formatMetric(s.rating, 2)}</p><p className="text-[0.68rem] font-bold uppercase text-slate-600 dark:text-slate-400">Rating</p></div>
+                <div><p className="text-lg font-black">{formatMetric(s.sentiment, 2)}</p><p className="text-[0.68rem] font-bold uppercase text-slate-600 dark:text-slate-400">Mood</p></div>
+                <div><p className={cx('text-lg font-black', (s.gap ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700')}>{formatDelta(s.gap) ?? '—'}</p><p className="text-[0.68rem] font-bold uppercase text-slate-600 dark:text-slate-400">Gap</p></div>
               </div>
             </article>
           ))}
@@ -152,8 +152,8 @@ export default function GooglePlayPage() {
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={ratingBarData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
               <CartesianGrid className="chart-grid" vertical={false} />
-              <XAxis dataKey="name" tick={{ fill: '#64706d', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 5]} tick={{ fill: '#64706d', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="name" tick={{ fill: '#334155', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 5]} tick={{ fill: '#334155', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} />
               <Bar dataKey="rating" name="Rating" fill="#2563EB" radius={[5, 5, 0, 0]} />
             </BarChart>
@@ -164,8 +164,8 @@ export default function GooglePlayPage() {
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={trendData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
               <CartesianGrid className="chart-grid" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: '#64706d', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[-1, 1]} tick={{ fill: '#64706d', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="month" tick={{ fill: '#334155', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[-1, 1]} tick={{ fill: '#334155', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
               {summaries.map(s => (
@@ -183,11 +183,11 @@ export default function GooglePlayPage() {
             <div className="min-w-[760px] space-y-2">
               <div className="grid items-center gap-2" style={{ gridTemplateColumns: `170px repeat(${heatMonths.length}, minmax(54px, 1fr))` }}>
                 <span />
-                {heatMonths.map(m => <span key={m} className="text-center text-[0.68rem] font-black uppercase text-slate-400">{m.slice(0, 7)}</span>)}
+                {heatMonths.map(m => <span key={m} className="text-center text-[0.68rem] font-black uppercase text-slate-700 dark:text-slate-300">{m.slice(0, 7)}</span>)}
               </div>
               {visible.map(s => (
                 <div key={s.slug} className="grid items-center gap-2" style={{ gridTemplateColumns: `170px repeat(${heatMonths.length}, minmax(54px, 1fr))` }}>
-                  <span className="truncate text-xs font-black text-slate-600">{s.name}</span>
+                  <span className="truncate text-xs font-black text-slate-800 dark:text-slate-200">{s.name}</span>
                   {heatMonths.map(m => {
                     const pt = gpHistory?.series.find(x => x.operator_slug === s.slug && x.month === m)
                     return <HeatmapCell key={m} value={pt?.avg_rating ?? null} min={1} max={5} width={58} height={28} showValue />

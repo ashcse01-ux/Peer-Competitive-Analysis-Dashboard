@@ -65,7 +65,7 @@ export default function GooglePage() {
     setAppliedTo(undefined)
   }
 
-  if (isLoading && !displayData) return <div className="glass-panel p-6 text-sm font-semibold text-slate-500">Loading Google reviews...</div>
+  if (isLoading && !displayData) return <div className="glass-panel p-6 text-sm font-semibold text-slate-600 dark:text-slate-400">Loading Google reviews...</div>
 
   const avgRating = average(entries.map(entry => entry.overall_rating))
   const avgSentiment = average(entries.map(entry => entry.sentiment_score))
@@ -110,7 +110,7 @@ export default function GooglePage() {
 
         <form onSubmit={handleApplyFilter} className="glass-panel flex flex-wrap items-end gap-3 p-3">
           <div>
-            <label className="mb-1 flex items-center gap-1 text-xs font-black uppercase tracking-wide text-slate-500">
+            <label className="mb-1 flex items-center gap-1 text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-300">
               <Calendar size={13} />
               From
             </label>
@@ -122,7 +122,7 @@ export default function GooglePage() {
             />
           </div>
           <div>
-            <label className="mb-1 flex items-center gap-1 text-xs font-black uppercase tracking-wide text-slate-500">
+            <label className="mb-1 flex items-center gap-1 text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-300">
               <Calendar size={13} />
               To
             </label>
@@ -193,8 +193,8 @@ export default function GooglePage() {
           <ResponsiveContainer width="100%" height={330}>
             <BarChart layout="vertical" data={ratingData} margin={{ top: 8, right: 14, left: 18, bottom: 0 }}>
               <CartesianGrid className="chart-grid" horizontal={false} />
-              <XAxis type="number" domain={[0, 5]} tick={{ fill: '#64706d', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={132} tick={{ fill: '#14211f', fontSize: 12, fontWeight: 800 }} axisLine={false} tickLine={false} />
+              <XAxis type="number" domain={[0, 5]} tick={{ fill: '#334155', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" width={132} tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 800 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(0,119,182,0.05)' }} />
               <Bar dataKey="rating" name="Rating" radius={[0, 5, 5, 0]}>
                 {ratingData.map(row => (
@@ -213,10 +213,10 @@ export default function GooglePage() {
           <ResponsiveContainer width="100%" height={330}>
             <LineChart data={trendData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
               <CartesianGrid className="chart-grid" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: '#64706d', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[-1, 1]} tick={{ fill: '#64706d', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="month" tick={{ fill: '#334155', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[-1, 1]} tick={{ fill: '#334155', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ color: '#50615d', fontSize: 11, fontWeight: 700 }} />
+              <Legend wrapperStyle={{ color: '#334155', fontSize: 11, fontWeight: 700 }} />
               {operators.map(operator => (
                 <Line
                   key={operator.slug}
@@ -246,12 +246,12 @@ export default function GooglePage() {
               <div className="grid items-center gap-2" style={{ gridTemplateColumns: `170px repeat(${heatMonths.length}, minmax(54px, 1fr))` }}>
                 <span />
                 {heatMonths.map(month => (
-                  <span key={month} className="text-center text-[0.68rem] font-black uppercase tracking-wide text-slate-400">{month.slice(0, 7)}</span>
+                  <span key={month} className="text-center text-[0.68rem] font-black uppercase tracking-wide text-slate-700 dark:text-slate-300">{month.slice(0, 7)}</span>
                 ))}
               </div>
               {visibleEntries.map(entry => (
                 <div key={entry.operator_slug} className="grid items-center gap-2" style={{ gridTemplateColumns: `170px repeat(${heatMonths.length}, minmax(54px, 1fr))` }}>
-                  <span className="truncate text-xs font-black text-slate-600">{entry.operator_name}</span>
+                  <span className="truncate text-xs font-black text-slate-800 dark:text-slate-200">{entry.operator_name}</span>
                   {heatMonths.map(month => {
                     const point = history?.series.find(series => series.operator_slug === entry.operator_slug && series.month === month)
                     return <HeatmapCell key={month} value={point?.avg_rating ?? null} min={1} max={5} width={58} height={28} showValue />

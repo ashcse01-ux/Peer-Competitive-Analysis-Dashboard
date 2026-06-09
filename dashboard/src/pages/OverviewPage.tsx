@@ -85,7 +85,7 @@ export default function OverviewPage() {
   const { data, isLoading, isError } = useOverview()
   const { t } = useTranslation()
 
-  if (isLoading) return <div className="glass-panel p-6 text-sm font-semibold text-slate-500">Loading overview...</div>
+  if (isLoading) return <div className="glass-panel p-6 text-sm font-semibold text-slate-600 dark:text-slate-400">Loading overview...</div>
   if (isError) return <div className="glass-panel p-6 text-sm font-semibold text-rose-600">Overview data could not be loaded.</div>
 
   const operators = data?.operators ?? []
@@ -289,10 +289,10 @@ export default function OverviewPage() {
           <ResponsiveContainer width="100%" height={340}>
             <BarChart data={barData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
               <CartesianGrid className="chart-grid" vertical={false} />
-              <XAxis dataKey="metric" tick={{ fill: '#64706d', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 5]} tick={{ fill: '#64706d', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="metric" tick={{ fill: '#334155', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 5]} tick={{ fill: '#334155', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(0,119,182,0.05)' }} />
-              <Legend wrapperStyle={{ color: '#50615d', fontSize: 12, fontWeight: 700 }} />
+              <Legend wrapperStyle={{ color: '#334155', fontSize: 12, fontWeight: 700 }} />
               {operators.map((op, index) => (
                 <Bar key={op.slug} dataKey={op.slug} name={op.name} fill={operatorColor(op.slug)} radius={[5, 5, 0, 0]} />
               ))}
@@ -308,8 +308,8 @@ export default function OverviewPage() {
           <ResponsiveContainer width="100%" height={340}>
             <RadarChart data={radarData} outerRadius="74%">
               <PolarGrid stroke="rgba(20,33,31,0.12)" />
-              <PolarAngleAxis dataKey="metric" tick={{ fill: '#64706d', fontSize: 11, fontWeight: 700 }} />
-              <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fill: '#8a9995', fontSize: 10 }} axisLine={false} />
+              <PolarAngleAxis dataKey="metric" tick={{ fill: '#334155', fontSize: 11, fontWeight: 700 }} />
+              <PolarRadiusAxis angle={90} domain={[0, 5]} tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} />
               {operators.map((op, index) => (
                 <Radar
                   key={op.slug}
@@ -321,7 +321,7 @@ export default function OverviewPage() {
                   strokeWidth={2}
                 />
               ))}
-              <Legend wrapperStyle={{ color: '#50615d', fontSize: 11, fontWeight: 700 }} />
+              <Legend wrapperStyle={{ color: '#334155', fontSize: 11, fontWeight: 700 }} />
             </RadarChart>
           </ResponsiveContainer>
         </div>
@@ -344,7 +344,7 @@ export default function OverviewPage() {
                 dataKey="composite"
                 name="Composite"
                 domain={[0, 5]}
-                tick={{ fill: '#64706d', fontSize: 11 }}
+                tick={{ fill: '#334155', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
               />
@@ -353,7 +353,7 @@ export default function OverviewPage() {
                 dataKey="route"
                 name="Route Sentiment"
                 domain={[0, 5]}
-                tick={{ fill: '#64706d', fontSize: 11 }}
+                tick={{ fill: '#334155', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
               />
@@ -381,8 +381,8 @@ export default function OverviewPage() {
                 <article key={op.slug} className="rounded-lg border border-slate-900/10 bg-white/60 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-[#14211f]">{op.name}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-500">
+                      <p className="truncate text-sm font-black text-theme-primary">{op.name}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-400">
                         Rank {op.rank} - {scoreBand(op.composite_score)}
                       </p>
                     </div>
@@ -392,18 +392,18 @@ export default function OverviewPage() {
                   </div>
                   <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                     <div>
-                      <p className="text-lg font-black text-[#14211f]">{formatMetric(op.composite_score, 2)}</p>
-                      <MetricTip tip={tip('compositeScore')} className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-400">Score</MetricTip>
+                      <p className="text-lg font-black text-theme-primary">{formatMetric(op.composite_score, 2)}</p>
+                      <MetricTip tip={tip('compositeScore')} className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">Score</MetricTip>
                     </div>
                     <div>
                       <p className={cx('text-lg font-black', (momentum ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700')}>
                         {formatMetric(momentum, 2)}
                       </p>
-                      <MetricTip tip={tip('momentum')} className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-400">Move</MetricTip>
+                      <MetricTip tip={tip('momentum')} className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">Move</MetricTip>
                     </div>
                     <div>
-                      <p className="text-lg font-black text-[#14211f]">{opportunityIndex(op)}</p>
-                      <MetricTip tip={tip('opportunityIndex')} className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-400">Opp.</MetricTip>
+                      <p className="text-lg font-black text-theme-primary">{opportunityIndex(op)}</p>
+                      <MetricTip tip={tip('opportunityIndex')} className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">Opp.</MetricTip>
                     </div>
                   </div>
                 </article>
@@ -446,17 +446,17 @@ export default function OverviewPage() {
                         <span className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-black text-white" style={{ backgroundColor: color }}>
                           {getInitials(op.name)}
                         </span>
-                        <span className="font-black text-[#14211f]">{op.name}</span>
+                        <span className="font-black text-theme-primary">{op.name}</span>
                       </div>
                     </td>
-                    <td className="font-black text-[#14211f]">{formatMetric(op.composite_score, 2)}</td>
+                    <td className="font-black text-theme-primary">{formatMetric(op.composite_score, 2)}</td>
                     <td>{formatMetric(average([op.gp_rating, op.ios_rating]), 1)}</td>
                     <td>{formatMetric(op.google_rating, 1)}</td>
                     <td>{formatMetric(op.redbus_sentiment, 2)}</td>
                     <td className={cx('font-black', (operatorMomentum(op) ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700')}>
                       {formatMetric(operatorMomentum(op), 2)}
                     </td>
-                    <td className="font-black text-[#14211f]">{opportunityIndex(op)}</td>
+                    <td className="font-black text-theme-primary">{opportunityIndex(op)}</td>
                   </tr>
                 )
               })}
