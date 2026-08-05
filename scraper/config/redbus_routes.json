@@ -1,0 +1,41 @@
+{
+  "cities": {
+    "Hyderabad": 124,
+    "Vijayawada": 134,
+    "Visakhapatnam": 248,
+    "Chennai": 123,
+    "Bangalore": 122,
+    "Tirupati": 71756,
+    "Pondicherry": 233,
+    "Madurai": 126,
+    "Coimbatore": 141,
+    "Erode": 236,
+    "Eluru": 246
+  },
+  "routes": [
+    ["Vijayawada", "Visakhapatnam"],
+    ["Visakhapatnam", "Vijayawada"],
+    ["Vijayawada", "Hyderabad"],
+    ["Hyderabad", "Vijayawada"],
+    ["Bangalore", "Tirupati"],
+    ["Tirupati", "Bangalore"],
+    ["Chennai", "Bangalore"],
+    ["Bangalore", "Chennai"],
+    ["Chennai", "Tirupati"],
+    ["Tirupati", "Chennai"],
+    ["Bangalore", "Erode"],
+    ["Chennai", "Pondicherry"],
+    ["Eluru", "Hyderabad"],
+    ["Erode", "Bangalore"],
+    ["Hyderabad", "Eluru"],
+    ["Pondicherry", "Chennai"],
+    ["Bangalore", "Pondicherry"],
+    ["Pondicherry", "Bangalore"],
+    ["Vijayawada", "Tirupati"],
+    ["Tirupati", "Vijayawada"],
+    ["Coimbatore", "Bangalore"],
+    ["Bangalore", "Coimbatore"],
+    ["Madurai", "Coimbatore"],
+    ["Coimbatore", "Madurai"]
+  ]
+}

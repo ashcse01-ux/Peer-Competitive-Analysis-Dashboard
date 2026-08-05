@@ -186,7 +186,53 @@ const fetch = {
     () => http.get<ReviewClassificationResponse>(`/api/v1/metrics/review-classification/${source}`).then(r => r.data),
     `review-classification-${source}.json`
   ),
+  redbusSrp: (operator: string, route?: string) => fetchWithFallback(
+    () => {
+      const params: Record<string, any> = { operator }
+      if (route) params.route = route
+      return http.get<RedbusSrpResponse>('/api/v1/metrics/redbus/srp', { params }).then(r => r.data)
+    },
+    'redbus-srp.json'
+  ),
   triggerRefresh: () => http.post<{ message: string }>('/api/v1/refresh/trigger').then(r => r.data),
+}
+
+export interface RedbusSrpEntry {
+  route: string;
+  service_key: number;
+  service_number: string;
+  timing: string;
+  rating: string;
+  reviews: string;
+  feb_mtd: number;
+  mar_mtd: number;
+  apr_mtd: number;
+  may_w1: number;
+  may_w2: number;
+  may_w3: number;
+  may_w4: number;
+  may_mtd: number;
+  jun_w1: number;
+  jun_w2: number;
+  jun_w3: number;
+  jun_w4: number;
+  jun_mtd: number;
+  jul_w1: number;
+  jul_w2: number;
+  jul_w3: number;
+  jul_w4: number;
+  jul_mtd: number;
+  d_08_01: number;
+  d_08_02: number;
+  d_08_03: number;
+  d_08_04: number;
+  d_08_05: number;
+}
+
+export interface RedbusSrpResponse {
+  data: RedbusSrpEntry[];
+  routes: string[];
+  operators: string[];
 }
 
 // ── React Query hooks ──────────────────────────────────────────────────────
@@ -208,6 +254,13 @@ export const useReviewClassification = (source: string) =>
     queryKey: ['review-classification', source],
     queryFn: () => fetch.reviewClassification(source),
     staleTime: 60_000,
+  })
+
+export const useRedbusSrp = (operator: string, route?: string) =>
+  useQuery({
+    queryKey: ['redbus-srp', operator, route],
+    queryFn: () => fetch.redbusSrp(operator, route),
+    staleTime: 30_000,
   })
 
 export function useTriggerRefresh() {

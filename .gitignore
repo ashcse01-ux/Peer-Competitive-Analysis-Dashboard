@@ -25,3 +25,6 @@ node.tar.gz
 .DS_Store
 .vscode/
 .idea/
+
+# Scraped Redbus data and databases
+scraper/redbus_html/

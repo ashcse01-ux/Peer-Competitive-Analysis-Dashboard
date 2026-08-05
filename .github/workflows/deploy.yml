@@ -38,6 +38,8 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: ./dashboard
+        env:
+          VITE_BASE_PATH: /Peer-Competitive-Analysis-Dashboard/
         
       - name: Setup Pages
         uses: actions/configure-pages@v4

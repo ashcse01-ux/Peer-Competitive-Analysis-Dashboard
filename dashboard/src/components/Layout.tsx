@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Activity, BarChart3, Bus, Globe, Map, Moon, RefreshCw, Search, Smartphone, Sun } from 'lucide-react'
+import { Activity, BarChart3, Bus, Compass, Globe, Map, Moon, RefreshCw, Search, Smartphone, Sun } from 'lucide-react'
 import { useRefreshStatus, useTriggerRefresh } from '../api'
 import { LANG_OPTIONS } from '../i18n/translations'
 import { useTranslation } from '../i18n/useTranslation'
@@ -23,6 +23,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/apple-store', label: t('nav.appleStore'), icon: Smartphone },
     { to: '/google-reviews', label: t('nav.google'), icon: Search },
     { to: '/redbus', label: t('nav.redbus'), icon: Map },
+    { to: '/redbus-srp', label: t('nav.redbusSrp'), icon: Compass },
   ]
 
   const isStale = refresh?.status === 'stale' || refresh?.status === 'loading'

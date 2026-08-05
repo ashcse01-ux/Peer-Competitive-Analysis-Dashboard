@@ -7,6 +7,7 @@ const GooglePlayPage = lazy(() => import('./pages/GooglePlayPage'))
 const AppleStorePage = lazy(() => import('./pages/AppleStorePage'))
 const GooglePage = lazy(() => import('./pages/GooglePage'))
 const RedbusAnalysisPage = lazy(() => import('./pages/RedbusAnalysisPage'))
+const RedbusSrpPage = lazy(() => import('./pages/RedbusSrpPage'))
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
           <Route path="/apple-store" element={<AppleStorePage />} />
           <Route path="/google-reviews" element={<GooglePage />} />
           <Route path="/redbus" element={<RedbusAnalysisPage />} />
+          <Route path="/redbus-srp" element={<RedbusSrpPage />} />
           {/* Legacy redirects */}
           <Route path="/app-store" element={<Navigate to="/google-play" replace />} />
           <Route path="/review-tags" element={<Navigate to="/redbus" replace />} />
