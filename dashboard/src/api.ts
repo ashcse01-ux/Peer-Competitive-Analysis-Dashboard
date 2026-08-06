@@ -247,6 +247,8 @@ export interface RedbusSrpEntry {
   service_key: number;
   service_number: string;
   timing: string;
+  bus_type?: string;
+  duration?: string;
   rating: string;
   reviews: string;
   feb_mtd: number;

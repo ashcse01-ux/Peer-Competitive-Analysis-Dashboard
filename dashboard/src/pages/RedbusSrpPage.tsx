@@ -234,8 +234,12 @@ export default function RedbusSrpPage() {
                 <tbody>
                   {items.map(item => (
                     <tr key={item.service_key}>
-                      <td className="font-bold whitespace-nowrap">{item.route}</td>
-                      <td className="whitespace-nowrap font-semibold">{item.timing}</td>
+                      <td className="font-bold whitespace-nowrap">
+                        {item.route} {item.bus_type ? `(${item.bus_type})` : ''}
+                      </td>
+                      <td className="whitespace-nowrap font-semibold">
+                        {item.timing} {item.duration ? `(${item.duration})` : ''}
+                      </td>
                       
                       {/* Render dynamic rank data matching header dates */}
                       {activeDates.map(date => {
