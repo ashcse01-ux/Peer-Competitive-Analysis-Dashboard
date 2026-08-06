@@ -249,6 +249,7 @@ export interface RedbusSrpEntry {
   timing: string;
   bus_type?: string;
   duration?: string;
+  price?: string;
   rating: string;
   reviews: string;
   feb_mtd: number;
