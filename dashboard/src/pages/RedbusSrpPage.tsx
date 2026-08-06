@@ -73,7 +73,16 @@ export default function RedbusSrpPage() {
     submitted.route || undefined
   )
 
-  const items = srpResponse?.data ?? []
+  const rawItems = srpResponse?.data ?? []
+  const items = useMemo(() => {
+    if (!submitted.route) return rawItems
+    // Match route name exactly or handle unicode arrow character formats
+    const cleanSubmitted = submitted.route.replace('→', '→').trim().toLowerCase()
+    return rawItems.filter(item => {
+      const cleanItemRoute = item.route.replace('→', '→').trim().toLowerCase()
+      return cleanItemRoute === cleanSubmitted
+    })
+  }, [rawItems, submitted.route])
 
   // Calculate selected date range columns
   const activeDates = useMemo(() => {
