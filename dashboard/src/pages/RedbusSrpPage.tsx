@@ -238,7 +238,24 @@ export default function RedbusSrpPage() {
                         {item.route} {item.bus_type ? `(${item.bus_type})` : ''}
                       </td>
                       <td className="whitespace-nowrap font-semibold">
-                        {item.timing} {item.duration ? `(${item.duration})` : ''}
+                        {item.timing} {(() => {
+                          const dur = item.duration && item.duration.trim() ? item.duration : (() => {
+                            const parts = item.timing.split('-').map(s => s.trim());
+                            if (parts.length !== 2) return '';
+                            const parseTime = (tStr: string) => {
+                              const [h, m] = tStr.split(':').map(Number);
+                              return { h: isNaN(h) ? 0 : h, m: isNaN(m) ? 0 : m };
+                            };
+                            const dep = parseTime(parts[0]);
+                            const arr = parseTime(parts[1]);
+                            let diff = (arr.h * 60 + arr.m) - (dep.h * 60 + dep.m);
+                            if (diff < 0) diff += 24 * 60;
+                            const diffH = Math.floor(diff / 60);
+                            const diffM = diff % 60;
+                            return `${String(diffH).padStart(2, '0')}:${String(diffM).padStart(2, '0')}`;
+                          })();
+                          return dur ? `(${dur})` : '';
+                        })()}
                       </td>
                       
                       {/* Render dynamic rank data matching header dates */}
