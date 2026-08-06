@@ -195,7 +195,7 @@ class TestRefreshTrigger:
             os.environ.pop("ADMIN_TOKEN", None)
             resp = client.post("/api/v1/refresh/trigger")
         assert resp.status_code == 200
-        assert resp.json()["message"] == "Refresh triggered"
+        assert "Sync started" in resp.json()["message"]
 
     def test_trigger_requires_auth_when_token_set(self):
         client, conn = _make_client()

@@ -265,11 +265,31 @@ def fetch_google_play(app_id: str) -> dict[str, Any]:
         [{"star_rating": r["star_rating"]} for r in reviews]
     )
     downloads = info.get("installs") or "50,000+"
+    from scraper.play_topics import (
+        normalize_histogram,
+        parse_downloads,
+        score_topics_from_reviews,
+    )
+    downloads_label, downloads_raw = parse_downloads(
+        info.get("realInstalls") or info.get("minInstalls") or info.get("installs")
+    )
+    hist = normalize_histogram(info.get("histogram"))
+    topics = score_topics_from_reviews(
+        [{"review_text": r["text"], "star_rating": r["star_rating"]} for r in reviews]
+    )
     return {
         "overall_rating": info.get("score"),
+        "ratings_count": info.get("ratings"),
         "review_count": info.get("reviews"),
         "app_version": info.get("version"),
-        "downloads": downloads,
+        "downloads": downloads_label or downloads,
+        "downloads_raw": downloads_raw,
+        "star_1": hist.get("star_1"),
+        "star_2": hist.get("star_2"),
+        "star_3": hist.get("star_3"),
+        "star_4": hist.get("star_4"),
+        "star_5": hist.get("star_5"),
+        "play_topics": topics,
         "reviews": reviews,
         "sentiment_score": sentiment,
         "positive_review_ratio": positive,
@@ -298,20 +318,22 @@ def fetch_ios(app_id: str, operator_slug: str) -> dict[str, Any]:
     sentiment, positive = _stars_sentiment(
         [{"star_rating": r["star_rating"]} for r in reviews]
     )
-    base_downloads = {
-        "freshbus": "15,000+",
-        "neugo": "10,000+",
-        "flixbus": "300,000+",
-        "zingbus": "35,000+",
-        "leafy": "3,000+",
-        "intrcity": "80,000+"
-    }
-    downloads = base_downloads.get(operator_slug, "10,000+")
+    from scraper.play_topics import histogram_from_reviews
+    hist = histogram_from_reviews(
+        [{"star_rating": r["star_rating"]} for r in reviews]
+    )
     return {
         "overall_rating": meta.get("overall_rating"),
         "review_count": meta.get("review_count"),
         "app_version": meta.get("app_version"),
-        "downloads": downloads,
+        "downloads": None,
+        "downloads_raw": None,
+        "star_1": hist.get("star_1"),
+        "star_2": hist.get("star_2"),
+        "star_3": hist.get("star_3"),
+        "star_4": hist.get("star_4"),
+        "star_5": hist.get("star_5"),
+        "play_topics": {},
         "reviews": reviews,
         "sentiment_score": sentiment,
         "positive_review_ratio": positive,
@@ -344,6 +366,12 @@ def fetch_google_search(operator_slug: str) -> dict[str, Any]:
     sentiment, positive = _stars_sentiment(
         [{"star_rating": r["star_rating"]} for r in reviews]
     )
+    hist = result.get("histogram") or {}
+    if not any(hist.get(f"star_{i}") for i in range(1, 6)):
+        from scraper.play_topics import histogram_from_reviews
+        hist = histogram_from_reviews(
+            [{"star_rating": r["star_rating"]} for r in reviews]
+        )
     return {
         "overall_rating": result.get("overall_rating"),
         "review_count": result.get("review_count"),
@@ -351,6 +379,11 @@ def fetch_google_search(operator_slug: str) -> dict[str, Any]:
         "sentiment_score": sentiment,
         "positive_review_ratio": positive,
         "rating_delta_mom": None,
+        "star_1": hist.get("star_1"),
+        "star_2": hist.get("star_2"),
+        "star_3": hist.get("star_3"),
+        "star_4": hist.get("star_4"),
+        "star_5": hist.get("star_5"),
         "is_stale": False,
         "cycle_timestamp": _now(),
     }

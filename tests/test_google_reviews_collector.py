@@ -41,7 +41,7 @@ def _make_db() -> MagicMock:
 
 
 class TestSuccessfulExtraction:
-    @patch("scraper.collectors.google_reviews.insert_google_reviews")
+    @patch("scraper.collectors.google_reviews.replace_google_reviews")
     @patch("scraper.collectors.google_reviews.upsert_google_snapshot")
     @patch("scraper.collectors.google_reviews.get_operator_id")
     def test_successful_extraction(
@@ -94,7 +94,7 @@ class TestSuccessfulExtraction:
 
 
 class TestAbsentKnowledgePanel:
-    @patch("scraper.collectors.google_reviews.insert_google_reviews")
+    @patch("scraper.collectors.google_reviews.replace_google_reviews")
     @patch("scraper.collectors.google_reviews.upsert_google_snapshot")
     @patch("scraper.collectors.google_reviews.get_operator_id")
     def test_absent_knowledge_panel(
@@ -198,7 +198,7 @@ class TestRetryExhaustionMarksStale:
 
 
 class TestNullRecordingFailureIsSwallowed:
-    @patch("scraper.collectors.google_reviews.insert_google_reviews")
+    @patch("scraper.collectors.google_reviews.replace_google_reviews")
     @patch("scraper.collectors.google_reviews.upsert_google_snapshot")
     @patch("scraper.collectors.google_reviews.get_operator_id")
     def test_null_recording_failure_is_swallowed(

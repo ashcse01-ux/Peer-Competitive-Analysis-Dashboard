@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Activity, BarChart3, Bus, Compass, Globe, Map, Moon, RefreshCw, Search, Smartphone, Sun } from 'lucide-react'
+import { Activity, BarChart3, Compass, Globe, Map, Moon, RefreshCw, Search, Smartphone, Sun } from 'lucide-react'
 import { useRefreshStatus, useTriggerRefresh } from '../api'
 import { LANG_OPTIONS } from '../i18n/translations'
 import { useTranslation } from '../i18n/useTranslation'
@@ -8,7 +8,9 @@ import { useDashboardStore } from '../store'
 import { cx } from '../lib/insights'
 import MetricTip from './MetricTip'
 import { tip } from '../lib/metricGlossary'
+import BrandLockup from './BrandLockup'
 import MugChatbot from './MugChatbot'
+import { FB_BLUE, FB_YELLOW } from '../lib/playTopics'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { data: refresh, isFetching } = useRefreshStatus()
@@ -28,9 +30,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const isStale = refresh?.status === 'stale' || refresh?.status === 'loading'
   const isRefreshing = triggerRefresh.isPending || refresh?.status === 'loading'
-  const lastRefresh = refresh?.completed_at
-    ? new Date(refresh.completed_at).toLocaleString()
-    : 'Pending'
 
   const handleRefresh = async () => {
     setRefreshMsg(null)
@@ -38,68 +37,42 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       const res = await triggerRefresh.mutateAsync()
       setRefreshMsg(res.message)
     } catch {
-      setRefreshMsg('Refresh could not be started.')
+      setRefreshMsg('Refresh could not be started — start the API (python run_demo.py) for live sync.')
     }
   }
 
   return (
     <div className="min-h-screen">
       <header
-        className="sticky top-0 z-40 border-b backdrop-blur-2xl"
+        className="sticky top-0 z-40"
         style={{
-          borderColor: 'var(--border-subtle)',
-          background: 'var(--header-bg)',
+          background: FB_BLUE,
+          boxShadow: '0 4px 15px rgba(12,77,195,0.25)',
         }}
       >
-        <div className="mx-auto flex max-w-[1560px] flex-col gap-4 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:gap-6 lg:px-8">
-          <div className="flex min-w-0 items-center justify-between gap-4">
-            <NavLink to="/" className="group flex min-w-0 items-center gap-3">
-              <span
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg"
-                style={{
-                  background: 'linear-gradient(135deg, #0077ff, #00d4ff 50%, #ffea00)',
-                  boxShadow: '0 8px 32px rgba(0, 212, 255, 0.35)',
-                }}
-              >
-                <Bus size={22} strokeWidth={2.4} />
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-base font-black tracking-tight text-theme-primary">
-                  {t('app.title')}
-                </span>
-                <span className="block truncate text-xs font-semibold text-theme-muted">
-                  {t('app.subtitle')}
-                </span>
-              </span>
-            </NavLink>
+        <div className="mx-auto flex max-w-[1560px] flex-col gap-3 px-4 py-2.5 sm:px-6 lg:flex-row lg:items-center lg:gap-5 lg:px-8 lg:py-3">
+          <div className="flex w-full items-center justify-between gap-3 lg:w-auto lg:shrink-0">
+            <BrandLockup />
 
             <div className="flex items-center gap-2 lg:hidden">
               <button
                 type="button"
-                className="icon-button"
+                className="inline-flex h-9 items-center gap-2 rounded-full px-3 text-xs font-bold text-[#0f1d35]"
+                style={{ background: FB_YELLOW }}
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                aria-label={t('status.refresh')}
+                aria-label="Sync Latest"
               >
-                <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+                <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+                Sync
               </button>
-              <select
-                className="h-9 max-w-[5.5rem] appearance-none rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-xs font-bold text-theme-primary outline-none"
-                value={language}
-                onChange={e => setLanguage(e.target.value as typeof language)}
-                aria-label="Language"
-              >
-                {LANG_OPTIONS.map(opt => (
-                  <option key={opt.code} value={opt.code}>{opt.code.toUpperCase()}</option>
-                ))}
-              </select>
-              <button type="button" className="icon-button" onClick={toggleTheme} aria-label="Toggle theme">
+              <button type="button" className="icon-button border-white/25 bg-white/10 text-white" onClick={toggleTheme} aria-label="Toggle theme">
                 {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
               </button>
             </div>
           </div>
 
-          <nav className="no-scrollbar flex gap-2 overflow-x-auto pb-1 lg:pb-0">
+          <nav className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 lg:pb-0">
             {NAV_LINKS.map(link => {
               const Icon = link.icon
               return (
@@ -112,7 +85,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       'inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-bold transition',
                       isActive
                         ? 'nav-pill-active'
-                        : 'border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-theme-secondary hover:border-[var(--border-glow)] hover:text-theme-primary',
+                        : 'border border-white/20 bg-white/10 text-white hover:bg-white/20',
                     )
                   }
                 >
@@ -125,20 +98,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
           <div className="hidden min-w-fit items-center gap-2 lg:ml-auto lg:flex">
             <div className="relative">
-              <Globe size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted" />
+              <Globe size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/70" />
               <select
-                className="h-9 appearance-none rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] pl-8 pr-7 text-xs font-bold text-theme-primary outline-none transition focus:border-[var(--border-glow)]"
+                className="h-9 appearance-none rounded-full border border-white/20 bg-white/10 pl-8 pr-7 text-xs font-bold text-white outline-none transition focus:border-white/50"
                 value={language}
                 onChange={e => setLanguage(e.target.value as typeof language)}
                 aria-label="Language"
               >
                 {LANG_OPTIONS.map(opt => (
-                  <option key={opt.code} value={opt.code}>{opt.native}</option>
+                  <option key={opt.code} value={opt.code} className="text-[#0f1d35]">{opt.native}</option>
                 ))}
               </select>
             </div>
 
-            <button type="button" className="icon-button" onClick={toggleTheme} aria-label="Toggle theme" title={theme === 'light' ? t('theme.dark') : t('theme.light')}>
+            <button type="button" className="icon-button border-white/25 bg-white/10 text-white" onClick={toggleTheme} aria-label="Toggle theme" title={theme === 'light' ? t('theme.dark') : t('theme.light')}>
               {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
             </button>
 
@@ -146,24 +119,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 className={cx(
-                  'icon-button',
+                  'inline-flex h-9 items-center gap-2 rounded-full px-4 text-xs font-bold text-[#0f1d35] shadow-sm transition',
                   isRefreshing && 'pointer-events-none opacity-70',
                 )}
+                style={{
+                  background: FB_YELLOW,
+                  boxShadow: '0 6px 20px rgba(251, 188, 4, 0.35)',
+                }}
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                aria-label={t('status.refresh')}
+                aria-label="Sync Latest"
+                title="Sync Latest — replaces today's snapshot"
               >
-                <RefreshCw size={16} className={isRefreshing || isFetching ? 'animate-spin' : ''} />
+                <RefreshCw size={14} className={isRefreshing || isFetching ? 'animate-spin' : ''} />
+                Sync Latest
               </button>
             </MetricTip>
 
-            <span className={cx(
-              'inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold',
-              isStale ? 'border-amber-400/40 bg-amber-500/10 text-amber-500' : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-500',
-            )}>
-              <Activity size={14} />
-              {isStale ? t('status.stale') : 'Current Data'}
-            </span>
+            {isStale && (
+              <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/50 bg-amber-400/20 px-3 py-2 text-xs font-bold text-amber-100">
+                <Activity size={14} />
+                {t('status.stale')}
+              </span>
+            )}
           </div>
         </div>
       </header>

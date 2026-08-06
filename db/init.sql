@@ -23,17 +23,28 @@ CREATE TABLE IF NOT EXISTS routes (
 );
 
 -- ---------------------------------------------------------------------------
--- 3. app_store_snapshots
+-- 3. app_store_snapshots  (one row per operator × source × calendar day)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS app_store_snapshots (
     id              SERIAL PRIMARY KEY,
     operator_id     INT NOT NULL REFERENCES operators(id),
     source          TEXT NOT NULL CHECK (source IN ('google_play', 'ios_app_store')),
     collected_at    TIMESTAMPTZ NOT NULL,
+    collection_date DATE NOT NULL,
     overall_rating  NUMERIC(3, 2),
-    review_count    INT,
+    ratings_count   INT,   -- people who left a star rating (Play: ratings)
+    review_count    INT,   -- written text reviews (Play: reviews)
     app_version     TEXT,
-    is_stale        BOOLEAN NOT NULL DEFAULT FALSE
+    downloads       TEXT,
+    downloads_raw   BIGINT,
+    star_1          INT,
+    star_2          INT,
+    star_3          INT,
+    star_4          INT,
+    star_5          INT,
+    play_topics     JSONB NOT NULL DEFAULT '{}'::jsonb,
+    is_stale        BOOLEAN NOT NULL DEFAULT FALSE,
+    UNIQUE (operator_id, source, collection_date)
 );
 
 CREATE INDEX IF NOT EXISTS idx_app_store_snapshots_operator_source
@@ -57,15 +68,22 @@ CREATE INDEX IF NOT EXISTS idx_app_store_reviews_operator_id
     ON app_store_reviews (operator_id);
 
 -- ---------------------------------------------------------------------------
--- 5. google_review_snapshots
+-- 5. google_review_snapshots  (one row per operator × calendar day)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS google_review_snapshots (
     id              SERIAL PRIMARY KEY,
     operator_id     INT NOT NULL REFERENCES operators(id),
     collected_at    TIMESTAMPTZ NOT NULL,
+    collection_date DATE NOT NULL,
     overall_rating  NUMERIC(3, 2),
     review_count    INT,
-    is_stale        BOOLEAN NOT NULL DEFAULT FALSE
+    star_1          INT,
+    star_2          INT,
+    star_3          INT,
+    star_4          INT,
+    star_5          INT,
+    is_stale        BOOLEAN NOT NULL DEFAULT FALSE,
+    UNIQUE (operator_id, collection_date)
 );
 
 CREATE INDEX IF NOT EXISTS idx_google_review_snapshots_operator_source

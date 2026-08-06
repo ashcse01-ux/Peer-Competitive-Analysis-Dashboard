@@ -2,13 +2,19 @@
 scraper/db.py
 SQLAlchemy 2.x Core — engine factory, session context manager, and DAL helpers.
 All parameterised queries; no string interpolation of user-supplied values.
+
+App-store and Google snapshots enforce one entry per calendar day (Asia/Kolkata).
+A re-sync on the same day replaces that day's row and its reviews.
 """
 
 from __future__ import annotations
 
+import json
 import os
 from contextlib import contextmanager
-from typing import Generator
+from datetime import date, datetime, timezone
+from typing import Any, Generator
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine
@@ -16,10 +22,13 @@ from sqlalchemy.engine import Connection, Engine
 __all__ = [
     "get_engine",
     "get_session",
+    "collection_date_ist",
     "upsert_app_store_snapshot",
     "insert_app_store_reviews",
+    "replace_app_store_reviews",
     "upsert_google_snapshot",
     "insert_google_reviews",
+    "replace_google_reviews",
     "upsert_redbus_snapshot",
     "insert_redbus_reviews",
     "set_snapshot_stale",
@@ -27,6 +36,22 @@ __all__ = [
     "get_route_id",
     "insert_captcha_alert",
 ]
+
+_IST = ZoneInfo("Asia/Kolkata")
+
+
+def collection_date_ist(collected_at: object | None = None) -> date:
+    """Calendar date in Asia/Kolkata for the one-entry-per-day key."""
+    if collected_at is None:
+        return datetime.now(tz=_IST).date()
+    if isinstance(collected_at, date) and not isinstance(collected_at, datetime):
+        return collected_at
+    if isinstance(collected_at, datetime):
+        dt = collected_at
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(_IST).date()
+    return datetime.now(tz=_IST).date()
 
 # ---------------------------------------------------------------------------
 # Module-level engine singleton
@@ -91,30 +116,57 @@ def upsert_app_store_snapshot(
     overall_rating: float | None,
     review_count: int | None,
     app_version: str | None,
+    downloads: str | None = None,
+    downloads_raw: int | None = None,
+    star_1: int | None = None,
+    star_2: int | None = None,
+    star_3: int | None = None,
+    star_4: int | None = None,
+    star_5: int | None = None,
+    play_topics: dict[str, Any] | None = None,
+    ratings_count: int | None = None,
 ) -> int:
     """
-    Insert a new app_store_snapshots row and return the generated id.
+    Upsert one app_store_snapshots row per (operator, source, IST day).
 
-    Parameters
-    ----------
-    conn:           Open SQLAlchemy connection (inside a transaction).
-    operator_id:    FK → operators.id
-    source:         'google_play' | 'ios_app_store'
-    collected_at:   datetime-like; stored as TIMESTAMPTZ
-    overall_rating: Aggregate rating (nullable)
-    review_count:   Total reviews count (nullable)
-    app_version:    App version string (nullable)
+    Re-syncing the same day overwrites metrics and returns the existing id so
+    callers can replace child reviews.
 
-    Returns
-    -------
-    int: The newly created snapshot id.
+    ratings_count = people who left a star (Play: ratings)
+    review_count  = written text reviews (Play: reviews)
     """
+    day = collection_date_ist(collected_at)
+    topics_json = json.dumps(play_topics or {})
+
     stmt = text(
         """
         INSERT INTO app_store_snapshots
-            (operator_id, source, collected_at, overall_rating, review_count, app_version)
+            (operator_id, source, collected_at, collection_date,
+             overall_rating, ratings_count, review_count, app_version,
+             downloads, downloads_raw,
+             star_1, star_2, star_3, star_4, star_5,
+             play_topics, is_stale)
         VALUES
-            (:operator_id, :source, :collected_at, :overall_rating, :review_count, :app_version)
+            (:operator_id, :source, :collected_at, :collection_date,
+             :overall_rating, :ratings_count, :review_count, :app_version,
+             :downloads, :downloads_raw,
+             :star_1, :star_2, :star_3, :star_4, :star_5,
+             CAST(:play_topics AS jsonb), FALSE)
+        ON CONFLICT (operator_id, source, collection_date) DO UPDATE SET
+            collected_at   = EXCLUDED.collected_at,
+            overall_rating = EXCLUDED.overall_rating,
+            ratings_count  = EXCLUDED.ratings_count,
+            review_count   = EXCLUDED.review_count,
+            app_version    = EXCLUDED.app_version,
+            downloads      = EXCLUDED.downloads,
+            downloads_raw  = EXCLUDED.downloads_raw,
+            star_1         = EXCLUDED.star_1,
+            star_2         = EXCLUDED.star_2,
+            star_3         = EXCLUDED.star_3,
+            star_4         = EXCLUDED.star_4,
+            star_5         = EXCLUDED.star_5,
+            play_topics    = EXCLUDED.play_topics,
+            is_stale       = FALSE
         RETURNING id
         """
     )
@@ -124,9 +176,19 @@ def upsert_app_store_snapshot(
             "operator_id": operator_id,
             "source": source,
             "collected_at": collected_at,
+            "collection_date": day,
             "overall_rating": overall_rating,
+            "ratings_count": ratings_count,
             "review_count": review_count,
             "app_version": app_version,
+            "downloads": downloads,
+            "downloads_raw": downloads_raw,
+            "star_1": star_1,
+            "star_2": star_2,
+            "star_3": star_3,
+            "star_4": star_4,
+            "star_5": star_5,
+            "play_topics": topics_json,
         },
     ).fetchone()
     return int(row[0])
@@ -175,6 +237,21 @@ def insert_app_store_reviews(
     return len(params)
 
 
+def replace_app_store_reviews(
+    conn: Connection,
+    snapshot_id: int,
+    operator_id: int,
+    source: str,
+    reviews: list[dict],
+) -> int:
+    """Delete existing reviews for a snapshot, then insert the new set."""
+    conn.execute(
+        text("DELETE FROM app_store_reviews WHERE snapshot_id = :snapshot_id"),
+        {"snapshot_id": snapshot_id},
+    )
+    return insert_app_store_reviews(conn, snapshot_id, operator_id, source, reviews)
+
+
 # ---------------------------------------------------------------------------
 # DAL — Google Reviews
 # ---------------------------------------------------------------------------
@@ -186,16 +263,34 @@ def upsert_google_snapshot(
     collected_at: object,
     overall_rating: float | None,
     review_count: int | None,
+    star_1: int | None = None,
+    star_2: int | None = None,
+    star_3: int | None = None,
+    star_4: int | None = None,
+    star_5: int | None = None,
 ) -> int:
-    """
-    Insert a new google_review_snapshots row and return the generated id.
-    """
+    """Upsert one google_review_snapshots row per (operator, IST day)."""
+    day = collection_date_ist(collected_at)
     stmt = text(
         """
         INSERT INTO google_review_snapshots
-            (operator_id, collected_at, overall_rating, review_count)
+            (operator_id, collected_at, collection_date,
+             overall_rating, review_count,
+             star_1, star_2, star_3, star_4, star_5, is_stale)
         VALUES
-            (:operator_id, :collected_at, :overall_rating, :review_count)
+            (:operator_id, :collected_at, :collection_date,
+             :overall_rating, :review_count,
+             :star_1, :star_2, :star_3, :star_4, :star_5, FALSE)
+        ON CONFLICT (operator_id, collection_date) DO UPDATE SET
+            collected_at   = EXCLUDED.collected_at,
+            overall_rating = EXCLUDED.overall_rating,
+            review_count   = EXCLUDED.review_count,
+            star_1         = EXCLUDED.star_1,
+            star_2         = EXCLUDED.star_2,
+            star_3         = EXCLUDED.star_3,
+            star_4         = EXCLUDED.star_4,
+            star_5         = EXCLUDED.star_5,
+            is_stale       = FALSE
         RETURNING id
         """
     )
@@ -204,8 +299,14 @@ def upsert_google_snapshot(
         {
             "operator_id": operator_id,
             "collected_at": collected_at,
+            "collection_date": day,
             "overall_rating": overall_rating,
             "review_count": review_count,
+            "star_1": star_1,
+            "star_2": star_2,
+            "star_3": star_3,
+            "star_4": star_4,
+            "star_5": star_5,
         },
     ).fetchone()
     return int(row[0])
@@ -250,6 +351,20 @@ def insert_google_reviews(
     ]
     conn.execute(stmt, params)
     return len(params)
+
+
+def replace_google_reviews(
+    conn: Connection,
+    snapshot_id: int,
+    operator_id: int,
+    reviews: list[dict],
+) -> int:
+    """Delete existing reviews for a snapshot, then insert the new set."""
+    conn.execute(
+        text("DELETE FROM google_reviews WHERE snapshot_id = :snapshot_id"),
+        {"snapshot_id": snapshot_id},
+    )
+    return insert_google_reviews(conn, snapshot_id, operator_id, reviews)
 
 
 # ---------------------------------------------------------------------------

@@ -60,10 +60,19 @@ export interface OverviewOperator {
 export interface AppStoreEntry {
   operator_id: number; operator_name: string; operator_slug: string
   source: string; overall_rating: number | null; review_count: number | null
+  ratings_count?: number | null
   sentiment_score: number | null
   positive_review_ratio: number | null; rating_delta_mom: number | null
   cycle_timestamp: string | null; is_stale: boolean
   downloads?: string | null
+  downloads_raw?: number | null
+  star_1?: number | null
+  star_2?: number | null
+  star_3?: number | null
+  star_4?: number | null
+  star_5?: number | null
+  play_topics?: Record<string, number | null>
+  collection_date?: string | null
 }
 
 export interface GoogleEntry {
@@ -71,6 +80,12 @@ export interface GoogleEntry {
   overall_rating: number | null; review_count: number | null
   sentiment_score: number | null; positive_review_ratio: number | null
   rating_delta_mom: number | null; cycle_timestamp: string | null; is_stale: boolean
+  star_1?: number | null
+  star_2?: number | null
+  star_3?: number | null
+  star_4?: number | null
+  star_5?: number | null
+  collection_date?: string | null
 }
 
 export interface RedbusCell {
@@ -194,7 +209,19 @@ const fetch = {
     },
     'redbus-srp.json'
   ),
+  dailySnapshots: () => fetchWithFallback(
+    () => http.get<DailySnapshotsResponse>('/api/v1/metrics/daily-snapshots').then(r => r.data),
+    'daily-snapshots.json'
+  ),
   triggerRefresh: () => http.post<{ message: string }>('/api/v1/refresh/trigger').then(r => r.data),
+}
+
+export interface DailySnapshotsResponse {
+  generated_at?: string
+  anchor_date: string
+  days: number
+  app_store: AppStoreEntry[]
+  google_reviews: GoogleEntry[]
 }
 
 export interface RedbusSrpEntry {
@@ -261,6 +288,13 @@ export const useRedbusSrp = (operator: string, route?: string) =>
     queryKey: ['redbus-srp', operator, route],
     queryFn: () => fetch.redbusSrp(operator, route),
     staleTime: 30_000,
+  })
+
+export const useDailySnapshots = () =>
+  useQuery({
+    queryKey: ['daily-snapshots'],
+    queryFn: fetch.dailySnapshots,
+    staleTime: 60_000,
   })
 
 export function useTriggerRefresh() {

@@ -55,7 +55,7 @@ def _make_raw_reviews(n: int) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 class TestCollectOperatorGooglePlaySuccess:
-    @patch("scraper.collectors.app_store.insert_app_store_reviews")
+    @patch("scraper.collectors.app_store.replace_app_store_reviews")
     @patch("scraper.collectors.app_store.upsert_app_store_snapshot")
     @patch("scraper.collectors.app_store.get_operator_id")
     def test_collect_operator_google_play_success(
@@ -130,10 +130,15 @@ class TestCollectOperatorGooglePlaySuccess:
 # ---------------------------------------------------------------------------
 
 class TestCollectOperatorMissingAppId:
-    @patch("scraper.collectors.app_store.insert_app_store_reviews")
+    @patch("scraper.collectors.app_store.replace_app_store_reviews")
     @patch("scraper.collectors.app_store.upsert_app_store_snapshot")
     @patch("scraper.collectors.app_store.set_snapshot_stale")
     @patch("scraper.collectors.app_store.get_operator_id")
+    @patch.dict(
+        "scraper.collectors.app_store.OPERATOR_APP_IDS",
+        {"neugo": {"google_play": "com.gcm.nuego", "ios_app_store": None}},
+        clear=False,
+    )
     def test_collect_operator_missing_app_id(
         self,
         mock_get_operator_id,
@@ -142,9 +147,8 @@ class TestCollectOperatorMissingAppId:
         mock_insert_reviews,
     ):
         """
-        neugo has ios_app_store = None in OPERATOR_APP_IDS.
-        Expect a null snapshot to be inserted (all metrics None) without setting
-        the stale flag, and the returned dict should have app_absent=True.
+        When ios_app_store app id is None, insert a null snapshot without stale
+        flag and return app_absent=True (no review replace).
         """
         operator_id = 7
         mock_get_operator_id.return_value = operator_id
@@ -177,7 +181,7 @@ class TestCollectOperatorMissingAppId:
 # ---------------------------------------------------------------------------
 
 class TestCollectOperatorRateLimitRetriesThenSucceeds:
-    @patch("scraper.collectors.app_store.insert_app_store_reviews")
+    @patch("scraper.collectors.app_store.replace_app_store_reviews")
     @patch("scraper.collectors.app_store.upsert_app_store_snapshot")
     @patch("scraper.collectors.app_store.get_operator_id")
     def test_collect_operator_rate_limit_retries_then_succeeds(
@@ -278,7 +282,7 @@ class TestCollectOperatorRetryExhaustion:
 # ---------------------------------------------------------------------------
 
 class TestCollectOperatorUnknownSlug:
-    @patch("scraper.collectors.app_store.insert_app_store_reviews")
+    @patch("scraper.collectors.app_store.replace_app_store_reviews")
     @patch("scraper.collectors.app_store.upsert_app_store_snapshot")
     @patch("scraper.collectors.app_store.set_snapshot_stale")
     @patch("scraper.collectors.app_store.get_operator_id")

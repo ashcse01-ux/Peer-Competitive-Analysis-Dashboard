@@ -1,265 +1,233 @@
-import React, { FormEvent, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
-import { Activity, AlertTriangle, Calendar, Gauge, Search, Star, TrendingUp, X } from 'lucide-react'
-import { useGoogleReviews, useHistory, type GoogleEntry } from '../api'
+import { Activity, MessageSquare, Search, Star } from 'lucide-react'
+import { useGoogleReviews, type GoogleEntry } from '../api'
 import ChartTooltip from '../components/ChartTooltip'
-import HeatmapCell from '../components/HeatmapCell'
 import KPICard from '../components/KPICard'
-import ReviewClassificationPanel from '../components/ReviewClassificationPanel'
 import SectionHeader from '../components/SectionHeader'
-import { tip } from '../lib/metricGlossary'
 import {
-  operatorColor,
   average,
   cx,
-  formatDelta,
   formatMetric,
-  getInitials,
+  formatStarRating,
   latestTimestamp,
+  operatorColor,
+  sum,
 } from '../lib/insights'
+import { FB_BLUE, FB_YELLOW } from '../lib/playTopics'
+import { estimateStarHistogram } from '../lib/storeMetrics'
 
 export default function GooglePage() {
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
-  const [appliedFrom, setAppliedFrom] = useState<string | undefined>()
-  const [appliedTo, setAppliedTo] = useState<string | undefined>()
-  const [prevData, setPrevData] = useState<{ data: GoogleEntry[] } | null>(null)
   const [selectedOp, setSelectedOp] = useState<string | null>(null)
+  const { data: googleData, isError, isLoading } = useGoogleReviews()
 
-  const { data: googleData, isError, isLoading } = useGoogleReviews(appliedFrom, appliedTo)
-  const { data: history } = useHistory('google_reviews')
+  const summaries = useMemo(() => {
+    return (googleData?.data ?? []).map((row: GoogleEntry) => {
+      const hasStars = [row.star_1, row.star_2, row.star_3, row.star_4, row.star_5].some(v => v != null && v > 0)
+      const hist = hasStars
+        ? {
+            star1: row.star_1 ?? 0,
+            star2: row.star_2 ?? 0,
+            star3: row.star_3 ?? 0,
+            star4: row.star_4 ?? 0,
+            star5: row.star_5 ?? 0,
+          }
+        : (() => {
+            const h = estimateStarHistogram(row.overall_rating, row.review_count)
+            return {
+              star1: h.star_1,
+              star2: h.star_2,
+              star3: h.star_3,
+              star4: h.star_4,
+              star5: h.star_5,
+            }
+          })()
+      return {
+        slug: row.operator_slug,
+        name: row.operator_name,
+        color: operatorColor(row.operator_slug),
+        rating: row.overall_rating,
+        reviewCount: row.review_count,
+        ...hist,
+        cycle: row.cycle_timestamp,
+      }
+    })
+  }, [googleData])
 
-  const displayData = isError ? prevData : (googleData ?? prevData)
+  if (isLoading) {
+    return <div className="liquid-glass p-6 text-sm font-semibold text-theme-muted">Loading Google Search ratings…</div>
+  }
+  if (isError && !summaries.length) {
+    return <div className="liquid-glass p-6 text-sm font-semibold text-rose-600">Google Search data could not be loaded.</div>
+  }
 
-  const entries = useMemo(() => displayData?.data ?? [], [displayData])
-  const visibleEntries = selectedOp ? entries.filter(entry => entry.operator_slug === selectedOp) : entries
-  const operators = entries.map((entry) => ({
-    slug: entry.operator_slug,
-    name: entry.operator_name,
-    color: operatorColor(entry.operator_slug),
+  const visible = selectedOp ? summaries.filter(s => s.slug === selectedOp) : summaries
+  const avgRating = average(summaries.map(s => s.rating))
+  const totalReviews = sum(summaries.map(s => s.reviewCount))
+  const lastUpdated = latestTimestamp(summaries.map(s => s.cycle))
+
+  const ratingBar = visible.map(s => ({ name: s.name, rating: s.rating ?? 0 }))
+  const reviewsBar = visible.map(s => ({ name: s.name, reviews: s.reviewCount ?? 0 }))
+  const starBar = visible.map(s => ({
+    name: s.name,
+    '1★': s.star1,
+    '2★': s.star2,
+    '3★': s.star3,
+    '4★': s.star4,
+    '5★': s.star5,
   }))
 
-  const handleApplyFilter = (event?: FormEvent) => {
-    event?.preventDefault()
-    setPrevData(googleData ?? prevData)
-    setAppliedFrom(fromDate || undefined)
-    setAppliedTo(toDate || undefined)
-  }
-
-  const handleClearFilter = () => {
-    setFromDate('')
-    setToDate('')
-    setAppliedFrom(undefined)
-    setAppliedTo(undefined)
-  }
-
-  if (isLoading && !displayData) return <div className="glass-panel p-6 text-sm font-semibold text-slate-600 dark:text-slate-400">Loading Google reviews...</div>
-
-  const avgRating = average(entries.map(entry => entry.overall_rating))
-  const avgSentiment = average(entries.map(entry => entry.sentiment_score))
-  const ratingLeader = [...entries].sort((a, b) => (b.overall_rating ?? 0) - (a.overall_rating ?? 0))[0]
-  const fastestRiser = [...entries].sort((a, b) => (b.rating_delta_mom ?? -99) - (a.rating_delta_mom ?? -99))[0]
-  const riskCount = entries.filter(entry => (entry.rating_delta_mom ?? 0) < 0).length
-  const lastUpdated = latestTimestamp(entries.map(entry => entry.cycle_timestamp))
-  const appliedLabel = [appliedFrom, appliedTo].filter(Boolean).join(' to ')
-
-  const ratingData = visibleEntries
-    .sort((a, b) => (b.overall_rating ?? 0) - (a.overall_rating ?? 0))
-    .map(entry => ({
-      name: entry.operator_name,
-      rating: entry.overall_rating ?? null,
-      delta: entry.rating_delta_mom ?? null,
-      color: operators.find(operator => operator.slug === entry.operator_slug)?.color ?? '#0077b6',
-    }))
-
-  const allMonths = [...new Set((history?.series ?? []).map(series => series.month))].sort()
-  const trendData = allMonths.map(month => {
-    const row: Record<string, string | number | null> = { month: month.slice(0, 7) }
-    entries.forEach(entry => {
-      const point = history?.series.find(series => series.operator_slug === entry.operator_slug && series.month === month)
-      row[entry.operator_slug] = point?.avg_sentiment ?? null
-    })
-    return row
-  })
-  const heatMonths = allMonths.slice(-12)
-
   return (
-    <div className="space-y-7">
-      <section className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="max-w-4xl">
+    <div className="page-section">
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-3xl">
           <SectionHeader
-            eyebrow="Google Search Reviews"
-            title="Local reputation, review topics & sentiment risk"
-            subtitle="Star ratings plus 15 classified review topics for every operator."
-            eyebrowTip={tip('googleSearch')}
-            titleTip={tip('reviewClassification')}
+            eyebrow="Google Search"
+            title="Local / Knowledge Panel ratings"
+            subtitle="FreshBus vs peers — Google Search rating, review volume and 1–5★ mix."
           />
         </div>
-
-        <form onSubmit={handleApplyFilter} className="glass-panel flex flex-wrap items-end gap-3 p-3">
-          <div>
-            <label className="mb-1 flex items-center gap-1 text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-300">
-              <Calendar size={13} />
-              From
-            </label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={event => setFromDate(event.target.value)}
-              className="h-10 rounded-full border border-slate-900/10 bg-white/80 px-3 text-sm font-bold text-[#14211f] outline-none transition focus:border-[#0077b6]"
-            />
-          </div>
-          <div>
-            <label className="mb-1 flex items-center gap-1 text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-300">
-              <Calendar size={13} />
-              To
-            </label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={event => setToDate(event.target.value)}
-              className="h-10 rounded-full border border-slate-900/10 bg-white/80 px-3 text-sm font-bold text-[#14211f] outline-none transition focus:border-[#0077b6]"
-            />
-          </div>
-          <button type="submit" className="icon-button" aria-label="Apply date filter" title="Apply date filter">
-            <Search size={17} />
-          </button>
-          <button type="button" onClick={handleClearFilter} className="icon-button" aria-label="Clear date filter" title="Clear date filter">
-            <X size={17} />
-          </button>
-        </form>
-      </section>
-
-      <section className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setSelectedOp(null)}
-          className={cx('control-chip inline-flex items-center px-4 text-sm font-black', selectedOp === null && 'control-chip-active')}
-        >
-          All operators
-        </button>
-        {operators.map(operator => (
-          <button
-            key={operator.slug}
-            type="button"
-            onClick={() => setSelectedOp(selectedOp === operator.slug ? null : operator.slug)}
-            className={cx('control-chip inline-flex items-center gap-2 px-4 text-sm font-black', selectedOp === operator.slug && 'control-chip-active')}
-          >
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: operator.color }} />
-            {operator.name}
-          </button>
-        ))}
-        {appliedLabel && (
-          <span className="control-chip inline-flex items-center gap-2 px-4 text-sm font-bold">
-            <Calendar size={16} />
-            {appliedLabel}
-          </span>
-        )}
-        {lastUpdated && (
-          <span className="control-chip inline-flex items-center gap-2 px-4 text-sm font-bold">
-            <Activity size={16} />
-            {lastUpdated}
-          </span>
-        )}
+        <span className="control-chip inline-flex items-center gap-2 px-4 text-sm font-bold">
+          <Activity size={16} />
+          {lastUpdated ?? 'Awaiting daily 10 AM sync'}
+        </span>
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <KPICard label="Avg Rating" value={formatMetric(avgRating, 2)} tip={tip('avgRating')} caption="Google locations" icon={<Star size={20} />} accent="#0077b6" />
-        <KPICard label="Avg Sentiment" value={formatMetric(avgSentiment, 2)} tip={tip('sentiment')} caption="Review text mood" icon={<Gauge size={20} />} accent="#00a676" />
-        <KPICard label="Fastest Riser" value={fastestRiser?.operator_name ?? null} delta={fastestRiser?.rating_delta_mom} tip={tip('fastestRiser')} caption={formatMetric(fastestRiser?.overall_rating, 1)} icon={<TrendingUp size={20} />} accent="#ffb000" />
+        <KPICard
+          label="Google Search Rating"
+          value={formatStarRating(avgRating)}
+          caption="Average across peers"
+          icon={<Star size={20} />}
+          accent={FB_YELLOW}
+        />
+        <KPICard
+          label="Total Reviews"
+          value={totalReviews != null ? totalReviews.toLocaleString() : null}
+          caption="All operators"
+          icon={<MessageSquare size={20} />}
+          accent={FB_BLUE}
+        />
+        <KPICard
+          label="Operators tracked"
+          value={summaries.length}
+          caption="Google Knowledge Panel"
+          icon={<Search size={20} />}
+          accent={FB_YELLOW}
+        />
       </section>
 
-      <ReviewClassificationPanel source="google_reviews" title="Google Search" selectedSlug={selectedOp} />
+      <section className="glass-panel p-4 sm:p-5">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedOp(null)}
+            className={cx('control-chip px-4 text-sm font-black', !selectedOp && 'control-chip-active')}
+          >
+            All
+          </button>
+          {summaries.map(s => (
+            <button
+              key={s.slug}
+              type="button"
+              onClick={() => setSelectedOp(s.slug === selectedOp ? null : s.slug)}
+              className={cx(
+                'control-chip inline-flex items-center gap-2 px-4 text-sm font-black',
+                selectedOp === s.slug && 'control-chip-active',
+              )}
+            >
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+              {s.name}
+            </button>
+          ))}
+        </div>
+      </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+      <section className="grid gap-5 xl:grid-cols-2">
         <div className="glass-panel p-4 sm:p-5">
-          <div className="mb-4">
-            <p className="eyebrow">Current rating</p>
-            <h2 className="section-title">Google review leaderboard</h2>
-          </div>
-          <ResponsiveContainer width="100%" height={330}>
-            <BarChart layout="vertical" data={ratingData} margin={{ top: 8, right: 14, left: 18, bottom: 0 }}>
-              <CartesianGrid className="chart-grid" horizontal={false} />
-              <XAxis type="number" domain={[0, 5]} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={132} tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 800 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(0,119,182,0.05)' }} />
-              <Bar dataKey="rating" name="Rating" radius={[0, 5, 5, 0]}>
-                {ratingData.map(row => (
-                  <Cell key={row.name} fill={row.color} />
-                ))}
-              </Bar>
+          <SectionHeader eyebrow="Quality" title="Google Search rating" subtitle="Knowledge Panel average score out of 5" />
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={ratingBar} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+              <CartesianGrid className="chart-grid" vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 5]} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar dataKey="rating" name="Rating" fill={FB_YELLOW} radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         <div className="glass-panel p-4 sm:p-5">
-          <div className="mb-4">
-            <p className="eyebrow">Sentiment trend</p>
-            <h2 className="section-title">Monthly Google review mood</h2>
-          </div>
-          <ResponsiveContainer width="100%" height={330}>
-            <LineChart data={trendData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+          <SectionHeader eyebrow="Volume" title="Total reviews" subtitle="Google review count from Search" />
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={reviewsBar} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid className="chart-grid" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[-1, 1]} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} />
-              {operators.map(operator => (
-                <Line
-                  key={operator.slug}
-                  type="monotone"
-                  dataKey={operator.slug}
-                  name={operator.name}
-                  stroke={operator.color}
-                  strokeWidth={selectedOp === operator.slug || !selectedOp ? 2.5 : 1.4}
-                  strokeOpacity={selectedOp && selectedOp !== operator.slug ? 0.18 : 1}
-                  dot={false}
-                  connectNulls
-                />
-              ))}
-            </LineChart>
+              <Bar dataKey="reviews" name="Reviews" fill={FB_BLUE} radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="glass-panel p-4 sm:p-5 xl:col-span-2">
+          <SectionHeader eyebrow="Sentiment shape" title="Star mix" subtitle="1–5★ distribution across Google reviews" />
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={starBar} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid className="chart-grid" vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<ChartTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
+              <Bar dataKey="1★" stackId="stars" fill="#dc2626" />
+              <Bar dataKey="2★" stackId="stars" fill="#f97316" />
+              <Bar dataKey="3★" stackId="stars" fill={FB_YELLOW} />
+              <Bar dataKey="4★" stackId="stars" fill="#4da3ff" />
+              <Bar dataKey="5★" stackId="stars" fill={FB_BLUE} radius={[4, 4, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-1">
-        <div className="glass-panel p-4 sm:p-5">
-          <div className="mb-4">
-            <p className="eyebrow">Heatmap</p>
-            <h2 className="section-title">Last 12 months Google rating</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <div className="min-w-[760px] space-y-2">
-              <div className="grid items-center gap-2" style={{ gridTemplateColumns: `170px repeat(${heatMonths.length}, minmax(54px, 1fr))` }}>
-                <span />
-                {heatMonths.map(month => (
-                  <span key={month} className="text-center text-[0.68rem] font-black uppercase tracking-wide text-theme-primary">{month.slice(0, 7)}</span>
-                ))}
-              </div>
-              {visibleEntries.map(entry => (
-                <div key={entry.operator_slug} className="grid items-center gap-2" style={{ gridTemplateColumns: `170px repeat(${heatMonths.length}, minmax(54px, 1fr))` }}>
-                  <span className="truncate text-xs font-black text-theme-primary">{entry.operator_name}</span>
-                  {heatMonths.map(month => {
-                    const point = history?.series.find(series => series.operator_slug === entry.operator_slug && series.month === month)
-                    return <HeatmapCell key={month} value={point?.avg_rating ?? null} min={1} max={5} width={58} height={28} showValue />
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+      <section className="glass-panel overflow-x-auto p-4 sm:p-5">
+        <SectionHeader eyebrow="Operator ledger" title="Search scorecard" />
+        <table className="data-table mt-3 min-w-[640px]">
+          <thead>
+            <tr>
+              <th>Operator</th>
+              <th>App Rating</th>
+              <th>Reviews</th>
+              <th>1★</th>
+              <th>2★</th>
+              <th>3★</th>
+              <th>4★</th>
+              <th>5★</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map(s => (
+              <tr key={s.slug}>
+                <td className="font-bold text-theme-primary">{s.name}</td>
+                <td>{formatMetric(s.rating, 2)}</td>
+                <td>{s.reviewCount?.toLocaleString() ?? '—'}</td>
+                <td>{s.star1.toLocaleString()}</td>
+                <td>{s.star2.toLocaleString()}</td>
+                <td>{s.star3.toLocaleString()}</td>
+                <td>{s.star4.toLocaleString()}</td>
+                <td>{s.star5.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
     </div>
   )

@@ -64,7 +64,7 @@ def metrics_overview(conn=Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
-# GET /api/v1/metrics/app-store  (task 9.4)
+# GET /api/v1/metrics/app-store  (task 9.4) — latest daily snapshot + metrics
 # ---------------------------------------------------------------------------
 @router.get("/metrics/app-store")
 def metrics_app_store(conn=Depends(get_db)):
@@ -72,19 +72,38 @@ def metrics_app_store(conn=Depends(get_db)):
         text(
             """
             SELECT
-                o.id, o.name, o.slug, om.source,
-                om.overall_rating, om.sentiment_score,
-                om.positive_review_ratio, om.rating_delta_mom,
-                om.cycle_timestamp, om.is_stale
+                o.id, o.name, o.slug, s.source,
+                s.overall_rating,
+                om.sentiment_score,
+                om.positive_review_ratio,
+                om.rating_delta_mom,
+                s.collected_at,
+                s.is_stale,
+                s.review_count,
+                s.downloads,
+                s.downloads_raw,
+                s.star_1, s.star_2, s.star_3, s.star_4, s.star_5,
+                s.play_topics,
+                s.collection_date,
+                s.ratings_count
             FROM operators o
-            JOIN LATERAL (
-                SELECT * FROM operator_metrics
-                WHERE operator_id = o.id
-                  AND source IN ('google_play', 'ios_app_store')
+            JOIN app_store_snapshots s ON s.operator_id = o.id
+            JOIN (
+                SELECT operator_id, source, MAX(collection_date) AS max_day
+                FROM app_store_snapshots
+                GROUP BY operator_id, source
+            ) latest
+              ON latest.operator_id = s.operator_id
+             AND latest.source = s.source
+             AND latest.max_day = s.collection_date
+            LEFT JOIN LATERAL (
+                SELECT sentiment_score, positive_review_ratio, rating_delta_mom
+                FROM operator_metrics
+                WHERE operator_id = o.id AND source = s.source
                 ORDER BY cycle_timestamp DESC
-                LIMIT 2
+                LIMIT 1
             ) om ON TRUE
-            ORDER BY o.name, om.source
+            ORDER BY o.name, s.source
             """
         )
     ).fetchall()
@@ -92,10 +111,27 @@ def metrics_app_store(conn=Depends(get_db)):
     return {
         "data": [
             {
-                "operator_id": r[0], "operator_name": r[1], "operator_slug": r[2],
-                "source": r[3], "overall_rating": r[4], "sentiment_score": r[5],
-                "positive_review_ratio": r[6], "rating_delta_mom": r[7],
-                "cycle_timestamp": r[8], "is_stale": r[9],
+                "operator_id": r[0],
+                "operator_name": r[1],
+                "operator_slug": r[2],
+                "source": r[3],
+                "overall_rating": float(r[4]) if r[4] is not None else None,
+                "sentiment_score": float(r[5]) if r[5] is not None else None,
+                "positive_review_ratio": float(r[6]) if r[6] is not None else None,
+                "rating_delta_mom": float(r[7]) if r[7] is not None else None,
+                "cycle_timestamp": r[8],
+                "is_stale": r[9],
+                "review_count": r[10],
+                "downloads": r[11],
+                "downloads_raw": r[12],
+                "star_1": r[13],
+                "star_2": r[14],
+                "star_3": r[15],
+                "star_4": r[16],
+                "star_5": r[17],
+                "play_topics": r[18] or {},
+                "collection_date": str(r[19]) if r[19] is not None else None,
+                "ratings_count": r[20],
             }
             for r in rows
         ]
@@ -114,10 +150,10 @@ def metrics_google_reviews(
     params: dict = {}
     date_filter = ""
     if from_date:
-        date_filter += " AND om.cycle_timestamp >= :from_date"
+        date_filter += " AND s.collection_date >= CAST(:from_date AS date)"
         params["from_date"] = from_date
     if to_date:
-        date_filter += " AND om.cycle_timestamp <= :to_date"
+        date_filter += " AND s.collection_date <= CAST(:to_date AS date)"
         params["to_date"] = to_date
 
     rows = conn.execute(
@@ -125,14 +161,28 @@ def metrics_google_reviews(
             f"""
             SELECT
                 o.id, o.name, o.slug,
-                om.overall_rating, om.sentiment_score,
-                om.rating_delta_mom, om.cycle_timestamp, om.is_stale
+                s.overall_rating,
+                om.sentiment_score,
+                om.rating_delta_mom,
+                s.collected_at,
+                s.is_stale,
+                s.review_count,
+                s.star_1, s.star_2, s.star_3, s.star_4, s.star_5,
+                s.collection_date
             FROM operators o
-            JOIN LATERAL (
-                SELECT * FROM operator_metrics
-                WHERE operator_id = o.id
-                  AND source = 'google_reviews'
-                  {date_filter}
+            JOIN google_review_snapshots s ON s.operator_id = o.id
+            JOIN (
+                SELECT operator_id, MAX(collection_date) AS max_day
+                FROM google_review_snapshots
+                WHERE TRUE {date_filter}
+                GROUP BY operator_id
+            ) latest
+              ON latest.operator_id = s.operator_id
+             AND latest.max_day = s.collection_date
+            LEFT JOIN LATERAL (
+                SELECT sentiment_score, rating_delta_mom
+                FROM operator_metrics
+                WHERE operator_id = o.id AND source = 'google_reviews'
                 ORDER BY cycle_timestamp DESC
                 LIMIT 1
             ) om ON TRUE
@@ -145,9 +195,21 @@ def metrics_google_reviews(
     return {
         "data": [
             {
-                "operator_id": r[0], "operator_name": r[1], "operator_slug": r[2],
-                "overall_rating": r[3], "sentiment_score": r[4],
-                "rating_delta_mom": r[5], "cycle_timestamp": r[6], "is_stale": r[7],
+                "operator_id": r[0],
+                "operator_name": r[1],
+                "operator_slug": r[2],
+                "overall_rating": float(r[3]) if r[3] is not None else None,
+                "sentiment_score": float(r[4]) if r[4] is not None else None,
+                "rating_delta_mom": float(r[5]) if r[5] is not None else None,
+                "cycle_timestamp": r[6],
+                "is_stale": r[7],
+                "review_count": r[8],
+                "star_1": r[9],
+                "star_2": r[10],
+                "star_3": r[11],
+                "star_4": r[12],
+                "star_5": r[13],
+                "collection_date": str(r[14]) if r[14] is not None else None,
             }
             for r in rows
         ]

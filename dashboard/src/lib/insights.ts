@@ -1,10 +1,10 @@
 export const OPERATOR_COLOR_MAP: Record<string, string> = {
-  freshbus: '#2563EB',
-  neugo: '#F97316',
-  flixbus: '#16A34A',
-  zingbus: '#9333EA',
-  leafy: '#94A3B8',
-  intrcity: '#0D9488',
+  freshbus: '#0c4dc3',
+  neugo: '#FBBC04',
+  flixbus: '#16a34a',
+  zingbus: '#7c3aed',
+  leafy: '#1557b0',
+  intrcity: '#d97706',
 }
 
 export const OPERATOR_COLORS = Object.values(OPERATOR_COLOR_MAP)
@@ -142,14 +142,90 @@ export function scoreBand(value: number | null | undefined, max = 5) {
 }
 
 export function latestTimestamp(values: Array<string | null | undefined>) {
-  const dates = values
-    .map(value => value ? new Date(value).getTime() : NaN)
-    .filter(Number.isFinite)
-  if (!dates.length) return null
-  return new Date(Math.max(...dates)).toLocaleString()
+  const iso = latestCycleIso(values)
+  return iso ? new Date(iso).toLocaleString() : null
+}
+
+/** Latest ISO timestamp from a list of cycle values. */
+export function latestCycleIso(values: Array<string | null | undefined>): string | null {
+  let best = 0
+  let bestRaw: string | null = null
+  for (const value of values) {
+    if (!value) continue
+    const t = new Date(value).getTime()
+    if (Number.isFinite(t) && t >= best) {
+      best = t
+      bestRaw = value
+    }
+  }
+  return bestRaw
+}
+
+/** Snapshot chip: one date + time (no duplicate date). Uses `-` separators. */
+export function formatSnapshotStamp(
+  collectionDate: string | null | undefined,
+  cycleValues: Array<string | null | undefined>,
+): string {
+  const cycle = latestCycleIso(cycleValues)
+  const datePart = formatSnapshotDate(collectionDate || cycle?.slice(0, 10) || null)
+  const timePart = cycle ? formatSnapshotTime(cycle) : null
+  if (datePart && timePart) return `Snapshot - ${datePart} - ${timePart}`
+  if (datePart) return `Snapshot - ${datePart}`
+  return 'Snapshot'
+}
+
+function formatSnapshotDate(isoDay: string | null): string | null {
+  if (!isoDay) return null
+  const [y, m, d] = isoDay.split('-').map(Number)
+  if (!y || !m || !d) return isoDay
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function formatSnapshotTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 export function pct(value: number | null | undefined, digits = 0) {
   if (value == null || !Number.isFinite(value)) return 'No data'
   return `${(value * 100).toFixed(digits)}%`
+}
+
+/** Integer % shares that sum to exactly 100 (largest remainder). */
+export function percentShares(counts: number[]): number[] {
+  const total = counts.reduce((a, b) => a + b, 0)
+  if (total <= 0) return counts.map(() => 0)
+  const raw = counts.map(c => (c * 100) / total)
+  const out = raw.map(r => Math.floor(r))
+  let remainder = 100 - out.reduce((a, b) => a + b, 0)
+  const byRemainder = raw
+    .map((r, i) => ({ i, rem: r - out[i] }))
+    .sort((a, b) => b.rem - a.rem)
+  for (let k = 0; k < remainder; k++) {
+    out[byRemainder[k].i] += 1
+  }
+  return out
+}
+
+/** One-decimal % shares that sum to exactly 100.0 */
+export function percentSharesOneDecimal(counts: number[]): number[] {
+  const total = counts.reduce((a, b) => a + b, 0)
+  if (total <= 0) return counts.map(() => 0)
+  const out = counts.map(c => Math.round(((c * 1000) / total)) / 10)
+  const sum = Math.round(out.reduce((a, b) => a + b, 0) * 10) / 10
+  const diff = Math.round((100 - sum) * 10) / 10
+  if (diff !== 0) {
+    let idx = 0
+    for (let i = 1; i < counts.length; i++) {
+      if (counts[i] > counts[idx]) idx = i
+    }
+    out[idx] = Math.round((out[idx] + diff) * 10) / 10
+  }
+  return out
 }

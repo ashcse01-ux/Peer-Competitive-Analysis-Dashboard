@@ -13,8 +13,8 @@ Cycle lifecycle:
      - status='completed' if no stale flags
      - status='stale'     if any stale flags, populate stale_sources JSON array
 
-The orchestrator is attached to APScheduler (CronTrigger 0 2 1 * *) by the
-FastAPI application; it can also be triggered manually via the API.
+The orchestrator is attached to APScheduler (CronTrigger daily 10:00 Asia/Kolkata)
+by the FastAPI application; it can also be triggered manually via Sync Latest.
 
 Tasks covered: 8.1 – 8.5
 """

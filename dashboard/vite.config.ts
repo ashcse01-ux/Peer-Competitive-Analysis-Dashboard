@@ -7,7 +7,8 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api': {
+      // Only live API routes — do NOT proxy /api-static (served from public/)
+      '/api/v1': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },

@@ -4,198 +4,246 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
-import { Activity, Apple, Gauge, MessageSquare, Star, TrendingUp } from 'lucide-react'
-import { useAppStore, useHistory, useTopReviews, type AppStoreEntry } from '../api'
+import { Activity, Download, MessageSquare, Smartphone, Star } from 'lucide-react'
+import { useAppStore, type AppStoreEntry } from '../api'
 import ChartTooltip from '../components/ChartTooltip'
-import HeatmapCell from '../components/HeatmapCell'
 import KPICard from '../components/KPICard'
-import ReviewClassificationPanel from '../components/ReviewClassificationPanel'
 import SectionHeader from '../components/SectionHeader'
-import { tip } from '../lib/metricGlossary'
 import {
   average,
   cx,
-  formatDelta,
   formatMetric,
   formatStarRating,
-  getInitials,
   latestTimestamp,
   operatorColor,
+  sum,
 } from '../lib/insights'
+import { FB_BLUE, FB_YELLOW } from '../lib/playTopics'
+import { enrichAppStoreRow } from '../lib/storeMetrics'
 
 const SOURCE = 'ios_app_store'
-
-function iosEntries(entries: AppStoreEntry[]) {
-  return entries.filter(e => e.source === SOURCE)
-}
-
-function summarize(entries: AppStoreEntry[]) {
-  const slugs = [...new Set(entries.map(e => e.operator_slug))]
-  const summaries = slugs.map(slug => {
-    const row = entries.find(e => e.operator_slug === slug)
-    return {
-      slug,
-      name: row?.operator_name ?? slug,
-      color: operatorColor(slug),
-      rating: row?.overall_rating,
-      sentiment: row?.sentiment_score,
-      momentum: row?.rating_delta_mom,
-      downloads: row?.downloads,
-      reviewCount: row?.review_count,
-      isStale: row?.is_stale ?? false,
-    }
-  })
-  const leaderRating = Math.max(...summaries.map(s => s.rating ?? 0))
-  return summaries.map(s => ({
-    ...s,
-    gap: s.rating != null ? s.rating - leaderRating : null,
-  }))
-}
 
 export default function AppleStorePage() {
   const [selectedOp, setSelectedOp] = useState<string | null>(null)
   const { data: appData, isLoading, isError } = useAppStore()
-  const { data: iosHistory } = useHistory(SOURCE)
-  const entries = iosEntries(appData?.data ?? [])
-  const summaries = useMemo(() => summarize(entries), [entries])
-  const activeSlug = selectedOp ?? summaries[0]?.slug ?? null
-  const { data: reviews } = useTopReviews(activeSlug ?? undefined, SOURCE)
 
-  if (isLoading) return <div className="glass-panel p-6 text-sm font-semibold text-slate-600 dark:text-slate-400">Loading iOS App Store metrics…</div>
-  if (isError) return <div className="glass-panel p-6 text-sm font-semibold text-rose-600">Apple App Store data could not be loaded.</div>
+  const summaries = useMemo(() => {
+    return (appData?.data ?? [])
+      .filter((e: AppStoreEntry) => e.source === SOURCE)
+      .map(enrichAppStoreRow)
+      .map(row => ({
+        slug: row.operator_slug,
+        name: row.operator_name,
+        color: operatorColor(row.operator_slug),
+        rating: row.overall_rating,
+        downloads: row.downloads,
+        reviewCount: row.review_count,
+        star1: row.star_1,
+        star2: row.star_2,
+        star3: row.star_3,
+        star4: row.star_4,
+        star5: row.star_5,
+        cycle: row.cycle_timestamp,
+      }))
+  }, [appData])
+
+  if (isLoading) {
+    return <div className="liquid-glass p-6 text-sm font-semibold text-theme-muted">Loading iOS App Store metrics…</div>
+  }
+  if (isError && !summaries.length) {
+    return <div className="liquid-glass p-6 text-sm font-semibold text-rose-600">Apple App Store data could not be loaded.</div>
+  }
 
   const visible = selectedOp ? summaries.filter(s => s.slug === selectedOp) : summaries
   const avgRating = average(summaries.map(s => s.rating))
-  const best = [...summaries].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))[0]
-  const moodLeader = [...summaries].sort((a, b) => (b.sentiment ?? -2) - (a.sentiment ?? -2))[0]
-  const totalReviews = summaries.reduce((n, s) => n + (s.reviewCount ?? 0), 0)
-  const lastUpdated = latestTimestamp(entries.map(e => e.cycle_timestamp))
+  const totalReviews = sum(summaries.map(s => s.reviewCount))
+  const lastUpdated = latestTimestamp(summaries.map(s => s.cycle))
 
-  const ratingBarData = summaries.map(s => ({ name: s.name, rating: s.rating }))
-  const months = [...new Set((iosHistory?.series ?? []).map(s => s.month))].sort()
-  const trendData = months.map(month => {
-    const row: Record<string, string | number | null> = { month: month.slice(0, 7) }
-    summaries.forEach(s => {
-      const pt = iosHistory?.series.find(x => x.operator_slug === s.slug && x.month === month)
-      row[s.slug] = pt?.avg_sentiment ?? null
-    })
-    return row
-  })
-  const heatMonths = months.slice(-12)
-  const activeName = summaries.find(s => s.slug === activeSlug)?.name
+  const ratingBar = visible.map(s => ({ name: s.name, rating: s.rating ?? 0 }))
+  const reviewsBar = visible.map(s => ({ name: s.name, reviews: s.reviewCount ?? 0 }))
+  const downloadsBar = visible.map(s => ({
+    name: s.name,
+    downloads: s.downloads ? 1 : 0,
+    label: s.downloads ?? 'Not published',
+  }))
+  const starBar = visible.map(s => ({
+    name: s.name,
+    '1★': s.star1,
+    '2★': s.star2,
+    '3★': s.star3,
+    '4★': s.star4,
+    '5★': s.star5,
+  }))
 
   return (
     <div className="page-section">
       <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           <SectionHeader
-            eyebrow="iOS App Reviews"
-            title="iOS app ratings, reviews & topic classification"
-            subtitle="Same 15 review topics as Android — compare iOS passenger voice."
-            eyebrowTip={tip('appleStore')}
-            titleTip={tip('reviewClassification')}
+            eyebrow="Apple App Store"
+            title="iOS peer ratings, reviews & star mix"
+            subtitle="FreshBus vs peers on iOS — downloads are not published by Apple publicly."
           />
         </div>
         <span className="control-chip inline-flex items-center gap-2 px-4 text-sm font-bold">
           <Activity size={16} />
-          {lastUpdated ?? 'Awaiting monthly refresh'}
+          {lastUpdated ?? 'Awaiting daily 10 AM sync'}
         </span>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <KPICard label="Average Rating" value={formatStarRating(avgRating)} tip={tip('avgRating')} caption="All operators" icon={<Star size={20} />} accent="#16A34A" />
-        <KPICard label="Highest Rated" value={best?.name ?? null} tip={tip('rank')} caption={formatStarRating(best?.rating)} icon={<Gauge size={20} />} accent="#2563EB" />
-        <KPICard label="Best Review Mood" value={moodLeader?.name ?? null} tip={tip('mood')} caption={formatMetric(moodLeader?.sentiment, 2)} icon={<TrendingUp size={20} />} accent="#F97316" />
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KPICard
+          label="Total Downloads"
+          value="Not published"
+          caption="Apple does not expose installs"
+          icon={<Download size={20} />}
+          accent={FB_BLUE}
+        />
+        <KPICard
+          label="App Rating"
+          value={formatStarRating(avgRating)}
+          caption="Average across peers"
+          icon={<Star size={20} />}
+          accent={FB_YELLOW}
+        />
+        <KPICard
+          label="Total Reviews"
+          value={totalReviews != null ? totalReviews.toLocaleString() : null}
+          caption="All operators"
+          icon={<MessageSquare size={20} />}
+          accent={FB_BLUE}
+        />
+        <KPICard
+          label="Operators tracked"
+          value={summaries.length}
+          caption="iOS apps"
+          icon={<Smartphone size={20} />}
+          accent={FB_YELLOW}
+        />
       </section>
 
       <section className="glass-panel p-4 sm:p-5">
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setSelectedOp(null)} className={cx('control-chip px-4 text-sm font-black', !selectedOp && 'control-chip-active')}>All</button>
+          <button
+            type="button"
+            onClick={() => setSelectedOp(null)}
+            className={cx('control-chip px-4 text-sm font-black', !selectedOp && 'control-chip-active')}
+          >
+            All
+          </button>
           {summaries.map(s => (
-            <button key={s.slug} type="button" onClick={() => setSelectedOp(s.slug === selectedOp ? null : s.slug)} className={cx('control-chip inline-flex items-center gap-2 px-4 text-sm font-black', selectedOp === s.slug && 'control-chip-active')}>
+            <button
+              key={s.slug}
+              type="button"
+              onClick={() => setSelectedOp(s.slug === selectedOp ? null : s.slug)}
+              className={cx(
+                'control-chip inline-flex items-center gap-2 px-4 text-sm font-black',
+                selectedOp === s.slug && 'control-chip-active',
+              )}
+            >
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
               {s.name}
             </button>
           ))}
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {visible.map(s => (
-            <article key={s.slug} className="rounded-lg border border-slate-900/10 bg-white/60 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <p className="truncate text-sm font-black text-theme-primary">{s.name}</p>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black text-white" style={{ backgroundColor: s.color }}>{getInitials(s.name)}</span>
-              </div>
-              {s.downloads && <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-400">{s.downloads} downloads</p>}
-              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                <div><p className="text-lg font-black">{formatMetric(s.rating, 2)}</p><p className="text-[0.68rem] font-bold uppercase text-slate-600 dark:text-slate-400">Rating</p></div>
-                <div><p className="text-lg font-black">{formatMetric(s.sentiment, 2)}</p><p className="text-[0.68rem] font-bold uppercase text-slate-600 dark:text-slate-400">Mood</p></div>
-                <div><p className={cx('text-lg font-black', (s.gap ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700')}>{formatDelta(s.gap) ?? '—'}</p><p className="text-[0.68rem] font-bold uppercase text-slate-600 dark:text-slate-400">Gap</p></div>
-              </div>
-            </article>
-          ))}
-        </div>
       </section>
-
-      <ReviewClassificationPanel source={SOURCE} title="Apple App Store" selectedSlug={selectedOp} />
 
       <section className="grid gap-5 xl:grid-cols-2">
         <div className="glass-panel p-4 sm:p-5">
-          <SectionHeader eyebrow="Ratings" title="Apple App Store leaderboard" titleTip={tip('avgRating')} />
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={ratingBarData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-              <CartesianGrid className="chart-grid" vertical={false} />
-              <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 5]} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="rating" name="Rating" fill="#16A34A" radius={[5, 5, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="glass-panel p-4 sm:p-5">
-          <SectionHeader eyebrow="Trend" title="Monthly review mood" titleTip={tip('mood')} />
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={trendData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-              <CartesianGrid className="chart-grid" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[-1, 1]} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-              {summaries.map(s => (
-                <Line key={s.slug} type="monotone" dataKey={s.slug} name={s.name} stroke={s.color} strokeWidth={2.5} dot={false} connectNulls />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-1">
-        <div className="glass-panel p-4 sm:p-5">
-          <SectionHeader eyebrow="Heatmap" title="Last 12 months rating" titleTip={tip('heatmap')} />
-          <div className="overflow-x-auto">
-            <div className="min-w-[760px] space-y-2">
-              <div className="grid items-center gap-2" style={{ gridTemplateColumns: `170px repeat(${heatMonths.length}, minmax(54px, 1fr))` }}>
-                <span />
-                {heatMonths.map(m => <span key={m} className="text-center text-[0.68rem] font-black uppercase text-theme-primary">{m.slice(0, 7)}</span>)}
-              </div>
-              {visible.map(s => (
-                <div key={s.slug} className="grid items-center gap-2" style={{ gridTemplateColumns: `170px repeat(${heatMonths.length}, minmax(54px, 1fr))` }}>
-                  <span className="truncate text-xs font-black text-theme-primary">{s.name}</span>
-                  {heatMonths.map(m => {
-                    const pt = iosHistory?.series.find(x => x.operator_slug === s.slug && x.month === m)
-                    return <HeatmapCell key={m} value={pt?.avg_rating ?? null} min={1} max={5} width={58} height={28} showValue />
-                  })}
-                </div>
+          <SectionHeader eyebrow="Scale" title="Total downloads" subtitle="Apple does not publish install counts publicly" />
+          <div className="flex h-[300px] flex-col items-center justify-center gap-2 text-center">
+            <p className="text-sm font-bold text-theme-muted">Apple App Store does not publish download counts.</p>
+            <p className="max-w-sm text-xs text-theme-muted">
+              Chart reserved for parity with Play Store. Rating & review bars below use live iTunes data.
+            </p>
+            <div className="mt-2 flex flex-wrap justify-center gap-2">
+              {downloadsBar.map(d => (
+                <span key={d.name} className="control-chip px-3 text-xs font-bold">{d.name}: {d.label}</span>
               ))}
             </div>
           </div>
         </div>
+
+        <div className="glass-panel p-4 sm:p-5">
+          <SectionHeader eyebrow="Quality" title="App Rating" subtitle="Average star score out of 5" />
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={ratingBar} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+              <CartesianGrid className="chart-grid" vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 5]} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar dataKey="rating" name="App Rating" fill={FB_YELLOW} radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="glass-panel p-4 sm:p-5">
+          <SectionHeader eyebrow="Volume" title="Total reviews" subtitle="Written App Store reviews" />
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={reviewsBar} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid className="chart-grid" vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar dataKey="reviews" name="Reviews" fill={FB_BLUE} radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="glass-panel p-4 sm:p-5">
+          <SectionHeader eyebrow="Sentiment shape" title="Star mix" subtitle="1–5★ distribution across sampled reviews" />
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={starBar} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid className="chart-grid" vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<ChartTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
+              <Bar dataKey="1★" stackId="stars" fill="#dc2626" />
+              <Bar dataKey="2★" stackId="stars" fill="#f97316" />
+              <Bar dataKey="3★" stackId="stars" fill={FB_YELLOW} />
+              <Bar dataKey="4★" stackId="stars" fill="#4da3ff" />
+              <Bar dataKey="5★" stackId="stars" fill={FB_BLUE} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      <section className="glass-panel overflow-x-auto p-4 sm:p-5">
+        <SectionHeader eyebrow="Operator ledger" title="Storefront scorecard" />
+        <table className="data-table mt-3 min-w-[640px]">
+          <thead>
+            <tr>
+              <th>Operator</th>
+              <th>App Rating</th>
+              <th>Reviews</th>
+              <th>1★</th>
+              <th>2★</th>
+              <th>3★</th>
+              <th>4★</th>
+              <th>5★</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map(s => (
+              <tr key={s.slug}>
+                <td className="font-bold text-theme-primary">{s.name}</td>
+                <td>{formatMetric(s.rating, 2)}</td>
+                <td>{s.reviewCount?.toLocaleString() ?? '—'}</td>
+                <td>{s.star1.toLocaleString()}</td>
+                <td>{s.star2.toLocaleString()}</td>
+                <td>{s.star3.toLocaleString()}</td>
+                <td>{s.star4.toLocaleString()}</td>
+                <td>{s.star5.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
     </div>
   )

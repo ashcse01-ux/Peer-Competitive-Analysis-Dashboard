@@ -30,10 +30,11 @@ from typing import Any
 
 from scraper.db import (
     get_operator_id,
-    insert_google_reviews,
+    replace_google_reviews,
     set_snapshot_stale,
     upsert_google_snapshot,
 )
+from scraper.play_topics import histogram_from_reviews
 from scraper.utils.logger import (
     get_logger,
     log_http_error,
@@ -231,6 +232,7 @@ class GoogleReviewsCollector:
         overall_rating: float | None = fetch_result.get("overall_rating")
         review_count: int | None = fetch_result.get("review_count")
         reviews: list[dict] = fetch_result.get("reviews", [])
+        hist = fetch_result.get("histogram") or histogram_from_reviews(reviews)
 
         # Absent Knowledge Panel (task 4.3)
         if overall_rating is None and review_count is None:
@@ -260,16 +262,21 @@ class GoogleReviewsCollector:
                 "panel_absent": True,
             }
 
-        # Persist snapshot and reviews
+        # Persist snapshot and replace same-day reviews
         snapshot_id = upsert_google_snapshot(
             conn=self._conn,
             operator_id=operator_id,
             collected_at=collected_at,
             overall_rating=overall_rating,
             review_count=review_count,
+            star_1=hist.get("star_1"),
+            star_2=hist.get("star_2"),
+            star_3=hist.get("star_3"),
+            star_4=hist.get("star_4"),
+            star_5=hist.get("star_5"),
         )
 
-        reviews_inserted = insert_google_reviews(
+        reviews_inserted = replace_google_reviews(
             conn=self._conn,
             snapshot_id=snapshot_id,
             operator_id=operator_id,
@@ -441,9 +448,12 @@ class GoogleReviewsCollector:
             elapsed_ms=round(elapsed_ms, 2),
         )
 
+        hist = histogram_from_reviews(reviews)
+
         return {
             "overall_rating": overall_rating,
             "review_count": review_count,
+            "histogram": hist,
             "reviews": reviews,
         }
 

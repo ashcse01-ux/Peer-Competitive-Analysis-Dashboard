@@ -62,7 +62,7 @@ export const GLOSSARY: Record<string, string> = {
   stale: 'Source data is older than the refresh window',
   lastRefresh: 'When dashboard data was last fully updated',
   nextRefresh: 'Automatic full refresh runs on the 28th',
-  manualRefresh: 'Fetch latest data from all sources now',
+  manualRefresh: 'Sync Latest — re-scrape all sources and replace today’s snapshot (one entry per day)',
 
   // KPI labels
   overallRating: 'Mean composite score across every operator',

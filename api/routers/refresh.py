@@ -43,7 +43,12 @@ def trigger_refresh(
     source: Optional[str] = None,
     authorization: Optional[str] = Header(None),
 ):
-    """Trigger a full or partial data refresh cycle."""
+    """
+    Trigger a full data refresh cycle (Sync Latest).
+
+    Same-day snapshots are upserted in place — only one entry is kept per
+    operator × source × calendar day (Asia/Kolkata).
+    """
     admin_token = os.environ.get("ADMIN_TOKEN", "")
     if admin_token:
         if not authorization or authorization != f"Bearer {admin_token}":
@@ -59,4 +64,8 @@ def trigger_refresh(
         orch.run()
 
     background_tasks.add_task(_run)
-    return {"message": "Refresh triggered", "source_filter": source}
+    return {
+        "message": "Sync started — today's snapshot will be replaced with the latest scrape.",
+        "source_filter": source,
+        "mode": "daily_upsert",
+    }

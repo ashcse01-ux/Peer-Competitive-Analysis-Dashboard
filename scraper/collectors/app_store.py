@@ -33,9 +33,16 @@ import structlog
 
 from scraper.db import (
     get_operator_id,
-    insert_app_store_reviews,
+    replace_app_store_reviews,
     set_snapshot_stale,
     upsert_app_store_snapshot,
+)
+from scraper.play_topics import (
+    histogram_from_reviews,
+    merge_topic_scores,
+    normalize_histogram,
+    parse_downloads,
+    score_topics_from_reviews,
 )
 from scraper.utils.logger import (
     get_logger,
@@ -308,6 +315,8 @@ class AppStoreCollector:
                 overall_rating=None,
                 review_count=None,
                 app_version=None,
+                downloads=None,
+                downloads_raw=None,
             )
             return {
                 "operator_slug": operator_slug,
@@ -315,6 +324,7 @@ class AppStoreCollector:
                 "overall_rating": None,
                 "review_count": None,
                 "app_version": None,
+                "downloads": None,
                 "reviews_inserted": 0,
                 "app_absent": True,
             }
@@ -359,9 +369,14 @@ class AppStoreCollector:
         # Unpack fetch result and persist
         # ----------------------------------------------------------------
         overall_rating: float | None = fetch_result.get("overall_rating")
+        ratings_count: int | None = fetch_result.get("ratings_count")
         review_count: int | None = fetch_result.get("review_count")
         app_version: str | None = fetch_result.get("app_version")
         reviews: list[dict] = fetch_result.get("reviews", [])
+        downloads: str | None = fetch_result.get("downloads")
+        downloads_raw: int | None = fetch_result.get("downloads_raw")
+        hist = fetch_result.get("histogram") or {}
+        play_topics = fetch_result.get("play_topics") or {}
 
         snapshot_id = upsert_app_store_snapshot(
             conn=self._conn,
@@ -371,9 +386,19 @@ class AppStoreCollector:
             overall_rating=overall_rating,
             review_count=review_count,
             app_version=app_version,
+            downloads=downloads,
+            downloads_raw=downloads_raw,
+            star_1=hist.get("star_1"),
+            star_2=hist.get("star_2"),
+            star_3=hist.get("star_3"),
+            star_4=hist.get("star_4"),
+            star_5=hist.get("star_5"),
+            play_topics=play_topics,
+            ratings_count=ratings_count,
         )
 
-        reviews_inserted = insert_app_store_reviews(
+        # Same-day sync replaces prior reviews for this snapshot id
+        reviews_inserted = replace_app_store_reviews(
             conn=self._conn,
             snapshot_id=snapshot_id,
             operator_id=operator_id,
@@ -388,6 +413,7 @@ class AppStoreCollector:
             overall_rating=overall_rating,
             review_count=review_count,
             app_version=app_version,
+            downloads=downloads,
             reviews_inserted=reviews_inserted,
             snapshot_id=snapshot_id,
         )
@@ -398,6 +424,7 @@ class AppStoreCollector:
             "overall_rating": overall_rating,
             "review_count": review_count,
             "app_version": app_version,
+            "downloads": downloads,
             "reviews_inserted": reviews_inserted,
             "snapshot_id": snapshot_id,
         }
@@ -483,8 +510,18 @@ class AppStoreCollector:
             }
 
         overall_rating: float | None = app_info.get("score")
+        # Play distinguishes: ratings = star votes, reviews = written text
+        ratings_count: int | None = app_info.get("ratings")
         review_count: int | None = app_info.get("reviews")
+        if ratings_count is None and review_count is not None:
+            ratings_count = review_count
         app_version: str | None = app_info.get("version")
+        downloads, downloads_raw = parse_downloads(
+            app_info.get("realInstalls") or app_info.get("minInstalls") or app_info.get("installs")
+        )
+        if not downloads and app_info.get("installs"):
+            downloads, downloads_raw = parse_downloads(app_info.get("installs"))
+        hist = normalize_histogram(app_info.get("histogram"))
 
         # --- fetch reviews ---
         reviews_url = f"{url}&showAllReviews=true"
@@ -528,10 +565,22 @@ class AppStoreCollector:
             for r in (raw_reviews or [])
         ]
 
+        # Fill missing histogram bars from sampled reviews if needed
+        if all(hist.get(f"star_{i}") is None for i in range(1, 6)):
+            hist = histogram_from_reviews(reviews)
+
+        derived_topics = score_topics_from_reviews(reviews)
+        play_topics = merge_topic_scores(None, derived_topics)
+
         return {
             "overall_rating": overall_rating,
+            "ratings_count": ratings_count,
             "review_count": review_count,
             "app_version": app_version,
+            "downloads": downloads,
+            "downloads_raw": downloads_raw,
+            "histogram": hist,
+            "play_topics": play_topics,
             "reviews": reviews,
         }
 
@@ -588,10 +637,17 @@ class AppStoreCollector:
             for r in raw_reviews
         ]
 
+        # Apple does not publish download counts publicly
+        hist = histogram_from_reviews(reviews)
+
         return {
             "overall_rating": overall_rating,
             "review_count": review_count,
             "app_version": app_version,
+            "downloads": None,
+            "downloads_raw": None,
+            "histogram": hist,
+            "play_topics": {},
             "reviews": reviews,
         }
 

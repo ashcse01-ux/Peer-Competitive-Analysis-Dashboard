@@ -4,7 +4,7 @@ api/main.py
 FastAPI application entry-point.
 
 - Lifespan: verifies DB connectivity and starts the APScheduler cron job
-  (28th of each month at 02:00 UTC).
+  (every day at 10:00 Asia/Kolkata).
 - All business routes are mounted from api/routers/.
 - /health endpoint for subsystem health checks.
 
@@ -25,7 +25,7 @@ logger = structlog.get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Scheduler setup (task 8.5)
+# Scheduler setup — daily 10:00 AM IST
 # ---------------------------------------------------------------------------
 
 def _create_scheduler():
@@ -47,11 +47,11 @@ def _create_scheduler():
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, orch.run)
 
-    # Cron: 02:00 UTC on the 28th of every month
+    # Cron: 10:00 every day, India Standard Time
     scheduler.add_job(
         _scheduled_refresh,
-        CronTrigger(day=28, hour=2, minute=0, timezone="UTC"),
-        id="monthly_refresh",
+        CronTrigger(hour=10, minute=0, timezone="Asia/Kolkata"),
+        id="daily_refresh_10am_ist",
         replace_existing=True,
     )
     return scheduler
@@ -75,10 +75,10 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.error("db_connectivity_failed", error=str(exc))
 
-    # Start scheduler (monthly refresh on the 28th; no live fetch on startup)
+    # Start daily 10 AM IST scheduler
     _scheduler = _create_scheduler()
     _scheduler.start()
-    logger.info("scheduler_started")
+    logger.info("scheduler_started", job="daily_refresh_10am_ist", timezone="Asia/Kolkata")
 
     yield
 
@@ -95,7 +95,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title="FreshBus Competitor Dashboard API",
-        version="0.1.0",
+        version="0.2.0",
         lifespan=lifespan,
     )
 
