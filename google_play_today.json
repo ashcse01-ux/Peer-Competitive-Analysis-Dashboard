@@ -1,0 +1,50 @@
+{
+  "date": "2026-08-06",
+  "operators": {
+    "freshbus": {
+      "package_id": "com.freshbus.app",
+      "app_title": "Fresh Bus",
+      "rating": 4.7359157,
+      "total_ratings": 5584,
+      "total_reviews": 1433,
+      "scraped_at": "2026-08-06"
+    },
+    "zingbus": {
+      "package_id": "com.zingbusbtoc.zingbus",
+      "app_title": "zingbus Book Bus Ticket online",
+      "rating": 4.5680966,
+      "total_ratings": 50733,
+      "total_reviews": 37136,
+      "scraped_at": "2026-08-06"
+    },
+    "intrcity Smartbus": {
+      "package_id": "bus.tickets.intrcity",
+      "app_title": "IntrCity: Bus Ticket Booking",
+      "rating": 4.5758753,
+      "total_ratings": 75173,
+      "total_reviews": 15540,
+      "scraped_at": "2026-08-06"
+    },
+    "Leafy": {
+      "package_id": "com.leafybus.app",
+      "error": "App not found(404).",
+      "scraped_at": "2026-08-06"
+    },
+    "Neugo": {
+      "package_id": "com.gcm.nuego",
+      "app_title": "NueGo Bus Ticket Booking App",
+      "rating": 3.5741143,
+      "total_ratings": 13851,
+      "total_reviews": 7488,
+      "scraped_at": "2026-08-06"
+    },
+    "Flixbus": {
+      "package_id": "de.flixbus.app",
+      "app_title": "FlixBus: Book Bus Tickets",
+      "rating": 4.512699,
+      "total_ratings": 993836,
+      "total_reviews": 4344,
+      "scraped_at": "2026-08-06"
+    }
+  }
+}

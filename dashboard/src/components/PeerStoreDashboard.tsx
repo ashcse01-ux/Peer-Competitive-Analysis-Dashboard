@@ -199,6 +199,9 @@ export default function PeerStoreDashboard({ config }: Props) {
   const { data: googleData, isLoading: googleLoading, isError: googleError } = useGoogleReviews()
   const { data: daily } = useDailySnapshots()
 
+  const isGoogle = config.kind === 'google_search'
+  const source = config.appStoreSource
+
   const today = todayIso()
   const [dateFilter, setDateFilter] = useState<DateFilterValue>({
     preset: 'today',
@@ -206,10 +209,26 @@ export default function PeerStoreDashboard({ config }: Props) {
     to: today,
   })
 
-  const availableDates = useMemo(() => [today], [today])
-  const historyLocked = availableDates.length <= 1
-  const isGoogle = config.kind === 'google_search'
-  const source = config.appStoreSource
+  const availableDates = useMemo(() => {
+    const dates = new Set<string>()
+    if (isGoogle) {
+      const dailyRows = daily?.google_reviews ?? []
+      dailyRows.forEach(r => {
+        const d = r.collection_date || (r.cycle_timestamp || '').slice(0, 10)
+        if (d) dates.add(d)
+      })
+    } else {
+      const dailyRows = (daily?.app_store ?? []).filter(e => e.source === source)
+      dailyRows.forEach(r => {
+        const d = r.collection_date || (r.cycle_timestamp || '').slice(0, 10)
+        if (d) dates.add(d)
+      })
+    }
+    dates.add(today)
+    return Array.from(dates).sort()
+  }, [daily, isGoogle, source, today])
+  const historyLocked = false
+
 
   const summaries = useMemo(() => {
     if (isGoogle) {

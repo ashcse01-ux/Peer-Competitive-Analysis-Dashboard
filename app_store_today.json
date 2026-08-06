@@ -1,0 +1,35 @@
+{
+  "date": "2026-08-06",
+  "operators": {
+    "freshbus": {
+      "rating": 4.8,
+      "total_ratings": 848,
+      "scraped_at": "2026-08-06"
+    },
+    "zingbus": {
+      "rating": 4.6,
+      "total_ratings": 7500,
+      "scraped_at": "2026-08-06"
+    },
+    "intrcity Smartbus": {
+      "rating": 4.3,
+      "total_ratings": 29000,
+      "scraped_at": "2026-08-06"
+    },
+    "Leafy": {
+      "rating": 3.0,
+      "total_ratings": 12,
+      "scraped_at": "2026-08-06"
+    },
+    "Neugo": {
+      "rating": 3.9,
+      "total_ratings": 1300,
+      "scraped_at": "2026-08-06"
+    },
+    "Flixbus": {
+      "rating": 4.8,
+      "total_ratings": 11000,
+      "scraped_at": "2026-08-06"
+    }
+  }
+}
