@@ -300,7 +300,7 @@ export default function RedbusSrpPage() {
                       </td>
                       <td className="text-theme-muted font-semibold">{item.reviews}</td>
                       <td className="border-l border-[var(--border-subtle)] font-bold text-theme-primary whitespace-nowrap">
-                        {item.price ? `₹${item.price}` : '—'}
+                        {item.price ? item.price : '—'}
                       </td>
                     </tr>
                   ))}
