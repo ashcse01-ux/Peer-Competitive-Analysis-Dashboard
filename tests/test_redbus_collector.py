@@ -12,7 +12,7 @@ Covers:
   4. test_retry_exhaustion_marks_stale — mock fetch always raises RuntimeError;
      set_snapshot_stale is called and method returns None.
   5. test_collect_all_summary — mock collect_route_operator returns success dict
-     for all calls; assert success == 132 (22 routes × 6 operators).
+     for all calls; assert success == 144 (24 routes × 6 operators).
 
 All tests use unittest.mock.patch; no real HTTP or Playwright calls are made.
 """
@@ -297,7 +297,7 @@ class TestCollectAllSummary:
     def test_collect_all_summary(self):
         """
         mock collect_route_operator returns a success dict for every call.
-        Assert that success == 132 (22 routes × 6 operators).
+        Assert that success == 144 (24 routes × 6 operators).
         """
         db = _make_db()
         collector = RedbusCollector(db_connection=db)
@@ -315,9 +315,9 @@ class TestCollectAllSummary:
         ):
             summary = collector.collect_all()
 
-        assert summary["success"] == 132, (
-            f"Expected 132 successes (22 routes × 6 operators), "
+        assert summary["success"] == 144, (
+            f"Expected 144 successes (24 routes × 6 operators), "
             f"got {summary['success']}"
         )
-        assert summary["total"] == 132
+        assert summary["total"] == 144
         assert summary["stale"] == 0

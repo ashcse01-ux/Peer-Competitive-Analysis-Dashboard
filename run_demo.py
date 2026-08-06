@@ -31,6 +31,13 @@ from aggregator.live_bootstrap import (
     bootstrap,
     get_cache,
     load_cache_from_disk,
+    merge_redbus_scrape_for_date,
+    pick_redbus_cells_for_range,
+    redbus_available_dates,
+    _latest_redbus_day_cells,
+    _expand_redbus_daily_history,
+    _redbus_reviews_for_day,
+    ensure_redbus_daily_in_cache,
 )
 
 # ── App ────────────────────────────────────────────────────────────────────
@@ -233,18 +240,62 @@ def metrics_google_reviews(
 
 
 @app.get("/api/v1/metrics/redbus")
-def metrics_redbus():
-    cells = _cache().get("redbus_cells") or []
+def metrics_redbus(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+):
+    c = _cache()
+    daily = c.get("redbus_daily_cells") or []
+    if daily:
+        if from_date or to_date:
+            f = from_date or to_date or datetime.now(tz=timezone.utc).date().isoformat()
+            t = to_date or from_date or f
+            cells = pick_redbus_cells_for_range(daily, f, t)
+        else:
+            cells = _latest_redbus_day_cells(daily)
+    else:
+        cells = c.get("redbus_cells") or []
+        if from_date or to_date:
+            f = from_date or to_date
+            t = to_date or from_date
+            cells = [
+                x for x in cells
+                if (not f or (x.get("collection_date") or "") >= f)
+                and (not t or (x.get("collection_date") or "") <= t)
+            ]
     if not cells:
         return {"data": [], "note": "Redbus data not fetched yet. Restart without --skip-redbus."}
     return {"data": cells}
 
 
-@app.get("/api/v1/metrics/redbus/tags")
-def metrics_redbus_tags(route_id: Optional[int] = Query(None)):
+@app.get("/api/v1/metrics/redbus/available-dates")
+def metrics_redbus_available_dates():
     c = _cache()
+    daily = c.get("redbus_daily_cells") or []
+    dates = redbus_available_dates(daily)
+    if not dates:
+        dates = [datetime.now(tz=timezone.utc).date().isoformat()]
+    return {"dates": dates}
+
+
+@app.get("/api/v1/metrics/redbus/tags")
+def metrics_redbus_tags(
+    route_id: Optional[int] = Query(None),
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+):
+    c = _cache()
+    tag_day = to_date or from_date
+    if not tag_day:
+        daily = c.get("redbus_daily_cells") or []
+        days = redbus_available_dates(daily)
+        tag_day = days[-1] if days else datetime.now(tz=timezone.utc).date().isoformat()
+
     if route_id is not None:
         redbus_reviews = c.get("redbus_reviews") or {}
+        daily_rev = (c.get("redbus_daily_reviews") or {}).get(tag_day)
+        if daily_rev:
+            redbus_reviews = daily_rev
         route_reviews = {}
         for op in OPERATORS:
             slug = op["slug"]
@@ -253,11 +304,12 @@ def metrics_redbus_tags(route_id: Optional[int] = Query(None)):
         from aggregator.live_bootstrap import _build_tag_data
         return _build_tag_data(route_reviews)
 
-    tags = c.get("redbus_tags")
-    if tags:
-        return tags
     from aggregator.live_bootstrap import _build_tag_data
-    return _build_tag_data({op["slug"]: [] for op in OPERATORS})
+    flat = _redbus_reviews_for_day(c, tag_day)
+    tags = c.get("redbus_tags")
+    if tags and not from_date and not to_date:
+        return tags
+    return _build_tag_data(flat)
 
 
 from pydantic import BaseModel
@@ -311,7 +363,12 @@ def get_redbus_srp(
     import sqlite3
     db_path = os.path.join(os.path.dirname(__file__), "scraper", "srp.db")
     if not os.path.exists(db_path):
-        return {"data": [], "routes": [], "operators": []}
+        from scraper.redbus_routes import load_redbus_route_pairs
+
+        fallback_routes = [
+            f"{o} → {d}" for o, d in load_redbus_route_pairs()
+        ]
+        return {"data": [], "routes": fallback_routes, "operators": []}
 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -551,6 +608,39 @@ def refresh_status():
 
 
 _refresh_running = False
+_redbus_refresh_running = False
+
+
+@app.post("/api/v1/refresh/redbus")
+def refresh_redbus(collection_date: Optional[str] = Query(None)):
+    """Scrape Redbus for a specific collection date (travel date on Redbus SRP)."""
+    global _redbus_refresh_running
+    if _redbus_refresh_running:
+        return {"message": "Redbus scrape already in progress."}
+
+    from datetime import date as date_cls
+
+    try:
+        scrape_day = date_cls.fromisoformat(collection_date) if collection_date else date_cls.today()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="collection_date must be YYYY-MM-DD")
+
+    skip_redbus = os.getenv("SKIP_REDBUS", "0") == "1"
+
+    def _run():
+        global _redbus_refresh_running
+        _redbus_refresh_running = True
+        try:
+            merge_redbus_scrape_for_date(scrape_day, skip_redbus=skip_redbus)
+        finally:
+            _redbus_refresh_running = False
+
+    import threading
+    threading.Thread(target=_run, daemon=True).start()
+    return {
+        "message": f"Redbus scrape started for {scrape_day.isoformat()} — may take several minutes.",
+        "collection_date": scrape_day.isoformat(),
+    }
 
 
 @app.post("/api/v1/refresh/trigger")
@@ -704,6 +794,7 @@ if __name__ == "__main__":
         bootstrap(skip_redbus=args.skip_redbus, skip_google=args.skip_google)
     elif load_cache_from_disk():
         print("  Loaded cached dashboard data (use Refresh button or --force-refresh to update).")
+        ensure_redbus_daily_in_cache()
     else:
         print("  No cache found — running initial data fetch…")
         bootstrap(skip_redbus=args.skip_redbus, skip_google=args.skip_google)

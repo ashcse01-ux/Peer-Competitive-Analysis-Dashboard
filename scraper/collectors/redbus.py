@@ -2,12 +2,12 @@
 scraper/collectors/redbus.py
 
 RedbusCollector — fetches route-level ratings and up to 100 recent reviews
-for each operator across 22 route directions via Playwright headless Chromium.
+for each operator across configured route directions via Playwright headless Chromium.
 
 Responsibilities (tasks 5.1 – 5.6):
   5.1  RedbusCollector class skeleton with __init__ / collect_all /
        collect_route_operator.
-  5.2  Iterate all 22 route directions × 6 operators; collect route rating,
+  5.2  Iterate all route directions × 6 operators; collect route rating,
        review count, up to 100 reviews (text, star, date).
   5.3  Handle missing operator on route: record null snapshot + log.
   5.4  Detect CAPTCHA challenge (by URL pattern / page title); log event to
@@ -23,7 +23,7 @@ from __future__ import annotations
 import random
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from scraper.db import (
@@ -42,6 +42,7 @@ from scraper.utils.logger import (
 )
 from scraper.utils.retry import RetryExhausted, with_retry
 from scraper.utils.user_agents import get_random_user_agent
+from scraper.redbus_routes import ROUTES
 
 __all__ = [
     "CaptchaDetected",
@@ -65,31 +66,6 @@ OPERATOR_REDBUS_NAMES: dict[str, str] = {
     "leafy": "Leafy",
     "intrcity": "IntrCity SmartBus",
 }
-
-ROUTES = [
-    ("Bangalore", "Chennai"),
-    ("Chennai", "Bangalore"),
-    ("Bangalore", "Pondicherry"),
-    ("Pondicherry", "Bangalore"),
-    ("Bangalore", "Tirupati"),
-    ("Tirupati", "Bangalore"),
-    ("Visakhapatnam", "Vijayawada"),
-    ("Vijayawada", "Visakhapatnam"),
-    ("Hyderabad", "Guntur"),
-    ("Guntur", "Hyderabad"),
-    ("Hyderabad", "Vijayawada"),
-    ("Vijayawada", "Hyderabad"),
-    ("Vijayawada", "Tirupati"),
-    ("Tirupati", "Vijayawada"),
-    ("Chennai", "Tirupati"),
-    ("Tirupati", "Chennai"),
-    ("Hyderabad", "Eluru"),
-    ("Eluru", "Hyderabad"),
-    ("Bangalore", "Salem"),
-    ("Salem", "Bangalore"),
-    ("Bangalore", "Erode"),
-    ("Erode", "Bangalore"),
-]
 
 SLA_SECONDS = 120 * 60  # 120 minutes
 MAX_REVIEWS = 100
@@ -397,6 +373,7 @@ class RedbusCollector:
         operator_slug: str,
         operator_name: str,
         collected_at: datetime,
+        travel_date: date | None = None,
     ) -> dict:
         """Wrap the Playwright data fetch in the retry decorator (task 5.5).
 
@@ -419,6 +396,7 @@ class RedbusCollector:
                     operator_slug=operator_slug,
                     operator_name=operator_name,
                     collected_at=collected_at,
+                    travel_date=travel_date,
                 )
             except CaptchaDetected:
                 # Re-raise as a non-retryable sentinel by wrapping; unwrap below
@@ -436,6 +414,7 @@ class RedbusCollector:
         operator_slug: str,
         operator_name: str,
         collected_at: datetime,
+        travel_date: date | None = None,
     ) -> dict:
         """Open a headless Chromium browser and scrape the Redbus route page.
 
@@ -467,6 +446,9 @@ class RedbusCollector:
             f"https://www.redbus.in/bus-tickets/"
             f"{origin.lower()}-to-{destination.lower()}"
         )
+        if travel_date is not None:
+            doj = travel_date.strftime("%d-%b-%Y")
+            url = f"{url}?onward={doj}&doj={doj}&ref=home"
         user_agent = get_random_user_agent()
 
         log_http_request(logger, method="GET", url=url)

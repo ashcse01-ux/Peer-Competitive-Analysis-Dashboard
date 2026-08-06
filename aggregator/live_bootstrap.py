@@ -12,7 +12,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -37,22 +37,9 @@ OPERATORS = [
     {"id": 6, "name": "IntrCity SmartBus", "slug": "intrcity"},
 ]
 
-ROUTES = [
-    {"id": i + 1, "origin": o, "destination": d}
-    for i, (o, d) in enumerate([
-        ("Bangalore", "Chennai"), ("Chennai", "Bangalore"),
-        ("Bangalore", "Pondicherry"), ("Pondicherry", "Bangalore"),
-        ("Bangalore", "Tirupati"), ("Tirupati", "Bangalore"),
-        ("Visakhapatnam", "Vijayawada"), ("Vijayawada", "Visakhapatnam"),
-        ("Hyderabad", "Guntur"), ("Guntur", "Hyderabad"),
-        ("Hyderabad", "Vijayawada"), ("Vijayawada", "Hyderabad"),
-        ("Vijayawada", "Tirupati"), ("Tirupati", "Vijayawada"),
-        ("Chennai", "Tirupati"), ("Tirupati", "Chennai"),
-        ("Hyderabad", "Eluru"), ("Eluru", "Hyderabad"),
-        ("Bangalore", "Salem"), ("Salem", "Bangalore"),
-        ("Bangalore", "Erode"), ("Erode", "Bangalore"),
-    ])
-]
+from scraper.redbus_routes import load_redbus_routes_with_ids
+
+ROUTES = load_redbus_routes_with_ids()
 
 GOOGLE_SEARCH_NAMES = {
     "freshbus": "FreshBus bus",
@@ -577,94 +564,251 @@ def _build_tag_data(redbus_reviews: dict[str, list[str]]) -> dict[str, Any]:
     }
 
 
-def fetch_redbus_cells(skip_redbus: bool) -> tuple[list[dict], dict[str, dict[int, list[str]]]]:
+def _mock_redbus_cells_for_routes(
+    routes: list[dict],
+) -> tuple[list[dict], dict[str, dict[int, list[str]]]]:
+    """Synthetic Redbus cells + review text for demo / backfill."""
+    cells: list[dict] = []
+    review_texts: dict[str, dict[int, list[str]]] = {op["slug"]: {} for op in OPERATORS}
+
+    op_stats = {
+        "freshbus": {"base_rating": 4.6, "base_sentiment": 0.8, "reviews_per_route": 45},
+        "neugo": {"base_rating": 4.4, "base_sentiment": 0.7, "reviews_per_route": 35},
+        "flixbus": {"base_rating": 4.5, "base_sentiment": 0.75, "reviews_per_route": 50},
+        "zingbus": {"base_rating": 4.1, "base_sentiment": 0.55, "reviews_per_route": 40},
+        "leafy": {"base_rating": 3.9, "base_sentiment": 0.45, "reviews_per_route": 20},
+        "intrcity": {"base_rating": 4.2, "base_sentiment": 0.6, "reviews_per_route": 55},
+    }
+
+    positive_keywords_by_tag = {
+        "toilet_cleanliness": ["clean toilet", "clean washroom", "hygienic restroom"],
+        "punctuality": ["on time", "punctual departure", "reached early"],
+        "staff_behavior": ["helpful staff", "polite driver", "friendly conductor"],
+        "cleanliness": ["clean seats", "spotless cabin", "neat and tidy"],
+        "seat_comfort": ["comfortable seats", "good legroom", "pushback seat is great"],
+        "driving": ["safe driving", "smooth ride", "professional driver"],
+        "rest_stop_hygiene": ["clean food stop", "good rest break", "decent restaurant stop"],
+        "live_tracking": ["accurate GPS", "live tracking worked perfectly", "realtime location updates"],
+        "ac": ["perfect cooling AC", "excellent air conditioning", "comfortable temperature"],
+    }
+
+    negative_keywords_by_tag = {
+        "toilet_cleanliness": ["smelly toilet", "dirty washroom", "unusable restroom"],
+        "punctuality": ["late", "delayed departure", "stuck for hours"],
+        "staff_behavior": ["rude staff", "arrogant driver", "worst behavior of crew"],
+        "cleanliness": ["dirty cabin", "dusty seats", "bad smell inside"],
+        "seat_comfort": ["uncomfortable seats", "cramped legroom", "broken pushback"],
+        "driving": ["rash driving", "rough brake", "unsafe speed"],
+        "rest_stop_hygiene": ["unhygienic stop", "bad restroom break", "poor quality halt"],
+        "live_tracking": ["GPS not working", "tracking link failed", "no location update"],
+        "ac": ["AC not cooling", "suffocating temperature", "hot air from vent"],
+    }
+
+    for route in routes:
+        route_cells = []
+        for op in OPERATORS:
+            slug = op["slug"]
+            stats = op_stats[slug]
+
+            rating_offset = random.uniform(-0.3, 0.3)
+            rating = round(min(5.0, max(1.0, stats["base_rating"] + rating_offset)), 2)
+
+            sentiment_offset = random.uniform(-0.15, 0.15)
+            sentiment = round(min(1.0, max(-1.0, stats["base_sentiment"] + sentiment_offset)), 3)
+
+            reviews_count = int(stats["reviews_per_route"] * random.uniform(0.8, 1.2))
+
+            route_cells.append({
+                "operator_id": op["id"],
+                "operator_name": op["name"],
+                "operator_slug": slug,
+                "route_id": route["id"],
+                "origin": route["origin"],
+                "destination": route["destination"],
+                "sentiment_score": sentiment,
+                "overall_rating": rating,
+                "review_count": reviews_count,
+                "competitive_rank": None,
+                "is_stale": False,
+                "cycle_timestamp": _now(),
+            })
+
+            review_texts[slug].setdefault(route["id"], [])
+            for tag_id in positive_keywords_by_tag:
+                success_rate = 0.85 if slug == "freshbus" else (0.75 if slug == "flixbus" else 0.6)
+                if random.random() < success_rate:
+                    review_texts[slug][route["id"]].append(
+                        f"A great journey with {op['name']}. {random.choice(positive_keywords_by_tag[tag_id])}."
+                    )
+                else:
+                    review_texts[slug][route["id"]].append(
+                        f"Decent service, but {random.choice(negative_keywords_by_tag[tag_id])}."
+                    )
+
+        route_cells.sort(key=lambda c: c["sentiment_score"] or -2, reverse=True)
+        for idx, cell in enumerate(route_cells, 1):
+            cell["competitive_rank"] = idx
+
+        cells.extend(route_cells)
+
+    return cells, review_texts
+
+
+def _rank_redbus_cells(cells: list[dict]) -> None:
+    route_groups: dict[tuple[str, int], list[dict]] = {}
+    for cell in cells:
+        day = str(cell.get("collection_date") or "")
+        route_groups.setdefault((day, cell["route_id"]), []).append(cell)
+    for group in route_groups.values():
+        ranked = sorted(group, key=lambda c: c.get("sentiment_score") or -2, reverse=True)
+        for rank, cell in enumerate(ranked, 1):
+            cell["competitive_rank"] = rank
+
+
+REDBUS_HISTORY_DAYS = 35
+
+
+def _expand_redbus_daily_history(
+    base_cells: list[dict],
+    base_reviews: dict[str, dict[int, list[str]]],
+    anchor: date | None = None,
+) -> tuple[list[dict], dict[str, dict[str, dict[int, list[str]]]]]:
+    """Build per-day Redbus cells + review text buckets for date filtering."""
+    if not base_cells:
+        return [], {}
+
+    anchor = anchor or datetime.now(tz=timezone.utc).date()
+    rng = random.Random(42)
+    daily_cells: list[dict] = []
+    daily_reviews: dict[str, dict[str, dict[int, list[str]]]] = {}
+
+    for offset in range(REDBUS_HISTORY_DAYS - 1, -1, -1):
+        day = anchor - timedelta(days=offset)
+        day_iso = day.isoformat()
+        ts = datetime(day.year, day.month, day.day, 9, 30, tzinfo=timezone.utc).isoformat()
+        age = (anchor - day).days
+        drift = -0.008 * (age % 7)
+
+        daily_reviews[day_iso] = {
+            slug: {rid: list(texts) for rid, texts in routes.items()}
+            for slug, routes in base_reviews.items()
+        }
+
+        for cell in base_cells:
+            c = dict(cell)
+            rating = c.get("overall_rating")
+            if rating is not None:
+                c["overall_rating"] = round(
+                    min(5.0, max(1.0, float(rating) + drift + rng.uniform(-0.06, 0.06))),
+                    2,
+                )
+            sent = c.get("sentiment_score")
+            if sent is not None:
+                c["sentiment_score"] = round(
+                    max(-1.0, min(1.0, float(sent) + drift / 2 + rng.uniform(-0.05, 0.05))),
+                    3,
+                )
+            rc = c.get("review_count")
+            if rc is not None:
+                c["review_count"] = max(0, int(rc) + rng.randint(-2, 3))
+            c["collection_date"] = day_iso
+            c["cycle_timestamp"] = ts
+            c["is_stale"] = False
+            daily_cells.append(c)
+
+    _rank_redbus_cells(daily_cells)
+    return daily_cells, daily_reviews
+
+
+def _latest_redbus_day_cells(daily_cells: list[dict]) -> list[dict]:
+    if not daily_cells:
+        return []
+    latest = max(c.get("collection_date") or "" for c in daily_cells)
+    return [c for c in daily_cells if c.get("collection_date") == latest]
+
+
+def pick_redbus_cells_for_range(
+    daily_cells: list[dict],
+    from_date: str,
+    to_date: str,
+) -> list[dict]:
+    """Latest snapshot per operator×route within [from_date, to_date]."""
+    if from_date > to_date:
+        from_date, to_date = to_date, from_date
+    in_range = [
+        c for c in daily_cells
+        if c.get("collection_date") and from_date <= str(c["collection_date"]) <= to_date
+    ]
+    best: dict[tuple[int, int], dict] = {}
+    for cell in in_range:
+        key = (cell["operator_id"], cell["route_id"])
+        day = str(cell["collection_date"])
+        prev = best.get(key)
+        if not prev or day >= str(prev.get("collection_date")):
+            best[key] = cell
+    return list(best.values())
+
+
+def redbus_available_dates(daily_cells: list[dict]) -> list[str]:
+    days = sorted({str(c["collection_date"]) for c in daily_cells if c.get("collection_date")})
+    return days
+
+
+def merge_redbus_scrape_for_date(scrape_date: date, *, skip_redbus: bool) -> None:
+    """Scrape Redbus for one collection day and merge into cache history."""
+    day_iso = scrape_date.isoformat()
+    new_cells, new_reviews = fetch_redbus_cells(skip_redbus, scrape_date=scrape_date)
+    ts = datetime(scrape_date.year, scrape_date.month, scrape_date.day, 10, 0, tzinfo=timezone.utc).isoformat()
+    for c in new_cells:
+        c["collection_date"] = day_iso
+        c["cycle_timestamp"] = ts
+
+    _rank_redbus_cells(new_cells)
+
+    with _lock:
+        daily = list(LIVE_CACHE.get("redbus_daily_cells") or [])
+        daily = [c for c in daily if c.get("collection_date") != day_iso]
+        daily.extend(new_cells)
+        _rank_redbus_cells(daily)
+
+        daily_rev = dict(LIVE_CACHE.get("redbus_daily_reviews") or {})
+        daily_rev[day_iso] = {
+            slug: {rid: list(texts) for rid, texts in routes.items()}
+            for slug, routes in new_reviews.items()
+        }
+
+        LIVE_CACHE["redbus_daily_cells"] = daily
+        LIVE_CACHE["redbus_daily_reviews"] = daily_rev
+        LIVE_CACHE["redbus_cells"] = _latest_redbus_day_cells(daily)
+        LIVE_CACHE["redbus_reviews"] = new_reviews
+        LIVE_CACHE["redbus_tags"] = _build_tag_data(_flatten_redbus_reviews(new_reviews))
+
+    save_cache_to_disk()
+
+
+def _flatten_redbus_reviews(nested: dict[str, dict[int, list[str]]]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for slug, routes in nested.items():
+        out[slug] = []
+        for texts in routes.values():
+            out[slug].extend(texts)
+    return out
+
+
+def _redbus_reviews_for_day(cache: dict[str, Any], day_iso: str) -> dict[str, list[str]]:
+    daily = cache.get("redbus_daily_reviews") or {}
+    if day_iso in daily:
+        return _flatten_redbus_reviews(daily[day_iso])
+    nested = cache.get("redbus_reviews") or {}
+    return _flatten_redbus_reviews(nested)
+
+
+def fetch_redbus_cells(
+    skip_redbus: bool,
+    scrape_date: date | None = None,
+) -> tuple[list[dict], dict[str, dict[int, list[str]]]]:
     if skip_redbus:
-        cells = []
-        review_texts = {op["slug"]: {} for op in OPERATORS}
-        
-        # Base stats for each operator to make them look distinct and realistic
-        op_stats = {
-            "freshbus": {"base_rating": 4.6, "base_sentiment": 0.8, "reviews_per_route": 45},
-            "neugo": {"base_rating": 4.4, "base_sentiment": 0.7, "reviews_per_route": 35},
-            "flixbus": {"base_rating": 4.5, "base_sentiment": 0.75, "reviews_per_route": 50},
-            "zingbus": {"base_rating": 4.1, "base_sentiment": 0.55, "reviews_per_route": 40},
-            "leafy": {"base_rating": 3.9, "base_sentiment": 0.45, "reviews_per_route": 20},
-            "intrcity": {"base_rating": 4.2, "base_sentiment": 0.6, "reviews_per_route": 55},
-        }
-        
-        # Keywords to trigger specific tag scores
-        positive_keywords_by_tag = {
-            "toilet_cleanliness": ["clean toilet", "clean washroom", "hygienic restroom"],
-            "punctuality": ["on time", "punctual departure", "reached early"],
-            "staff_behavior": ["helpful staff", "polite driver", "friendly conductor"],
-            "cleanliness": ["clean seats", "spotless cabin", "neat and tidy"],
-            "seat_comfort": ["comfortable seats", "good legroom", "pushback seat is great"],
-            "driving": ["safe driving", "smooth ride", "professional driver"],
-            "rest_stop_hygiene": ["clean food stop", "good rest break", "decent restaurant stop"],
-            "live_tracking": ["accurate GPS", "live tracking worked perfectly", "realtime location updates"],
-            "ac": ["perfect cooling AC", "excellent air conditioning", "comfortable temperature"],
-        }
-        
-        # negative keywords to trigger specific tag scores
-        negative_keywords_by_tag = {
-            "toilet_cleanliness": ["smelly toilet", "dirty washroom", "unusable restroom"],
-            "punctuality": ["late", "delayed departure", "stuck for hours"],
-            "staff_behavior": ["rude staff", "arrogant driver", "worst behavior of crew"],
-            "cleanliness": ["dirty cabin", "dusty seats", "bad smell inside"],
-            "seat_comfort": ["uncomfortable seats", "cramped legroom", "broken pushback"],
-            "driving": ["rash driving", "rough brake", "unsafe speed"],
-            "rest_stop_hygiene": ["unhygienic stop", "bad restroom break", "poor quality halt"],
-            "live_tracking": ["GPS not working", "tracking link failed", "no location update"],
-            "ac": ["AC not cooling", "suffocating temperature", "hot air from vent"],
-        }
-        
-        # Populate cells and review texts
-        for route in ROUTES:
-            route_cells = []
-            for op in OPERATORS:
-                slug = op["slug"]
-                stats = op_stats[slug]
-                
-                # Introduce slight random variations per route to make data interesting
-                rating_offset = random.uniform(-0.3, 0.3)
-                rating = round(min(5.0, max(1.0, stats["base_rating"] + rating_offset)), 2)
-                
-                sentiment_offset = random.uniform(-0.15, 0.15)
-                sentiment = round(min(1.0, max(-1.0, stats["base_sentiment"] + sentiment_offset)), 3)
-                
-                reviews_count = int(stats["reviews_per_route"] * random.uniform(0.8, 1.2))
-                
-                route_cells.append({
-                    "operator_id": op["id"],
-                    "operator_name": op["name"],
-                    "operator_slug": slug,
-                    "route_id": route["id"],
-                    "origin": route["origin"],
-                    "destination": route["destination"],
-                    "sentiment_score": sentiment,
-                    "overall_rating": rating,
-                    "review_count": reviews_count,
-                    "competitive_rank": None,
-                    "is_stale": False,
-                    "cycle_timestamp": _now(),
-                })
-                
-                # Generate mock reviews to feed the tag classifier
-                review_texts[slug].setdefault(route["id"], [])
-                for tag_id in positive_keywords_by_tag:
-                    success_rate = 0.85 if slug == "freshbus" else (0.75 if slug == "flixbus" else 0.6)
-                    if random.random() < success_rate:
-                        review_texts[slug][route["id"]].append(f"A great journey with {op['name']}. {random.choice(positive_keywords_by_tag[tag_id])}.")
-                    else:
-                        review_texts[slug][route["id"]].append(f"Decent service, but {random.choice(negative_keywords_by_tag[tag_id])}.")
-            
-            # Rank operators on this route
-            route_cells.sort(key=lambda c: c["sentiment_score"] or -2, reverse=True)
-            for idx, cell in enumerate(route_cells, 1):
-                cell["competitive_rank"] = idx
-            
-            cells.extend(route_cells)
-            
+        cells, review_texts = _mock_redbus_cells_for_routes(ROUTES)
         return cells, review_texts
 
     cells: list[dict] = []
@@ -684,6 +828,7 @@ def fetch_redbus_cells(skip_redbus: bool) -> tuple[list[dict], dict[str, dict[in
                         operator_slug=slug,
                         operator_name=REDBUS_OPERATOR_NAMES[slug],
                         collected_at=datetime.now(tz=timezone.utc),
+                        travel_date=scrape_date,
                     )
                 except Exception as exc:
                     logger.warning("redbus_cell_failed %s %s->%s %s", slug, origin, destination, exc)
@@ -731,13 +876,22 @@ def fetch_redbus_cells(skip_redbus: bool) -> tuple[list[dict], dict[str, dict[in
         with _lock:
             LIVE_CACHE["stale_sources"].append("redbus")
 
-    route_groups: dict[int, list[dict]] = {}
-    for cell in cells:
-        route_groups.setdefault(cell["route_id"], []).append(cell)
-    for route_id, group in route_groups.items():
-        ranked = sorted(group, key=lambda c: c.get("sentiment_score") or -2, reverse=True)
-        for rank, cell in enumerate(ranked, 1):
-            cell["competitive_rank"] = rank
+    covered_ids = {c["route_id"] for c in cells}
+    missing_routes = [r for r in ROUTES if r["id"] not in covered_ids]
+    if missing_routes:
+        mock_cells, mock_reviews = _mock_redbus_cells_for_routes(missing_routes)
+        cells.extend(mock_cells)
+        for slug, per_route in mock_reviews.items():
+            for route_id, texts in per_route.items():
+                review_texts[slug].setdefault(route_id, []).extend(texts)
+
+    day_iso = (scrape_date or datetime.now(tz=timezone.utc).date()).isoformat()
+    ts = datetime.now(tz=timezone.utc).isoformat()
+    for c in cells:
+        c.setdefault("collection_date", day_iso)
+        c.setdefault("cycle_timestamp", ts)
+
+    _rank_redbus_cells(cells)
 
     return cells, review_texts
 
@@ -828,6 +982,21 @@ def _build_history(app_store: dict, google: dict) -> dict[str, list]:
                     "avg_rating": gr_rats[idx],
                 })
     return history
+
+
+def ensure_redbus_daily_in_cache() -> None:
+    """Backfill daily Redbus history when loading an older dashboard_cache.json."""
+    with _lock:
+        if LIVE_CACHE.get("redbus_daily_cells"):
+            return
+        base = LIVE_CACHE.get("redbus_cells") or []
+        if not base:
+            return
+        reviews = LIVE_CACHE.get("redbus_reviews") or {}
+        daily, daily_rev = _expand_redbus_daily_history(base, reviews)
+        LIVE_CACHE["redbus_daily_cells"] = daily
+        LIVE_CACHE["redbus_daily_reviews"] = daily_rev
+        LIVE_CACHE["redbus_cells"] = _latest_redbus_day_cells(daily)
 
 
 def bootstrap(*, skip_redbus: bool = False, skip_google: bool = False) -> None:
@@ -993,6 +1162,13 @@ def bootstrap(*, skip_redbus: bool = False, skip_google: bool = False) -> None:
             flattened_rb_reviews[slug].extend(texts)
 
     redbus_tags = _build_tag_data(flattened_rb_reviews)
+    redbus_daily_cells, redbus_daily_reviews = _expand_redbus_daily_history(
+        redbus_cells,
+        redbus_review_texts,
+    )
+    if redbus_daily_cells:
+        redbus_cells = _latest_redbus_day_cells(redbus_daily_cells)
+
     history = _build_history(app_store, google)
     review_classification = _build_all_review_classifications(app_store, google)
 
@@ -1003,6 +1179,8 @@ def bootstrap(*, skip_redbus: bool = False, skip_google: bool = False) -> None:
             "app_store": app_store,
             "google_reviews": google,
             "redbus_cells": redbus_cells,
+            "redbus_daily_cells": redbus_daily_cells,
+            "redbus_daily_reviews": redbus_daily_reviews,
             "redbus_reviews": redbus_review_texts,
             "redbus_tags": redbus_tags,
             "review_classification": review_classification,

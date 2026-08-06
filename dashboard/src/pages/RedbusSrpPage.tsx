@@ -3,8 +3,6 @@ import {
   Bus,
   Calendar,
   ChevronDown,
-  Compass,
-  Filter,
   MapPin,
   Play,
   Star
@@ -12,6 +10,8 @@ import {
 import { useRedbusSrp } from '../api'
 import SectionHeader from '../components/SectionHeader'
 import { cx } from '../lib/insights'
+import { FB_BLUE, FB_YELLOW } from '../lib/playTopics'
+import { canonicalSrpRouteOptions } from '../lib/redbusRoutes'
 
 // Helper to generate dates between start and end
 function getDatesInRange(startStr: string, endStr: string): string[] {
@@ -62,7 +62,10 @@ export default function RedbusSrpPage() {
 
   // Fetch metadata lists (routes & operators) by loading with empty values
   const { data: metaData } = useRedbusSrp('', '')
-  const routesList = metaData?.routes ?? []
+  const routesList = useMemo(
+    () => canonicalSrpRouteOptions(metaData?.routes ?? []),
+    [metaData?.routes],
+  )
 
   // Fetch actual data using submitted filters (only triggers when Go is clicked)
   const { data: srpResponse, isLoading } = useRedbusSrp(
@@ -97,31 +100,19 @@ export default function RedbusSrpPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div>
-        <span className="text-xs font-bold uppercase tracking-wider text-[var(--neon-blue)]">
-          Redbus Search Visibility
-        </span>
-        <h1 className="text-3xl font-black tracking-tight text-theme-primary">
-          SRP Rankings
-        </h1>
-        <p className="mt-1 text-sm text-theme-muted">
-          Compare search result position rankings for operators across specific routes and dates.
-        </p>
-      </div>
+    <div className="page-section">
+      <SectionHeader
+        variant="hero"
+        divider={false}
+        eyebrow="Redbus · Search visibility"
+        title="SRP rankings"
+        subtitle="Compare search result position rankings for operators across specific routes and dates."
+      />
 
-      {/* Inputs Section */}
-      <form onSubmit={handleGo} className="glass-panel p-4 md:p-6 rounded-2xl border border-[var(--border-subtle)] space-y-4">
-        <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] pb-3">
-          <Filter size={16} className="text-[var(--neon-blue)]" />
-          <h2 className="text-sm font-extrabold uppercase tracking-wider text-theme-primary">
-            Filter Parameters
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Operator Dropdown */}
+      <form onSubmit={handleGo} className="liquid-glass chart-panel panel-shell space-y-4">
+        <SectionHeader eyebrow="Filters" title="Filter parameters" subtitle="Choose operator, route, and date range, then run the query." />
+        <div className="visual-body space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
             <label className="text-xs font-black text-theme-secondary">Select Operator</label>
             <div className="relative">
@@ -147,7 +138,7 @@ export default function RedbusSrpPage() {
                 value={route}
                 onChange={e => setRoute(e.target.value)}
               >
-                <option value="">-- Choose Route --</option>
+                <option value="">Choose route</option>
                 {routesList.map(r => (
                   <option key={r} value={r}>
                     {r}
@@ -185,38 +176,38 @@ export default function RedbusSrpPage() {
               />
             </div>
           </div>
-        </div>
+          </div>
 
-        {/* Go Submit Button */}
-        <div className="flex justify-end pt-2">
-          <button
-            type="submit"
-            disabled={isGoDisabled}
-            className={cx(
-              "flex h-11 items-center gap-2 rounded-xl px-8 text-sm font-black text-white shadow-lg transition-all",
-              isGoDisabled
-                ? "bg-slate-400/20 text-slate-500 border border-[var(--border-subtle)] cursor-not-allowed shadow-none"
-                : "bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 active:scale-95"
-            )}
-          >
-            <Play size={14} fill="currentColor" />
-            Go
-          </button>
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={isGoDisabled}
+              className={cx(
+                'flex h-11 items-center gap-2 rounded-xl px-8 text-sm font-bold text-white shadow-md transition-all',
+                isGoDisabled
+                  ? 'cursor-not-allowed border border-[var(--border-subtle)] bg-slate-400/20 text-slate-500 shadow-none'
+                  : 'hover:opacity-95 active:scale-[0.98]',
+              )}
+              style={isGoDisabled ? undefined : { backgroundColor: FB_BLUE }}
+            >
+              <Play size={14} fill="currentColor" />
+              Go
+            </button>
+          </div>
         </div>
       </form>
 
-      {/* Main Grid/Table View (Only visible once submitted) */}
       {showTable && (
-        <div className="glass-panel rounded-2xl border border-[var(--border-subtle)] overflow-hidden">
-          <div className="flex flex-col gap-4 border-b border-[var(--border-subtle)] bg-[var(--header-bg)] p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="liquid-glass chart-panel panel-shell overflow-hidden">
+          <div className="border-b border-[var(--border-subtle)] p-4 sm:p-6">
             <SectionHeader
               eyebrow="Redbus SRP"
-              title={`SRP Placements for ${submitted.operator}`}
-              subtitle={`${submitted.route} | Date Range: ${formatHeaderDate(submitted.startDate)} to ${formatHeaderDate(submitted.endDate)}`}
+              title={`SRP placements for ${submitted.operator}`}
+              subtitle={`${submitted.route} · ${formatHeaderDate(submitted.startDate)} – ${formatHeaderDate(submitted.endDate)}`}
             />
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="visual-body overflow-x-auto">
             {isLoading ? (
               <div className="p-8 text-center text-sm font-semibold text-theme-muted">
                 Loading SRP rankings...
@@ -226,28 +217,25 @@ export default function RedbusSrpPage() {
                 No matching service records found in the database.
               </div>
             ) : (
-              <table className="w-full text-left text-xs font-semibold text-theme-secondary border-collapse">
+              <table className="data-table min-w-[720px]">
                 <thead>
-                  <tr className="border-b border-[var(--border-subtle)] bg-slate-500/5 text-theme-primary uppercase tracking-wider text-[10px]">
-                    <th className="p-4 font-black">Route</th>
-                    <th className="p-4 font-black">Timing</th>
-                    
-                    {/* Render dynamic columns for each selected date in range */}
+                  <tr>
+                    <th>Route</th>
+                    <th>Timing</th>
                     {activeDates.map(date => (
-                      <th key={date} className="p-4 font-black border-l border-[var(--border-subtle)] bg-violet-500/5 text-center text-theme-primary">
+                      <th key={date} className="text-center border-l border-[var(--border-subtle)]">
                         {formatHeaderDate(date)}
                       </th>
                     ))}
-                    
-                    <th className="p-4 font-black border-l border-[var(--border-subtle)] text-amber-500">Rating</th>
-                    <th className="p-4 font-black">Reviews</th>
+                    <th className="border-l border-[var(--border-subtle)]">Rating</th>
+                    <th>Reviews</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--border-subtle)]">
+                <tbody>
                   {items.map(item => (
-                    <tr key={item.service_key} className="hover:bg-slate-500/5 transition">
-                      <td className="p-4 font-extrabold text-theme-primary whitespace-nowrap">{item.route}</td>
-                      <td className="p-4 whitespace-nowrap font-bold text-theme-primary">{item.timing}</td>
+                    <tr key={item.service_key}>
+                      <td className="font-bold whitespace-nowrap">{item.route}</td>
+                      <td className="whitespace-nowrap font-semibold">{item.timing}</td>
                       
                       {/* Render dynamic rank data matching header dates */}
                       {activeDates.map(date => {
@@ -259,7 +247,7 @@ export default function RedbusSrpPage() {
                         const rankVal = (item as any)[dayKey]
                         
                         return (
-                          <td key={date} className="p-4 border-l border-[var(--border-subtle)] bg-violet-500/5 text-center font-bold">
+                          <td key={date} className="border-l border-[var(--border-subtle)] text-center font-semibold">
                             {rankVal ? (
                               <span className={cx("px-2 py-1 rounded-md text-[11px] border font-bold", getRankToneClass(rankVal))}>
                                 {rankVal}
@@ -272,14 +260,14 @@ export default function RedbusSrpPage() {
                       })}
 
                       {/* Stats */}
-                      <td className="p-4 border-l border-[var(--border-subtle)] font-bold text-theme-primary whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 text-amber-500">
+                      <td className="border-l border-[var(--border-subtle)] font-semibold whitespace-nowrap">
+                        <div className="flex items-center gap-1.5" style={{ color: FB_YELLOW }}>
                           <Star size={13} fill="currentColor" />
                           {(() => { const r = parseFloat(item.rating); return (isNaN(r) || r > 5) ? '—' : r.toFixed(1) })()}
 
                         </div>
                       </td>
-                      <td className="p-4 text-theme-muted font-bold">{item.reviews}</td>
+                      <td className="text-theme-muted font-semibold">{item.reviews}</td>
                     </tr>
                   ))}
                 </tbody>

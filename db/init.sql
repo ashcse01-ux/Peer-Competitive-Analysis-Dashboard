@@ -245,29 +245,31 @@ INSERT INTO operators (name, slug) VALUES
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
--- routes (22 direction-route combinations — both directions per city-pair)
+-- routes (24 direction-route combinations — see scraper/config/redbus_routes.json)
 -- ---------------------------------------------------------------------------
 INSERT INTO routes (origin, destination) VALUES
-    ('Bangalore',      'Chennai'),
-    ('Chennai',        'Bangalore'),
-    ('Bangalore',      'Pondicherry'),
-    ('Pondicherry',    'Bangalore'),
+    ('Vijayawada',     'Visakhapatnam'),
+    ('Visakhapatnam',  'Vijayawada'),
+    ('Vijayawada',     'Hyderabad'),
+    ('Hyderabad',      'Vijayawada'),
     ('Bangalore',      'Tirupati'),
     ('Tirupati',       'Bangalore'),
-    ('Visakhapatnam',  'Vijayawada'),
-    ('Vijayawada',     'Visakhapatnam'),
-    ('Hyderabad',      'Guntur'),
-    ('Guntur',         'Hyderabad'),
-    ('Hyderabad',      'Vijayawada'),
-    ('Vijayawada',     'Hyderabad'),
-    ('Vijayawada',     'Tirupati'),
-    ('Tirupati',       'Vijayawada'),
+    ('Chennai',        'Bangalore'),
+    ('Bangalore',      'Chennai'),
     ('Chennai',        'Tirupati'),
     ('Tirupati',       'Chennai'),
-    ('Hyderabad',      'Eluru'),
-    ('Eluru',          'Hyderabad'),
-    ('Bangalore',      'Salem'),
-    ('Salem',          'Bangalore'),
     ('Bangalore',      'Erode'),
-    ('Erode',          'Bangalore')
+    ('Chennai',        'Pondicherry'),
+    ('Eluru',          'Hyderabad'),
+    ('Erode',          'Bangalore'),
+    ('Hyderabad',      'Eluru'),
+    ('Pondicherry',    'Chennai'),
+    ('Bangalore',      'Pondicherry'),
+    ('Pondicherry',    'Bangalore'),
+    ('Vijayawada',     'Tirupati'),
+    ('Tirupati',       'Vijayawada'),
+    ('Coimbatore',     'Bangalore'),
+    ('Bangalore',      'Coimbatore'),
+    ('Madurai',        'Coimbatore'),
+    ('Coimbatore',     'Madurai')
 ON CONFLICT DO NOTHING;

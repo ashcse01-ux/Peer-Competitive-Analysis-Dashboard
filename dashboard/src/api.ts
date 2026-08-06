@@ -93,6 +93,7 @@ export interface RedbusCell {
   route_id: number; origin: string; destination: string
   sentiment_score: number | null; overall_rating: number | null; review_count: number | null
   competitive_rank: number | null; is_stale: boolean; cycle_timestamp: string | null
+  collection_date?: string | null
 }
 
 export interface HistorySeries {
@@ -167,9 +168,18 @@ const fetch = {
     },
     'google-reviews.json'
   ),
-  redbus:         ()                => fetchWithFallback(
-    () => http.get<{data: RedbusCell[]}>('/api/v1/metrics/redbus').then(r => r.data),
+  redbus:         (from?: string, to?: string) => fetchWithFallback(
+    () => {
+      const params: Record<string, string> = {}
+      if (from) params.from = from
+      if (to) params.to = to
+      return http.get<{data: RedbusCell[]}>('/api/v1/metrics/redbus', { params }).then(r => r.data)
+    },
     'redbus.json'
+  ),
+  redbusAvailableDates: () => fetchWithFallback(
+    () => http.get<{ dates: string[] }>('/api/v1/metrics/redbus/available-dates').then(r => r.data),
+    'redbus-available-dates.json',
   ),
   redbusRoute:    (id: number)      => http.get(`/api/v1/metrics/redbus/${id}`).then(r => r.data),
   history:        (source: string)  => fetchWithFallback(
@@ -189,10 +199,12 @@ const fetch = {
     () => http.get<RefreshStatus>('/api/v1/refresh/status').then(r => r.data),
     'refresh-status.json'
   ),
-  redbusTags:     (routeId?: number) => fetchWithFallback(
+  redbusTags:     (routeId?: number, from?: string, to?: string) => fetchWithFallback(
     () => {
-      const params: Record<string, any> = {}
+      const params: Record<string, string | number> = {}
       if (routeId) params.route_id = routeId
+      if (from) params.from = from
+      if (to) params.to = to
       return http.get<RedbusTagsResponse>('/api/v1/metrics/redbus/tags', { params }).then(r => r.data)
     },
     'redbus-tags.json'
@@ -214,6 +226,12 @@ const fetch = {
     'daily-snapshots.json'
   ),
   triggerRefresh: () => http.post<{ message: string }>('/api/v1/refresh/trigger').then(r => r.data),
+  triggerRedbusRefresh: (collectionDate: string) =>
+    http.post<{ message: string; collection_date: string }>(
+      '/api/v1/refresh/redbus',
+      null,
+      { params: { collection_date: collectionDate } },
+    ).then(r => r.data),
 }
 
 export interface DailySnapshotsResponse {
@@ -269,13 +287,21 @@ export const useOverview      = ()               => useQuery({ queryKey: ['overv
 export const useAppStore      = ()               => useQuery({ queryKey: ['app-store'],     queryFn: fetch.appStore })
 export const useGoogleReviews = (from?: string, to?: string) =>
   useQuery({ queryKey: ['google-reviews', from, to], queryFn: () => fetch.googleReviews(from, to) })
-export const useRedbus        = ()               => useQuery({ queryKey: ['redbus'],        queryFn: fetch.redbus })
+export const useRedbus = (from?: string, to?: string) =>
+  useQuery({ queryKey: ['redbus', from, to], queryFn: () => fetch.redbus(from, to) })
+export const useRedbusAvailableDates = () =>
+  useQuery({ queryKey: ['redbus-available-dates'], queryFn: fetch.redbusAvailableDates, staleTime: 60_000 })
 export const useRedbusRoute   = (id: number)     => useQuery({ queryKey: ['redbus-route', id], queryFn: () => fetch.redbusRoute(id), enabled: id > 0 })
 export const useHistory       = (source: string) => useQuery({ queryKey: ['history', source], queryFn: () => fetch.history(source) })
 export const useTopReviews    = (slug?: string, source?: string) =>
   useQuery({ queryKey: ['top-reviews', slug, source], queryFn: () => fetch.topReviews(slug, source) })
 export const useRefreshStatus = ()               => useQuery({ queryKey: ['refresh-status'], queryFn: fetch.refreshStatus, refetchInterval: 30_000 })
-export const useRedbusTags    = (routeId?: number) => useQuery({ queryKey: ['redbus-tags', routeId],     queryFn: () => fetch.redbusTags(routeId), staleTime: 60_000 })
+export const useRedbusTags    = (routeId?: number, from?: string, to?: string) =>
+  useQuery({
+    queryKey: ['redbus-tags', routeId, from, to],
+    queryFn: () => fetch.redbusTags(routeId, from, to),
+    staleTime: 60_000,
+  })
 export const useReviewClassification = (source: string) =>
   useQuery({
     queryKey: ['review-classification', source],
@@ -296,6 +322,16 @@ export const useDailySnapshots = () =>
     queryFn: fetch.dailySnapshots,
     staleTime: 60_000,
   })
+
+export function useTriggerRedbusRefresh() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (collectionDate: string) => fetch.triggerRedbusRefresh(collectionDate),
+    onSuccess: () => {
+      queryClient.invalidateQueries()
+    },
+  })
+}
 
 export function useTriggerRefresh() {
   const queryClient = useQueryClient()

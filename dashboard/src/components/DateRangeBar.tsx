@@ -22,12 +22,33 @@ export function todayIso() {
   return isoLocal(new Date())
 }
 
-/** Until daily scrapes accumulate, every preset resolves to today. */
-export function resolvePreset(preset: DatePreset, _anchor = new Date()): { from: string; to: string } {
-  const t = todayIso()
-  // Future: when history exists, expand weekly/monthly from scraped days.
-  void preset
-  return { from: t, to: t }
+/** Resolve preset to ISO date range; uses scrape history when multiple days exist. */
+export function resolvePreset(
+  preset: DatePreset,
+  anchor = new Date(),
+  availableDates?: string[],
+): { from: string; to: string } {
+  const today = isoLocal(anchor)
+  const sorted = availableDates?.length ? [...availableDates].sort() : []
+  if (sorted.length <= 1) {
+    void preset
+    return { from: today, to: today }
+  }
+  const latest = sorted[sorted.length - 1]
+  const earliest = sorted[0]
+  if (preset === 'today') return { from: latest, to: latest }
+  if (preset === 'yesterday') {
+    const y = sorted[sorted.length - 2] ?? latest
+    return { from: y, to: y }
+  }
+  if (preset === 'weekly') {
+    const from = sorted[Math.max(0, sorted.length - 7)]
+    return { from, to: latest }
+  }
+  if (preset === 'monthly') {
+    return { from: earliest, to: latest }
+  }
+  return { from: latest, to: latest }
 }
 
 const PRESETS: { id: DatePreset; label: string }[] = [
@@ -47,18 +68,16 @@ interface Props {
 
 export default function DateRangeBar({ value, onChange, availableDates = [], className }: Props) {
   const today = todayIso()
-  const minAllowed = availableDates.length
-    ? [...availableDates].sort()[0]
-    : today
-  // Past days with no scrape stay locked; never before first scrape / today
+  const historyLocked = availableDates.length <= 1
+  const minAllowed = availableDates.length ? [...availableDates].sort()[0] : today
   const minDate = minAllowed > today ? today : minAllowed
-  const maxDate = today
+  const maxDate = availableDates.length ? [...availableDates].sort().slice(-1)[0] : today
 
-  const [draftFrom, setDraftFrom] = useState(value.from || today)
-  const [draftTo, setDraftTo] = useState(value.to || today)
+  const [draftFrom, setDraftFrom] = useState(value.from || maxDate)
+  const [draftTo, setDraftTo] = useState(value.to || maxDate)
 
   const applyPreset = (preset: DatePreset) => {
-    const range = resolvePreset(preset)
+    const range = resolvePreset(preset, new Date(), availableDates)
     setDraftFrom(range.from)
     setDraftTo(range.to)
     onChange({ preset, ...range })
@@ -74,17 +93,14 @@ export default function DateRangeBar({ value, onChange, availableDates = [], cla
     let from = clamp(draftFrom)
     let to = clamp(draftTo)
     if (from > to) [from, to] = [to, from]
-    // Until multi-day scrapes exist, force today
-    if (availableDates.length <= 1) {
-      from = today
-      to = today
+    if (historyLocked) {
+      from = maxDate
+      to = maxDate
     }
     setDraftFrom(from)
     setDraftTo(to)
     onChange({ preset: 'custom', from, to })
   }
-
-  const historyLocked = availableDates.length <= 1
 
   return (
     <div className={cx('flex flex-col gap-2', className)}>

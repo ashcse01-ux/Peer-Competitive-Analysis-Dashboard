@@ -15,9 +15,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Award, ChevronDown, Gauge, Layers3, Map as MapIcon, Sparkles, Target, Trophy, X, Zap } from 'lucide-react'
-import { useRedbus, useRedbusRoute, useRedbusTags } from '../api'
+import { ChevronDown, Gauge, Map as MapIcon, Sparkles, Target, Trophy, X } from 'lucide-react'
+import { useRedbus, useRedbusAvailableDates, useRedbusRoute, useRedbusTags } from '../api'
 import ChartTooltip from '../components/ChartTooltip'
+import DateRangeBar, { todayIso, type DateFilterValue } from '../components/DateRangeBar'
 import HeatmapCell from '../components/HeatmapCell'
 import KPICard from '../components/KPICard'
 import MetricTip from '../components/MetricTip'
@@ -25,6 +26,8 @@ import SectionHeader from '../components/SectionHeader'
 import { useDashboardStore } from '../store'
 import { useTranslation } from '../i18n/useTranslation'
 import { tip } from '../lib/metricGlossary'
+import { FB_BLUE, FB_YELLOW } from '../lib/playTopics'
+import { orderRedbusRoutes, REDBUS_ROUTE_PAIRS, routeDisplayLabel } from '../lib/redbusRoutes'
 import {
   operatorColor,
   TAG_COLORS,
@@ -32,6 +35,7 @@ import {
   cx,
   formatCompact,
   formatMetric,
+  formatSnapshotStamp,
   getInitials,
   rankTone,
   sum,
@@ -47,51 +51,56 @@ function rankClass(rank: number | null | undefined) {
   return 'bg-slate-100 text-slate-500'
 }
 
-function routeLabel(origin: string, destination: string) {
-  return `${origin} -> ${destination}`
-}
-
 function corrColor(value: number): string {
-  if (value >= 0.6) return 'rgba(0, 212, 255, 0.85)'
-  if (value >= 0.4) return 'rgba(0, 119, 255, 0.65)'
-  if (value >= 0.2) return 'rgba(255, 234, 0, 0.55)'
-  return 'rgba(255, 107, 53, 0.45)'
+  if (value >= 0.6) return 'rgba(12, 77, 195, 0.88)'
+  if (value >= 0.4) return 'rgba(12, 77, 195, 0.62)'
+  if (value >= 0.2) return 'rgba(251, 188, 4, 0.72)'
+  return 'rgba(12, 77, 195, 0.28)'
 }
 
 function RouteDropdown({ routes, activeRouteFilter, setActiveRouteFilter }: any) {
   const [open, setOpen] = useState(false)
-  const activeLabel = activeRouteFilter
-    ? routeLabel(routes.find((r: any) => r.id === activeRouteFilter)?.origin ?? '', routes.find((r: any) => r.id === activeRouteFilter)?.destination ?? '')
-    : '-- All Routes --'
+  const activeRoute = routes.find((r: any) => r.id === activeRouteFilter)
+  const activeLabel = activeRoute
+    ? routeDisplayLabel(activeRoute.origin, activeRoute.destination)
+    : 'All routes'
 
   return (
     <div className="relative z-50">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="glass-panel flex h-11 w-[260px] items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 text-sm font-black text-theme-primary shadow-sm outline-none transition-all hover:border-[var(--neon-blue)] hover:bg-[var(--bg-elevated)]"
+        className="liquid-chip inline-flex h-11 min-w-[260px] max-w-[320px] items-center justify-between gap-2 px-4 py-2.5 text-sm font-bold text-theme-primary outline-none transition hover:border-[var(--border-glow)]"
+        aria-expanded={open}
+        aria-haspopup="listbox"
       >
         <span className="truncate">{activeLabel}</span>
-        <ChevronDown size={16} className={cx('text-theme-muted transition-transform duration-200', open && 'rotate-180')} />
+        <ChevronDown size={16} className={cx('shrink-0 text-theme-muted transition-transform duration-200', open && 'rotate-180')} />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 max-h-[300px] w-[300px] overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-white/90 p-2 shadow-2xl backdrop-blur-2xl dark:bg-[#0f141a]/95">
+        <div className="absolute right-0 top-full z-50 mt-2 max-h-[320px] w-[min(320px,90vw)] overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-2 shadow-lg">
           <button
             type="button"
             onClick={() => { setActiveRouteFilter(null); setOpen(false) }}
-            className={cx('w-full rounded-lg px-4 py-3 text-left text-sm font-black transition-colors', !activeRouteFilter ? 'bg-blue-50 text-blue-600 dark:bg-[#00d4ff]/10 dark:text-[#00d4ff]' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white')}
+            className={cx(
+              'w-full rounded-lg px-3 py-2.5 text-left text-sm font-bold transition-colors',
+              !activeRouteFilter ? 'bg-[var(--bg-surface)] text-theme-primary ring-1 ring-[var(--border-glow)]' : 'text-theme-secondary hover:bg-[var(--bg-surface)]',
+            )}
           >
-            -- All Routes --
+            All routes
           </button>
           {routes.map((r: any) => (
             <button
               key={r.id}
               type="button"
               onClick={() => { setActiveRouteFilter(r.id); setOpen(false) }}
-              className={cx('w-full rounded-lg px-4 py-3 text-left text-sm font-black transition-colors', activeRouteFilter === r.id ? 'bg-blue-50 text-blue-600 dark:bg-[#00d4ff]/10 dark:text-[#00d4ff]' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white')}
+              className={cx(
+                'w-full rounded-lg px-3 py-2.5 text-left text-sm font-bold transition-colors',
+                activeRouteFilter === r.id ? 'bg-[var(--bg-surface)] text-theme-primary ring-1 ring-[var(--border-glow)]' : 'text-theme-secondary hover:bg-[var(--bg-surface)]',
+              )}
             >
-              {routeLabel(r.origin, r.destination)}
+              {routeDisplayLabel(r.origin, r.destination)}
             </button>
           ))}
         </div>
@@ -123,9 +132,21 @@ export default function RedbusAnalysisPage() {
   const [selectedTag, setSelectedTag] = useState<string | 'overall'>('overall')
   const [drillRouteId, setDrillRouteId] = useState<number | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('rank')
+  const today = todayIso()
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ preset: 'today', from: today, to: today })
 
-  const { data: tagData, isLoading: tagsLoading } = useRedbusTags(activeRouteFilter ?? undefined)
-  const { data: routeData, isLoading: routesLoading, isError } = useRedbus()
+  const { data: availableDatesResp } = useRedbusAvailableDates()
+  const availableDates = useMemo(() => {
+    const dates = availableDatesResp?.dates ?? []
+    return dates.length ? dates : [today]
+  }, [availableDatesResp?.dates, today])
+
+  const { data: tagData, isLoading: tagsLoading } = useRedbusTags(
+    activeRouteFilter ?? undefined,
+    dateFilter.from,
+    dateFilter.to,
+  )
+  const { data: routeData, isLoading: routesLoading, isError } = useRedbus(dateFilter.from, dateFilter.to)
   const { data: drillData } = useRedbusRoute(drillRouteId ?? 0)
 
   const tags = tagData?.tags ?? []
@@ -133,7 +154,29 @@ export default function RedbusAnalysisPage() {
   const insights = tagData?.insights
 
   const cells = routeData?.data ?? []
-  const activeCells = activeRouteFilter ? cells.filter(c => c.route_id === activeRouteFilter) : cells
+
+  const selectedRouteMeta = useMemo(() => {
+    if (activeRouteFilter == null) return undefined
+    const pair = REDBUS_ROUTE_PAIRS[activeRouteFilter - 1]
+    if (pair) {
+      return { id: activeRouteFilter, origin: pair[0], destination: pair[1] }
+    }
+    const fromCell = cells.find(c => c.route_id === activeRouteFilter)
+    if (fromCell) {
+      return { id: activeRouteFilter, origin: fromCell.origin, destination: fromCell.destination }
+    }
+    return undefined
+  }, [activeRouteFilter, cells])
+
+  const activeCells = useMemo(() => {
+    if (!activeRouteFilter) return cells
+    return cells.filter(c =>
+      c.route_id === activeRouteFilter
+      || (selectedRouteMeta != null
+        && c.origin === selectedRouteMeta.origin
+        && c.destination === selectedRouteMeta.destination),
+    )
+  }, [cells, activeRouteFilter, selectedRouteMeta])
 
   const baseTagOperators = tagData?.operators ?? []
   const tagOperators = useMemo(() => {
@@ -227,16 +270,16 @@ export default function RedbusAnalysisPage() {
       operatorMap.set(cell.operator_id, { id: cell.operator_id, name: cell.operator_name, slug: cell.operator_slug })
     })
     return {
-      routes: [...routeMap.values()].sort((a, b) => routeLabel(a.origin, a.destination).localeCompare(routeLabel(b.origin, b.destination))),
+      routes: orderRedbusRoutes([...routeMap.values()]),
       operators: [...operatorMap.values()].map(op => ({ ...op, color: operatorColor(op.slug) })),
     }
   }, [cells])
 
   if (tagsLoading || routesLoading) {
-    return <div className="glass-panel p-6 text-sm font-semibold text-slate-500">Loading Redbus analysis…</div>
+    return <div className="page-section glass-panel p-6 text-sm font-semibold text-theme-muted">Loading Redbus analysis…</div>
   }
   if (isError) {
-    return <div className="glass-panel p-6 text-sm font-semibold text-rose-600">Redbus data could not be loaded.</div>
+    return <div className="page-section glass-panel p-6 text-sm font-semibold text-rose-600">Redbus data could not be loaded.</div>
   }
 
   const displayRoutes = activeRouteFilter ? routes.filter(r => r.id === activeRouteFilter) : routes
@@ -287,7 +330,7 @@ export default function RedbusAnalysisPage() {
       
     return {
       route_id: route.id,
-      label: routeLabel(route.origin, route.destination),
+      label: routeDisplayLabel(route.origin, route.destination),
       freshRank,
       freshRating: freshCell?.overall_rating ?? null,
       freshSentiment: freshCell?.sentiment_score ?? null,
@@ -316,30 +359,34 @@ export default function RedbusAnalysisPage() {
   const tagIds = tags.map(tg => tg.id)
 
   return (
-    <div className="space-y-7">
-      <section className="relative z-40 hero-glow glass-panel-strong p-6 sm:p-10">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--neon-blue)]/30 bg-[var(--neon-blue)]/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-blue-600 dark:text-[var(--neon-blue)]">
-              Redbus Analysis Dashboard
-            </div>
-            <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl dark:text-white">
-              Reviews, Tag Classification <br />
-              <span className="bg-gradient-to-r from-blue-600 to-emerald-500 bg-clip-text text-transparent dark:from-[#00d4ff] dark:to-[#00ff88]">
-                & Route-Wise Breakdown
-              </span>
-            </h1>
-            <p className="text-sm font-bold leading-relaxed text-slate-500 dark:text-slate-400">
-              A comprehensive view of customer feedback across 9 distinct review dimensions. Analyze per-route sentiment, compare competitors head-to-head, and pinpoint exactly where FreshBus leads the market.
-            </p>
+    <div className="page-section">
+      <section className="relative z-40 flex flex-col gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <SectionHeader
+              variant="hero"
+              divider={false}
+              eyebrow="Redbus · Route reviews"
+              title="Peer competitive analysis"
+              subtitle="Reviews, tag classification, and route-wise breakdown across 24 corridors. Filter by route or tag dimension."
+            />
           </div>
-          <div className="flex items-center">
-            <RouteDropdown routes={routes} activeRouteFilter={activeRouteFilter} setActiveRouteFilter={setActiveRouteFilter} />
-          </div>
+          <RouteDropdown routes={routes} activeRouteFilter={activeRouteFilter} setActiveRouteFilter={setActiveRouteFilter} />
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" onClick={() => setSelectedTag('overall')} className={cx('tag-pill', selectedTag === 'overall' && 'tag-pill-active')} style={{ borderColor: selectedTag === 'overall' ? '#14211f' : undefined }}>
-            <span className="h-2 w-2 rounded-full" style={{ background: '#14211f' }} />
+        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
+          <DateRangeBar
+            value={dateFilter}
+            onChange={setDateFilter}
+            availableDates={availableDates}
+            className="flex-1"
+          />
+          <span className="liquid-chip snapshot-chip inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold">
+            {formatSnapshotStamp(dateFilter.to, (routeData?.data ?? []).map(c => c.cycle_timestamp))}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setSelectedTag('overall')} className={cx('tag-pill', selectedTag === 'overall' && 'tag-pill-active')} style={{ borderColor: selectedTag === 'overall' ? FB_BLUE : undefined }}>
+            <span className="h-2 w-2 rounded-full" style={{ background: FB_BLUE }} />
             Overall
           </button>
           {tags.map((tag, i) => (
@@ -351,19 +398,19 @@ export default function RedbusAnalysisPage() {
         </div>
       </section>
 
-      {/* Operator tag leaderboard — moved to top */}
-      <section className="glass-panel overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-[var(--border-subtle)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6 bg-slate-50/50 dark:bg-black/20">
-          <div>
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">Operator Tag Leaderboard</h2>
-            <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">Comparing all operators across 9 performance dimensions</p>
-          </div>
-          <div className="flex shrink-0 flex-col items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10 px-6 py-3 shadow-sm backdrop-blur-md dark:border-[var(--neon-blue)]/30 dark:bg-[var(--neon-blue)]/10 dark:shadow-[0_0_15px_rgba(0,212,255,0.1)]">
-            <span className="bg-gradient-to-r from-blue-600 to-emerald-500 bg-clip-text text-transparent dark:from-[#00d4ff] dark:to-[#00ff88] text-[0.65rem] font-black uppercase tracking-wider">Average market score</span>
-            <span className="text-3xl font-black text-slate-800 dark:text-white drop-shadow-sm">{formatMetric(marketAvg, 2)}</span>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
+      <section className="liquid-glass chart-panel panel-shell overflow-hidden">
+        <SectionHeader
+          eyebrow="Tag dimensions"
+          title="Operator tag leaderboard"
+          subtitle="Comparing all operators across 9 performance dimensions"
+          trailing={
+            <div className="liquid-chip flex flex-col items-center px-5 py-2.5 text-center">
+              <span className="text-[0.65rem] font-bold uppercase tracking-wider text-theme-muted">Average market score</span>
+              <span className="text-2xl font-extrabold tabular-nums text-theme-primary">{formatMetric(marketAvg, 2)}</span>
+            </div>
+          }
+        />
+        <div className="visual-body overflow-x-auto">
           <table className="data-table min-w-[1100px]">
             <thead>
               <tr>
@@ -376,7 +423,7 @@ export default function RedbusAnalysisPage() {
             <tbody>
               {tagOperators.map(op => (
                 <tr key={op.operator_slug}>
-                  <td className="font-black text-[var(--neon-blue)]">#{op.rank}</td>
+                  <td className="font-extrabold tabular-nums" style={{ color: FB_BLUE }}>#{op.rank}</td>
                   <td>
                     <div className="flex items-center gap-3">
                       <span className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-black text-white" style={{ background: operatorColor(op.operator_slug) }}>{getInitials(op.operator_name)}</span>
@@ -397,29 +444,25 @@ export default function RedbusAnalysisPage() {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-3">
-        <KPICard label={t('tags.composite')} value={formatMetric(freshbusTags?.composite_tag_score, 2)} tip={tip('compositeTagScore')} caption={`Freshbus - Rank #${freshbusTags?.rank ?? '—'}`} icon={<Gauge size={20} />} accent="var(--neon-blue)" />
-        <KPICard label={t('tags.strongest')} value={strongestTagsLabel} tip={tip('strongestDimension')} caption="FreshBus advantage" icon={<Sparkles size={20} />} accent="var(--neon-green)" />
-        <KPICard label={t('tags.weakest')} value={weakestTagsLabel} tip={tip('weakestDimension')} caption="Improvement priority" icon={<Target size={20} />} accent="var(--neon-orange)" />
+        <KPICard label={t('tags.composite')} value={formatMetric(freshbusTags?.composite_tag_score, 2)} tip={tip('compositeTagScore')} caption={`Freshbus - Rank #${freshbusTags?.rank ?? '—'}`} icon={<Gauge size={20} />} accent={FB_BLUE} />
+        <KPICard label={t('tags.strongest')} value={strongestTagsLabel} tip={tip('strongestDimension')} caption="FreshBus advantage" icon={<Sparkles size={20} />} accent={FB_YELLOW} />
+        <KPICard label={t('tags.weakest')} value={weakestTagsLabel} tip={tip('weakestDimension')} caption="Improvement priority" icon={<Target size={20} />} accent={FB_BLUE} />
       </section>
 
-      <section className="glass-panel overflow-hidden p-4 sm:p-8">
-        <div className="mb-6">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--neon-pink)]/30 bg-[var(--neon-pink)]/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-pink-600 dark:text-[var(--neon-pink)]">
-            Advanced Visual Analytics
-          </div>
-          <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
-            <span className="bg-gradient-to-r from-pink-500 to-violet-500 bg-clip-text text-transparent dark:from-[#ff00a0] dark:to-[#7a00ff]">Comprehensive Market Tag Matrix</span>
-          </h2>
-          <p className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">Head-to-head performance across all operational categories</p>
-        </div>
-        <div className="mt-4">
+      <section className="liquid-glass chart-panel panel-shell overflow-hidden">
+        <SectionHeader
+          eyebrow="Tag matrix"
+          title="Comprehensive market tag matrix"
+          subtitle="Head-to-head performance across all operational categories"
+        />
+        <div className="visual-body">
           <ResponsiveContainer width="100%" height={500}>
             <BarChart data={advancedChartData} margin={{ top: 20, right: 10, left: -20, bottom: 40 }}>
               <CartesianGrid className="chart-grid" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="name" tick={<CustomXAxisTick />} height={60} axisLine={false} tickLine={false} />
-              <YAxis domain={[3, 5]} tickCount={6} tick={{ fill: 'currentColor', className: 'text-slate-600 dark:text-slate-400' }} fontSize={13} fontWeight={800} axisLine={false} tickLine={false} />
-              <Tooltip cursor={{ fill: 'var(--bg-elevated)' }} contentStyle={{ borderRadius: '12px', background: 'rgba(15,20,25,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }} itemStyle={{ fontWeight: 900 }} />
-              <Legend wrapperStyle={{ paddingTop: '20px', fontSize: 15, fontWeight: 900 }} />
+              <YAxis domain={[3, 5]} tickCount={6} tick={{ fill: 'var(--text-secondary)', fontSize: 13, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <Tooltip cursor={{ fill: 'var(--bg-elevated)' }} content={<ChartTooltip />} />
+              <Legend wrapperStyle={{ paddingTop: '20px', fontSize: 13, fontWeight: 700 }} />
               {tagOperators.map(op => (
                 <Bar key={op.operator_slug} dataKey={op.operator_slug} name={op.operator_name} fill={operatorColor(op.operator_slug)} radius={[6, 6, 0, 0]} barSize={14} />
               ))}
@@ -428,22 +471,13 @@ export default function RedbusAnalysisPage() {
         </div>
       </section>
 
-      <section className="glass-panel overflow-hidden p-4 sm:p-8">
-        <div className="mb-8">
-          <div className="inline-flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-purple-600 dark:text-[#a855f7]">
-            Tag Correlation Matrix
-          </div>
-          <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
-            <span className="bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent dark:from-[#818cf8] dark:to-[#c084fc]">How review dimensions move together across the market</span>
-          </h2>
-          <p className="mt-3 max-w-4xl text-justify text-sm font-semibold leading-7 text-slate-600 dark:text-slate-400">
-            This heatmap shows how closely two rating dimensions are mathematically linked across all passenger reviews.
-            A value near <span className="text-emerald-500 font-black">1.0</span> = strong link (passengers who rate one high, rate the other high too).
-            A value near <span className="text-rose-500 font-black">0.0</span> = independent (the two categories are rated separately).
-            Use this to identify which experiences are bundled together in a passenger's mind.
-          </p>
-        </div>
-        <div className="overflow-x-auto pb-4">
+      <section className="liquid-glass chart-panel panel-shell overflow-hidden">
+        <SectionHeader
+          eyebrow="Correlations"
+          title="How review dimensions move together"
+          subtitle="Values near 1.0 mean passengers rate both dimensions similarly; values near 0.0 mean they move independently."
+        />
+        <div className="visual-body overflow-x-auto pb-4">
           <div className="grid gap-[3px]" style={{ gridTemplateColumns: `160px repeat(${tagIds.length}, 1fr)` }}>
             {/* top-left blank */}
             <span />
@@ -483,35 +517,27 @@ export default function RedbusAnalysisPage() {
         </div>
       </section>
 
-      <section className="glass-panel overflow-hidden p-4 sm:p-8">
-        <div className="mb-6">
-          <div className="inline-flex items-center gap-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-orange-600 dark:text-[#f97316]">
-            Route Analysis
-          </div>
-          <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
-            <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent dark:from-[#fb923c] dark:to-[#fbbf24]">Route-Level Sentiment &amp; Ranking Analysis</span>
-          </h2>
-          <p className="mt-1 text-sm font-bold text-justify leading-relaxed text-slate-500 dark:text-slate-400">Detailed breakdown of competitor sentiment and ranking split by individual routes.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <KPICard label="Tracked Routes" value={routes.length} tip={tip('trackedRoutes')} caption={`${coveragePct}% coverage`} icon={<MapIcon size={20} />} accent="#0077b6" />
-          <KPICard label="Avg Sentiment" value={formatMetric(avgSentiment, 2)} tip={tip('sentiment')} caption="All route cells" icon={<Gauge size={20} />} accent="#ffb000" />
-          <KPICard label="FreshBus Top-2" value={topTwoShare} unit={topTwoShare != null ? '%' : ''} tip={tip('topTwo')} caption="Rank 1 or 2 routes" icon={<Trophy size={20} />} accent="#f45d48" />
+      <section className="liquid-glass chart-panel panel-shell overflow-hidden">
+        <SectionHeader
+          eyebrow="Route coverage"
+          title="Route-level sentiment and ranking"
+          subtitle="Detailed breakdown of competitor sentiment and ranking split by individual routes."
+        />
+        <div className="visual-body grid gap-4 sm:grid-cols-3">
+          <KPICard label="Tracked Routes" value={routes.length} tip={tip('trackedRoutes')} caption={`${coveragePct}% coverage`} icon={<MapIcon size={20} />} accent={FB_BLUE} />
+          <KPICard label="Avg Sentiment" value={formatMetric(avgSentiment, 2)} tip={tip('sentiment')} caption="All route cells" icon={<Gauge size={20} />} accent={FB_YELLOW} />
+          <KPICard label="FreshBus Top-2" value={topTwoShare} unit={topTwoShare != null ? '%' : ''} tip={tip('topTwo')} caption="Rank 1 or 2 routes" icon={<Trophy size={20} />} accent={FB_BLUE} />
         </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1fr_360px]">
-        <div className="glass-panel p-4 sm:p-6">
-          <div className="mb-5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-cyan-700 dark:text-[#22d3ee]">
-              Sentiment Heatmap
-            </div>
-            <h3 className="mt-3 text-xl font-black tracking-tight text-slate-900 dark:text-white">
-              <span className="bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">Route × Operator Score Matrix</span>
-            </h3>
-            <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-400">Each cell shows the sentiment score for that operator on a specific route.</p>
-          </div>
-          <div className="overflow-x-auto">
+        <div className="liquid-glass chart-panel panel-shell">
+          <SectionHeader
+            eyebrow="Heatmap"
+            title="Route × operator score matrix"
+            subtitle="Each cell shows the sentiment score for that operator on a specific route."
+          />
+          <div className="visual-body overflow-x-auto">
             <div className="min-w-[950px] space-y-2">
               <div className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 100px)` }}>
                 <span />
@@ -519,28 +545,21 @@ export default function RedbusAnalysisPage() {
               </div>
               {displayRoutes.map(route => (
                 <div key={route.id} className="grid items-center gap-2" style={{ gridTemplateColumns: `210px repeat(${operators.length}, 100px)` }}>
-                  <span className="truncate text-xs font-black text-theme-primary">{routeLabel(route.origin, route.destination)}</span>
+                  <span className="truncate text-xs font-black text-theme-primary">{routeDisplayLabel(route.origin, route.destination)}</span>
                   {operators.map(operator => {
                     const cell = activeCells.find(item => item.route_id === route.id && item.operator_id === operator.id)
-                    return <HeatmapCell key={operator.id} value={cell?.sentiment_score ?? null} width={100} height={30} showValue label={`${operator.name} ${routeLabel(route.origin, route.destination)}`} onClick={() => setDrillRouteId(route.id)} />
+                    return <HeatmapCell key={operator.id} value={cell?.sentiment_score ?? null} width={100} height={30} showValue label={`${operator.name} ${routeDisplayLabel(route.origin, route.destination)}`} onClick={() => setDrillRouteId(route.id)} />
                   })}
                 </div>
               ))}
             </div>
           </div>
         </div>
-        <div className="glass-panel p-4 sm:p-6">
-          <div className="mb-5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-emerald-700 dark:text-[#34d399]">
-              Operator Strength
-            </div>
-          </div>
-          <div className="space-y-8">
+        <div className="liquid-glass chart-panel panel-shell">
+          <SectionHeader eyebrow="Operators" title="Average sentiment & market rank" subtitle="Aggregated scores across all active routes." />
+          <div className="visual-body space-y-8">
             <div>
-              <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
-                <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">Average Sentiment</span>
-              </h3>
-              <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-400 mb-4">Aggregated sentiment score across all active routes.</p>
+              <p className="mb-4 text-xs font-bold uppercase tracking-wider text-theme-muted">Average sentiment</p>
               <div className="space-y-4">
                 {[...operatorScores].sort((a, b) => (b.avgSentiment ?? -1) - (a.avgSentiment ?? -1)).map((operator, idx) => {
                   const sentimentPct = operator.avgSentiment == null ? 0 : ((operator.avgSentiment + 1) / 2) * 100
@@ -549,9 +568,9 @@ export default function RedbusAnalysisPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white shadow" style={{ background: operator.color }}>{idx + 1}</span>
-                          <p className="text-sm font-black text-slate-900 dark:text-slate-100">{operator.name}</p>
+                          <p className="text-sm font-bold text-theme-primary">{operator.name}</p>
                         </div>
-                        <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{formatMetric(operator.avgSentiment, 2)}</span>
+                        <span className="text-sm font-extrabold tabular-nums" style={{ color: FB_BLUE }}>{formatMetric(operator.avgSentiment, 2)}</span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10 shadow-inner">
                         <div className="h-full rounded-full transition-all duration-700" style={{ width: `${sentimentPct}%`, background: `linear-gradient(90deg, ${operator.color}80, ${operator.color})` }} />
@@ -562,10 +581,7 @@ export default function RedbusAnalysisPage() {
               </div>
             </div>
             <div>
-              <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
-                <span className="bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">Average Market Rank</span>
-              </h3>
-              <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-400 mb-4">Aggregated competitive ranking across all active routes.</p>
+              <p className="mb-4 text-xs font-bold uppercase tracking-wider text-theme-muted">Average market rank</p>
               <div className="space-y-4">
                 {[...operatorScores].sort((a, b) => (a.avgRank ?? 99) - (b.avgRank ?? 99)).map((operator, idx) => {
                   const maxRank = 6
@@ -575,12 +591,12 @@ export default function RedbusAnalysisPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-black text-white shadow" style={{ background: operator.color }}>{idx + 1}</span>
-                          <p className="text-sm font-black text-slate-900 dark:text-slate-100">{operator.name}</p>
+                          <p className="text-sm font-bold text-theme-primary">{operator.name}</p>
                         </div>
-                        <span className="text-sm font-black text-blue-600 dark:text-blue-400">#{formatMetric(operator.avgRank, 1)}</span>
+                        <span className="text-sm font-extrabold tabular-nums" style={{ color: FB_YELLOW }}>#{formatMetric(operator.avgRank, 1)}</span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10 shadow-inner">
-                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${rankPct}%`, background: `linear-gradient(90deg, #3b82f680, #3b82f6)` }} />
+                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${rankPct}%`, background: `linear-gradient(90deg, ${FB_BLUE}80, ${FB_BLUE})` }} />
                       </div>
                     </div>
                   )
@@ -591,26 +607,24 @@ export default function RedbusAnalysisPage() {
         </div>
       </section>
 
-      <section className="glass-panel p-4 sm:p-8">
-        <div className="mb-6">
-          <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-violet-700">
-            Route Spread
-          </div>
-          <h3 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
-            <span className="bg-gradient-to-r from-violet-500 to-indigo-500 bg-clip-text text-transparent">Sentiment Score by Route &amp; Operator</span>
-          </h3>
-          <p className="mt-1 text-sm font-semibold text-slate-600">Comparing sentiment scores across all routes to identify performance patterns per operator.</p>
-        </div>
+      <section className="liquid-glass chart-panel panel-shell">
+        <SectionHeader
+          eyebrow="Route spread"
+          title="Sentiment score by route and operator"
+          subtitle="Comparing sentiment scores across all routes to identify performance patterns per operator."
+        />
+        <div className="visual-body">
         <ResponsiveContainer width="100%" height={450}>
           <BarChart data={barRouteData} margin={{ top: 20, right: 10, left: -20, bottom: 40 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(100,116,139,0.15)" />
+            <CartesianGrid className="chart-grid" vertical={false} />
             <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 800 }} axisLine={false} tickLine={false} />
-            <YAxis domain={[-1, 1]} tick={{ fill: 'var(--text-secondary)', fontSize: 13, fontWeight: 800 }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={{ borderRadius: '12px', background: 'rgba(15,20,30,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }} itemStyle={{ fontWeight: 900 }} />
-            <Legend wrapperStyle={{ paddingTop: '20px', fontSize: 15, fontWeight: 900 }} />
+            <YAxis domain={[-1, 1]} tick={{ fill: 'var(--text-secondary)', fontSize: 13, fontWeight: 700 }} axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip />} />
+            <Legend wrapperStyle={{ paddingTop: '20px', fontSize: 13, fontWeight: 700 }} />
             {operators.map(operator => <Bar key={operator.id} dataKey={operator.name} name={operator.name} fill={operator.color} radius={[6, 6, 0, 0]} />)}
           </BarChart>
         </ResponsiveContainer>
+        </div>
       </section>
 
       {/* Route Spread Sentiment Insights */}
@@ -644,7 +658,7 @@ export default function RedbusAnalysisPage() {
       {drillRouteId && drillData && (
         <section className="glass-panel-strong p-4 sm:p-5">
           <div className="mb-4 flex items-start justify-between">
-            <SectionHeader eyebrow="Route drill-down" title={routeLabel(drillData.route?.origin ?? '', drillData.route?.destination ?? '')} />
+            <SectionHeader eyebrow="Route drill-down" title={routeDisplayLabel(drillData.route?.origin ?? '', drillData.route?.destination ?? '')} />
             <button type="button" className="icon-button" onClick={() => setDrillRouteId(null)} aria-label="Close"><X size={17} /></button>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -660,17 +674,13 @@ export default function RedbusAnalysisPage() {
         </section>
       )}
 
-      <section className="glass-panel overflow-hidden">
-        <div className="border-b border-slate-900/10 p-4 sm:p-6">
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-wider text-blue-700">
-            FreshBus Route Table
-          </div>
-          <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white">
-            <span className="bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">Route-by-Route Competitive Standing</span>
-          </h2>
-          <p className="mt-1 text-sm font-semibold text-slate-600">FreshBus rank, average rating, and gap vs. the market leader on every active route.</p>
-        </div>
-        <div className="overflow-x-auto">
+      <section className="liquid-glass chart-panel panel-shell overflow-hidden">
+        <SectionHeader
+          eyebrow="FreshBus routes"
+          title="Route-by-route competitive standing"
+          subtitle="FreshBus rank, average rating, and gap vs. the market leader on every active route."
+        />
+        <div className="visual-body overflow-x-auto">
           <table className="data-table min-w-[940px]">
             <thead>
               <tr>

@@ -221,7 +221,7 @@ def metrics_google_reviews(
 # ---------------------------------------------------------------------------
 @router.get("/metrics/redbus")
 def metrics_redbus(conn=Depends(get_db)):
-    """22×6 heatmap: sentiment + review count per route × operator."""
+    """Route × operator heatmap: sentiment + review count per route × operator."""
     rows = conn.execute(
         text(
             """

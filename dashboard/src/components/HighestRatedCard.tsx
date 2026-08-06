@@ -7,10 +7,16 @@ interface Props {
   name: string | null | undefined
   rating: number | null | undefined
   color?: string
+  ratingCaption?: string
 }
 
 /** Premium glass champion card for highest-rated operator. */
-export default function HighestRatedCard({ name, rating, color = FB_BLUE }: Props) {
+export default function HighestRatedCard({
+  name,
+  rating,
+  color = FB_BLUE,
+  ratingCaption = 'App Rating',
+}: Props) {
   return (
     <article className="highest-rated-card relative flex h-full min-h-[200px] flex-col overflow-hidden rounded-2xl p-5 sm:p-6">
       <div
@@ -49,7 +55,7 @@ export default function HighestRatedCard({ name, rating, color = FB_BLUE }: Prop
             {formatStarRating(rating)}
           </p>
           <p className="mt-1.5 text-xs font-bold uppercase tracking-[0.06em] text-theme-muted">
-            Google Play Store App Rating
+            {ratingCaption}
           </p>
         </div>
         <div className="flex items-center gap-1">
