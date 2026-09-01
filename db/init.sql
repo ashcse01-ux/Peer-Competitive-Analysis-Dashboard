@@ -240,7 +240,7 @@ INSERT INTO operators (name, slug) VALUES
     ('Neugo',              'neugo'),
     ('FlixBus',            'flixbus'),
     ('Zingbus',            'zingbus'),
-    ('Leafy',              'leafy'),
+    ('YoloBus',             'yolobus'),
     ('IntrCity SmartBus',  'intrcity')
 ON CONFLICT DO NOTHING;
 

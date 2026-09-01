@@ -3,7 +3,7 @@ export const OPERATOR_COLOR_MAP: Record<string, string> = {
   neugo: '#FBBC04',
   flixbus: '#16a34a',
   zingbus: '#7c3aed',
-  leafy: '#1557b0',
+  yolobus: '#7c3aed',
   intrcity: '#d97706',
 }
 
@@ -34,7 +34,7 @@ const NAME_TO_SLUG: Record<string, string> = {
   Neugo: 'neugo',
   FlixBus: 'flixbus',
   Zingbus: 'zingbus',
-  Leafy: 'leafy',
+  YoloBus: 'yolobus',
   'IntrCity SmartBus': 'intrcity',
 }
 

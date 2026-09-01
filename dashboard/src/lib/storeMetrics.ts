@@ -92,9 +92,7 @@ export function enrichAppStoreRow<T extends {
 
   const topics = row.play_topics && Object.keys(row.play_topics).length
     ? row.play_topics
-    : row.source === 'google_play'
-      ? estimatePlayTopics(row.overall_rating)
-      : {}
+    : {}
 
   return {
     ...row,

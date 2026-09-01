@@ -42,7 +42,16 @@ function ScoreRing({ score, color }: { score: number | null; color: string }) {
 }
 
 /** Liquid-glass Play topic champions board — unique front-of-dashboard panel. */
-export default function TopicChampionsBoard({ leaders }: { leaders: TopicLeader[] }) {
+export default function TopicChampionsBoard({
+  leaders,
+  topicCount,
+  subtitle,
+}: {
+  leaders: TopicLeader[]
+  topicCount?: number
+  subtitle?: string
+}) {
+  const count = topicCount ?? leaders.length
   return (
     <section className="topic-champions relative overflow-hidden rounded-2xl p-5 sm:p-6">
       <div
@@ -64,17 +73,17 @@ export default function TopicChampionsBoard({ leaders }: { leaders: TopicLeader[
             className="mt-1 text-xl font-extrabold tracking-tight text-theme-primary sm:text-2xl"
             style={{ fontFamily: "'Plus Jakarta Sans', Inter, sans-serif" }}
           >
-            Who owns each of the 10 KPIs?
+            Who owns each shared KPI?
           </h2>
           <p className="mt-1 max-w-xl text-sm text-theme-secondary">
-            Live leader per Google Play review topic - score out of 5.
+            {subtitle ?? 'Live leader per Google Play review topic — score out of 5.'}
           </p>
         </div>
         <div
           className="rounded-full px-3 py-1.5 text-xs font-extrabold text-[#0f1d35]"
           style={{ background: FB_YELLOW, boxShadow: '0 6px 18px rgba(251,188,4,0.35)' }}
         >
-          10 topics - peer crown
+          {count} topic{count === 1 ? '' : 's'} — peer crown
         </div>
       </header>
 

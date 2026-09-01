@@ -6,6 +6,8 @@ export default defineConfig({
   base: './',
   server: {
     port: 3000,
+    host: true,
+    open: true,
     proxy: {
       // Only live API routes — do NOT proxy /api-static (served from public/)
       '/api/v1': {

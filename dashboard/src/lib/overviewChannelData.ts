@@ -3,7 +3,7 @@ import { useAppStore, useGoogleReviews, useRedbus, useRedbusTags, type AppStoreE
 import type { TopicLeader } from '../components/TopicChampionsBoard'
 import { enrichAppStoreRow } from './storeMetrics'
 import { average, operatorColor } from './insights'
-import { PLAY_TOPIC_KEYS, PLAY_TOPIC_LABELS, type PlayTopicKey } from './playTopics'
+import { PLAY_TOPIC_LABELS, commonPlayTopicKeys, availablePlayTopicKeys } from './playTopics'
 import { GOOGLE_SEARCH_DASHBOARD } from './peerDashboardConfig'
 
 export type ChannelLeader = {
@@ -28,19 +28,24 @@ function leaderByRating(
 
 function playTopicLeaders(playRows: AppStoreEntry[]): TopicLeader[] {
   const summaries = playRows.map(row => {
+    const rawTopics = row.play_topics ?? {}
     const e = enrichAppStoreRow(row)
     return {
       slug: e.operator_slug,
       name: e.operator_name,
       color: operatorColor(e.operator_slug),
       playTopics: e.play_topics ?? {},
+      availableTopicKeys: availablePlayTopicKeys(rawTopics),
     }
   })
 
-  return PLAY_TOPIC_KEYS.map(key => {
+  const sharedKeys = commonPlayTopicKeys(summaries.map(s => s.playTopics))
+
+  return sharedKeys.map(key => {
     let best: (typeof summaries)[0] | null = null
     let bestScore = -1
     for (const s of summaries) {
+      if (!s.availableTopicKeys.includes(key)) continue
       const score = s.playTopics[key]
       if (score != null && score > bestScore) {
         bestScore = score
@@ -49,7 +54,7 @@ function playTopicLeaders(playRows: AppStoreEntry[]): TopicLeader[] {
     }
     return {
       key,
-      label: PLAY_TOPIC_LABELS[key as PlayTopicKey],
+      label: PLAY_TOPIC_LABELS[key],
       operator: best?.name ?? '—',
       slug: best?.slug ?? '',
       color: best?.color ?? '#94a3b8',

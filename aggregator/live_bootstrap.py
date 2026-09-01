@@ -33,7 +33,7 @@ OPERATORS = [
     {"id": 2, "name": "Neugo", "slug": "neugo"},
     {"id": 3, "name": "FlixBus", "slug": "flixbus"},
     {"id": 4, "name": "Zingbus", "slug": "zingbus"},
-    {"id": 5, "name": "Leafy", "slug": "leafy"},
+    {"id": 5, "name": "YoloBus", "slug": "yolobus"},
     {"id": 6, "name": "IntrCity SmartBus", "slug": "intrcity"},
 ]
 
@@ -46,7 +46,7 @@ GOOGLE_SEARCH_NAMES = {
     "neugo": "Neugo bus",
     "flixbus": "FlixBus India",
     "zingbus": "Zingbus",
-    "leafy": "Leafybus",
+    "yolobus": "YoloBus",
     "intrcity": "IntrCity SmartBus",
 }
 
@@ -55,7 +55,7 @@ REDBUS_OPERATOR_NAMES = {
     "neugo": "Neugo",
     "flixbus": "FlixBus",
     "zingbus": "Zingbus",
-    "leafy": "Leafy",
+    "yolobus": "YoloBus",
     "intrcity": "IntrCity SmartBus",
 }
 
@@ -182,7 +182,7 @@ def get_mock_app_store_entry(slug: str, source: str) -> dict[str, Any]:
         "neugo": 4.4,
         "flixbus": 4.5,
         "zingbus": 4.1,
-        "leafy": 3.9,
+        "yolobus": 4.1,
         "intrcity": 4.2
     }
     base_downloads = {
@@ -190,7 +190,7 @@ def get_mock_app_store_entry(slug: str, source: str) -> dict[str, Any]:
         "neugo": {"google_play": "35,000+", "ios_app_store": "10,000+"},
         "flixbus": {"google_play": "1,000,000+", "ios_app_store": "300,000+"},
         "zingbus": {"google_play": "100,000+", "ios_app_store": "35,000+"},
-        "leafy": {"google_play": "10,000+", "ios_app_store": "3,000+"},
+        "yolobus": {"google_play": "500,000+", "ios_app_store": "50,000+"},
         "intrcity": {"google_play": "250,000+", "ios_app_store": "80,000+"}
     }
     rating = base_ratings.get(slug, 4.0) + random.uniform(-0.15, 0.15)
@@ -576,7 +576,7 @@ def _mock_redbus_cells_for_routes(
         "neugo": {"base_rating": 4.4, "base_sentiment": 0.7, "reviews_per_route": 35},
         "flixbus": {"base_rating": 4.5, "base_sentiment": 0.75, "reviews_per_route": 50},
         "zingbus": {"base_rating": 4.1, "base_sentiment": 0.55, "reviews_per_route": 40},
-        "leafy": {"base_rating": 3.9, "base_sentiment": 0.45, "reviews_per_route": 20},
+        "yolobus": {"base_rating": 4.1, "base_sentiment": 0.52, "reviews_per_route": 22},
         "intrcity": {"base_rating": 4.2, "base_sentiment": 0.6, "reviews_per_route": 55},
     }
 
@@ -911,7 +911,7 @@ def _build_history(app_store: dict, google: dict) -> dict[str, list]:
     # Operator-specific volatility profiles for realistic divergence
     volatility = {
         "freshbus": 0.08, "neugo": 0.12, "flixbus": 0.06,
-        "zingbus": 0.14, "leafy": 0.18, "intrcity": 0.10,
+        "zingbus": 0.14, "yolobus": 0.16, "intrcity": 0.10,
     }
 
     def walk_back(curr_rating: float | None, curr_sentiment: float | None, count: int, slug: str):
@@ -1098,7 +1098,7 @@ def bootstrap(*, skip_redbus: bool = False, skip_google: bool = False) -> None:
             "neugo": {"rating": 4.4, "count": 980, "sentiment": 0.7},
             "flixbus": {"rating": 4.5, "count": 2150, "sentiment": 0.75},
             "zingbus": {"rating": 4.1, "count": 1780, "sentiment": 0.55},
-            "leafy": {"rating": 3.9, "count": 310, "sentiment": 0.45},
+            "yolobus": {"rating": 4.1, "count": 420, "sentiment": 0.52},
             "intrcity": {"rating": 4.2, "count": 2900, "sentiment": 0.6},
         }
         for op in OPERATORS:

@@ -54,7 +54,7 @@ OPERATOR_SEARCH_NAMES: dict[str, str] = {
     "neugo": "Neugo",
     "flixbus": "FlixBus",
     "zingbus": "Zingbus",
-    "leafy": "Leafy Bus",
+    "yolobus": "YoloBus",
     "intrcity": "IntrCity SmartBus",
 }
 

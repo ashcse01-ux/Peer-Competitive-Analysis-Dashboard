@@ -27,6 +27,7 @@ import PlayRatingMedal, { podiumRowClass, ratingRankMap, sortByPlayRating } from
 import SectionHeader from '../components/SectionHeader'
 import StarMixCell from '../components/StarMixCell'
 import TopicChampionsBoard from '../components/TopicChampionsBoard'
+import OperatorTopicKPIGrid from '../components/OperatorTopicKPIGrid'
 import {
   average,
   formatIndianInstallAxis,
@@ -42,8 +43,9 @@ import type { PeerDashboardConfig } from '../lib/peerDashboardConfig'
 import {
   FB_BLUE,
   FB_YELLOW,
-  PLAY_TOPIC_KEYS,
   PLAY_TOPIC_LABELS,
+  availablePlayTopicKeys,
+  commonPlayTopicKeys,
   type PlayTopicKey,
 } from '../lib/playTopics'
 import { enrichAppStoreRow, estimateStarHistogram, formatDownloadsLabel, parseDownloadsRaw } from '../lib/storeMetrics'
@@ -71,6 +73,7 @@ export type OpSummary = {
   star4: number
   star5: number
   playTopics: Record<string, number | null>
+  availableTopicKeys: PlayTopicKey[]
   cycle: string | null | undefined
   collectionDate: string | null | undefined
 }
@@ -90,6 +93,8 @@ function per10k(count: number | null | undefined, downloads: number | null | und
 
 function toAppStoreSummary(row: AppStoreEntry): OpSummary {
   const e = enrichAppStoreRow(row)
+  const rawTopics = row.play_topics ?? {}
+  const playTopics = e.play_topics ?? {}
   const histSum = e.star_1 + e.star_2 + e.star_3 + e.star_4 + e.star_5
   const ratingsCount =
     e.ratings_count ?? (histSum > 0 ? histSum : null) ?? e.review_count ?? 0
@@ -108,7 +113,8 @@ function toAppStoreSummary(row: AppStoreEntry): OpSummary {
     star3: e.star_3,
     star4: e.star_4,
     star5: e.star_5,
-    playTopics: e.play_topics ?? {},
+    playTopics,
+    availableTopicKeys: availablePlayTopicKeys(rawTopics),
     cycle: e.cycle_timestamp,
     collectionDate: e.collection_date,
   }
@@ -143,6 +149,7 @@ function toGoogleSummary(row: GoogleEntry): OpSummary {
     ratingsCount: histSum || row.review_count || 0,
     ...hist,
     playTopics: {},
+    availableTopicKeys: [],
     cycle: row.cycle_timestamp,
     collectionDate: row.collection_date,
   }
@@ -245,7 +252,7 @@ export default function PeerStoreDashboard({ config }: Props) {
     const pool = dailyRows.length ? dailyRows : fallback
 
     return pickLatestPool(pool, today, historyLocked, dateFilter)
-      .map(r => toAppStoreSummary(enrichAppStoreRow(r as AppStoreEntry)))
+      .map(r => toAppStoreSummary(r as AppStoreEntry))
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [
     isGoogle,
@@ -271,12 +278,18 @@ export default function PeerStoreDashboard({ config }: Props) {
 
   const visible = selectedOp ? summaries.filter(s => s.slug === selectedOp) : summaries
   const isAll = selectedOp == null
+  const selectedSummary = selectedOp ? summaries.find(s => s.slug === selectedOp) : null
   const highestRated = [...summaries].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))[0]
 
-  const topicLeaders = PLAY_TOPIC_KEYS.map(key => {
+  const activeTopicKeys: PlayTopicKey[] = isAll
+    ? commonPlayTopicKeys(summaries.map(s => s.playTopics))
+    : (selectedSummary?.availableTopicKeys ?? [])
+
+  const topicLeaders = activeTopicKeys.map(key => {
     let best: OpSummary | null = null
     let bestScore = -1
     for (const s of summaries) {
+      if (!s.availableTopicKeys.includes(key)) continue
       const score = s.playTopics[key]
       if (score != null && score > bestScore) {
         bestScore = score
@@ -285,7 +298,7 @@ export default function PeerStoreDashboard({ config }: Props) {
     }
     return {
       key,
-      label: PLAY_TOPIC_LABELS[key as PlayTopicKey],
+      label: PLAY_TOPIC_LABELS[key],
       operator: best?.name ?? '—',
       slug: best?.slug ?? '',
       color: best?.color ?? '#94a3b8',
@@ -351,10 +364,10 @@ export default function PeerStoreDashboard({ config }: Props) {
       '5★': p[4],
     }
   })
-  const topicBar = PLAY_TOPIC_KEYS.map(key => {
+  const topicBar = activeTopicKeys.map(key => {
     const row: Record<string, string | number | null> = { topic: PLAY_TOPIC_LABELS[key] }
     visible.forEach(s => {
-      const val = s.playTopics[key]
+      const val = s.availableTopicKeys.includes(key) ? s.playTopics[key] : null
       row[s.slug] = val != null ? Number(val) : null
     })
     return row
@@ -400,7 +413,17 @@ export default function PeerStoreDashboard({ config }: Props) {
               color={highestRated?.color}
               ratingCaption={config.ratingCaption}
             />
-            <TopicChampionsBoard leaders={topicLeaders} />
+            {topicLeaders.length > 0 ? (
+              <TopicChampionsBoard
+                leaders={topicLeaders}
+                topicCount={activeTopicKeys.length}
+                subtitle={`Shared across all ${summaries.length} operators — only topics every peer has on Google Play.`}
+              />
+            ) : (
+              <div className="liquid-glass rounded-2xl p-6 text-sm font-semibold text-theme-muted">
+                No review-topic KPIs are shared by every operator yet. Select an operator to see their individual topics.
+              </div>
+            )}
           </section>
         ) : (
           <section className="max-w-lg">
@@ -413,22 +436,31 @@ export default function PeerStoreDashboard({ config }: Props) {
           </section>
         )
       ) : (
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KPICard label={ratingLabel} value={formatStarRating(avgRating)} caption={visible[0]?.name} icon={<Star size={20} />} accent={FB_YELLOW} />
-          <KPICard label="Star Ratings" value={totalRatings != null ? totalRatings.toLocaleString() : null} caption="People who rated" icon={<ThumbsUp size={20} />} accent={FB_BLUE} />
-          <KPICard label="Text Reviews" value={totalReviews != null ? totalReviews.toLocaleString() : null} caption="Written reviews" icon={<MessageSquare size={20} />} accent={FB_BLUE} />
-          {config.showDownloads ? (
-            <KPICard
-              label="Downloads"
-              value={hasDownloadMetrics ? formatDownloadsLabel(totalDownloads) : 'Not published'}
-              caption={hasDownloadMetrics ? 'Install band' : config.downloadsUnavailableNote || 'Not available'}
-              icon={<Download size={20} />}
-              accent={FB_YELLOW}
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KPICard label={ratingLabel} value={formatStarRating(avgRating)} caption={visible[0]?.name} icon={<Star size={20} />} accent={FB_YELLOW} />
+            <KPICard label="Star Ratings" value={totalRatings != null ? totalRatings.toLocaleString() : null} caption="People who rated" icon={<ThumbsUp size={20} />} accent={FB_BLUE} />
+            <KPICard label="Text Reviews" value={totalReviews != null ? totalReviews.toLocaleString() : null} caption="Written reviews" icon={<MessageSquare size={20} />} accent={FB_BLUE} />
+            {config.showDownloads ? (
+              <KPICard
+                label="Downloads"
+                value={hasDownloadMetrics ? formatDownloadsLabel(totalDownloads) : 'Not published'}
+                caption={hasDownloadMetrics ? 'Install band' : config.downloadsUnavailableNote || 'Not available'}
+                icon={<Download size={20} />}
+                accent={FB_YELLOW}
+              />
+            ) : (
+              <KPICard label="Operators" value={visible.length} caption="In filter" icon={<Star size={20} />} accent={FB_YELLOW} />
+            )}
+          </section>
+          {config.showTopicBoard && selectedSummary ? (
+            <OperatorTopicKPIGrid
+              operatorName={selectedSummary.name}
+              topicKeys={activeTopicKeys}
+              scores={selectedSummary.playTopics}
             />
-          ) : (
-            <KPICard label="Operators" value={visible.length} caption="In filter" icon={<Star size={20} />} accent={FB_YELLOW} />
-          )}
-        </section>
+          ) : null}
+        </>
       )}
 
       <section className="liquid-glass chart-panel panel-shell overflow-hidden">
@@ -633,12 +665,16 @@ export default function PeerStoreDashboard({ config }: Props) {
         </div>
       </section>
 
-      {config.showTopicBoard ? (
+      {config.showTopicBoard && activeTopicKeys.length > 0 ? (
         <section className="liquid-glass chart-panel panel-shell">
           <SectionHeader
             eyebrow="Play topics"
             title="Review topic scores"
-            subtitle="Booking, UI, support, transport, value, pricing, navigation, entertainment & performance"
+            subtitle={
+              isAll
+                ? `${activeTopicKeys.length} shared topic${activeTopicKeys.length === 1 ? '' : 's'} across all operators`
+                : `${activeTopicKeys.length} topic${activeTopicKeys.length === 1 ? '' : 's'} for ${selectedSummary?.name ?? 'selected operator'}`
+            }
           />
           <div className="visual-body">
             <ResponsiveContainer width="100%" height={420}>

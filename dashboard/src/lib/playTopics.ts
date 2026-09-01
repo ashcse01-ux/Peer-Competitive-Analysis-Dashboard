@@ -31,3 +31,24 @@ export const PLAY_TOPIC_LABELS: Record<PlayTopicKey, string> = {
 export const FB_BLUE = '#0c4dc3'
 export const FB_BLUE_DARK = '#0a3fa0'
 export const FB_YELLOW = '#FBBC04'
+
+/** Topics with a real score from scraped / review-derived Play Store data. */
+export function availablePlayTopicKeys(
+  topics: Record<string, number | null | undefined> | undefined | null,
+): PlayTopicKey[] {
+  if (!topics) return []
+  return PLAY_TOPIC_KEYS.filter(key => {
+    const value = topics[key]
+    return value != null && Number.isFinite(value)
+  })
+}
+
+/** Intersection of topic KPIs present for every operator in the set. */
+export function commonPlayTopicKeys(
+  topicSets: Array<Record<string, number | null | undefined> | undefined | null>,
+): PlayTopicKey[] {
+  if (!topicSets.length) return []
+  return PLAY_TOPIC_KEYS.filter(key =>
+    topicSets.every(topics => availablePlayTopicKeys(topics).includes(key)),
+  )
+}

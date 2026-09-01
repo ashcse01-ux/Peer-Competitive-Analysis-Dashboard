@@ -15,9 +15,9 @@
     "google_play": "com.zingbusbtoc.zingbus",
     "ios_app_store": "1600049529"
   },
-  "leafy": {
-    "google_play": "com.leafybus.booking",
-    "ios_app_store": "6756869933"
+  "yolobus": {
+    "google_play": "com.yolo.bus.service",
+    "ios_app_store": "1518636403"
   },
   "intrcity": {
     "google_play": "bus.tickets.intrcity",

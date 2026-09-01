@@ -48,10 +48,10 @@ export const GLOSSARY: Record<string, string> = {
   mentionShare: 'Percent of reviews that mention this topic',
 
   // Sources
-  googlePlay: 'Android app star ratings and Play Store reviews',
-  appleStore: 'iOS app star ratings and App Store reviews',
-  googleSearch: 'Google Maps and Search location review ratings',
-  redbus: 'Redbus route reviews, tags, and route rankings',
+  googlePlay: 'Google Play Store star ratings and app reviews',
+  appleStore: 'Apple iOS Store star ratings and app reviews',
+  googleSearch: 'Google Reviews and knowledge panel ratings',
+  redbus: 'Redbus Analytics: route reviews, tags, and SRP',
 
   // Charts
   heatmap: 'Color grid: greener is better, redder is worse',

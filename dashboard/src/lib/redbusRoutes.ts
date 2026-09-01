@@ -23,8 +23,6 @@ export const REDBUS_ROUTE_PAIRS: readonly (readonly [string, string])[] = [
   ['Tirupati', 'Vijayawada'],
   ['Coimbatore', 'Bangalore'],
   ['Bangalore', 'Coimbatore'],
-  ['Madurai', 'Coimbatore'],
-  ['Coimbatore', 'Madurai'],
 ] as const
 
 export function redbusRouteKey(origin: string, destination: string) {
@@ -59,7 +57,7 @@ export function canonicalSrpRouteOptions(apiRoutes: string[] = []): string[] {
 
 export type RedbusRouteRef = { id: number; origin: string; destination: string }
 
-/** All 24 canonical routes for filters/tables; uses API ids when present. */
+/** All 22 canonical routes for filters/tables; uses API ids when present. */
 export function orderRedbusRoutes(routes: RedbusRouteRef[]): RedbusRouteRef[] {
   const byKey = new Map(routes.map(r => [redbusRouteKey(r.origin, r.destination), r]))
   const ordered: RedbusRouteRef[] = []

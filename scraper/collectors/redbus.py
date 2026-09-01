@@ -56,14 +56,14 @@ __all__ = [
 # Constants
 # ---------------------------------------------------------------------------
 
-OPERATORS = ["freshbus", "neugo", "flixbus", "zingbus", "leafy", "intrcity"]
+OPERATORS = ["freshbus", "neugo", "flixbus", "zingbus", "yolobus", "intrcity"]
 
 OPERATOR_REDBUS_NAMES: dict[str, str] = {
     "freshbus": "FreshBus",
     "neugo": "Neugo",
     "flixbus": "FlixBus",
     "zingbus": "Zingbus",
-    "leafy": "Leafy",
+    "yolobus": "YoloBus",
     "intrcity": "IntrCity SmartBus",
 }
 

@@ -1,45 +1,30 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { Activity, BarChart3, Compass, Globe, Map, Moon, RefreshCw, Search, Smartphone, Sun } from 'lucide-react'
-import { useRefreshStatus, useTriggerRefresh } from '../api'
+import { Activity, BarChart3, Bus, Globe, Map, MessageSquare, Moon, Play, Smartphone, Sun } from 'lucide-react'
+import { useRefreshStatus } from '../api'
 import { LANG_OPTIONS } from '../i18n/translations'
 import { useTranslation } from '../i18n/useTranslation'
 import { useDashboardStore } from '../store'
 import { cx } from '../lib/insights'
-import MetricTip from './MetricTip'
-import { tip } from '../lib/metricGlossary'
 import BrandLockup from './BrandLockup'
 import MugChatbot from './MugChatbot'
-import { FB_BLUE, FB_YELLOW } from '../lib/playTopics'
+import { FB_BLUE } from '../lib/playTopics'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { data: refresh, isFetching } = useRefreshStatus()
-  const triggerRefresh = useTriggerRefresh()
+  const { data: refresh } = useRefreshStatus()
   const { t } = useTranslation()
   const { theme, toggleTheme, language, setLanguage } = useDashboardStore()
-  const [refreshMsg, setRefreshMsg] = useState<string | null>(null)
 
   const NAV_LINKS = [
-    { to: '/', label: t('nav.overview'), icon: BarChart3 },
-    { to: '/google-play', label: t('nav.googlePlay'), icon: Smartphone },
+    { to: '/', label: t('nav.overview'), icon: BarChart3, end: true },
+    { to: '/google-play', label: t('nav.googlePlay'), icon: Play },
     { to: '/apple-store', label: t('nav.appleStore'), icon: Smartphone },
-    { to: '/google-reviews', label: t('nav.google'), icon: Search },
+    { to: '/google-reviews', label: t('nav.google'), icon: MessageSquare },
     { to: '/redbus', label: t('nav.redbus'), icon: Map },
-    { to: '/redbus-srp', label: t('nav.redbusSrp'), icon: Compass },
+    { to: '/abhibus', label: t('nav.abhibus'), icon: Bus },
   ]
 
   const isStale = refresh?.status === 'stale' || refresh?.status === 'loading'
-  const isRefreshing = triggerRefresh.isPending || refresh?.status === 'loading'
-
-  const handleRefresh = async () => {
-    setRefreshMsg(null)
-    try {
-      const res = await triggerRefresh.mutateAsync()
-      setRefreshMsg(res.message)
-    } catch {
-      setRefreshMsg('Refresh could not be started — start the API (python run_demo.py) for live sync.')
-    }
-  }
 
   return (
     <div className="min-h-screen">
@@ -55,17 +40,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <BrandLockup />
 
             <div className="flex items-center gap-2 lg:hidden">
-              <button
-                type="button"
-                className="inline-flex h-9 items-center gap-2 rounded-full px-3 text-xs font-bold text-[#0f1d35]"
-                style={{ background: FB_YELLOW }}
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                aria-label="Sync Latest"
-              >
-                <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-                Sync
-              </button>
               <button type="button" className="icon-button border-white/25 bg-white/10 text-white" onClick={toggleTheme} aria-label="Toggle theme">
                 {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
               </button>
@@ -79,7 +53,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <NavLink
                   key={link.to}
                   to={link.to}
-                  end={link.to === '/'}
+                  end={'end' in link ? link.end : link.to === '/'}
                   className={({ isActive }) =>
                     cx(
                       'inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-bold transition',
@@ -115,27 +89,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
             </button>
 
-            <MetricTip tip={tip('manualRefresh')}>
-              <button
-                type="button"
-                className={cx(
-                  'inline-flex h-9 items-center gap-2 rounded-full px-4 text-xs font-bold text-[#0f1d35] shadow-sm transition',
-                  isRefreshing && 'pointer-events-none opacity-70',
-                )}
-                style={{
-                  background: FB_YELLOW,
-                  boxShadow: '0 6px 20px rgba(251, 188, 4, 0.35)',
-                }}
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                aria-label="Sync Latest"
-                title="Sync Latest — replaces today's snapshot"
-              >
-                <RefreshCw size={14} className={isRefreshing || isFetching ? 'animate-spin' : ''} />
-                Sync Latest
-              </button>
-            </MetricTip>
-
             {isStale && (
               <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/50 bg-amber-400/20 px-3 py-2 text-xs font-bold text-amber-100">
                 <Activity size={14} />
@@ -149,12 +102,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {isStale && (
         <div className="border-b border-amber-400/30 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-600 sm:px-6 lg:px-8">
           {t('status.staleBanner')}: {(refresh?.stale_sources ?? []).join(', ') || 'Unknown'}
-        </div>
-      )}
-
-      {refreshMsg && (
-        <div className="border-b border-[var(--border-glow)] bg-[var(--bg-surface)] px-4 py-2 text-sm font-semibold text-theme-secondary sm:px-6 lg:px-8">
-          {refreshMsg}
         </div>
       )}
 

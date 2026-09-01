@@ -70,7 +70,8 @@ function RouteDropdown({ routes, activeRouteFilter, setActiveRouteFilter }: any)
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="liquid-chip inline-flex h-11 min-w-[260px] max-w-[320px] items-center justify-between gap-2 px-4 py-2.5 text-sm font-bold text-theme-primary outline-none transition hover:border-[var(--border-glow)]"
+        className="filter-chip-trigger"
+        style={{ maxWidth: '11rem' }}
         aria-expanded={open}
         aria-haspopup="listbox"
       >
@@ -79,7 +80,7 @@ function RouteDropdown({ routes, activeRouteFilter, setActiveRouteFilter }: any)
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 max-h-[320px] w-[min(320px,90vw)] overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-2 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1.5 max-h-[280px] w-52 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-1.5 shadow-lg">
           <button
             type="button"
             onClick={() => { setActiveRouteFilter(null); setOpen(false) }}
@@ -276,10 +277,10 @@ export default function RedbusAnalysisPage() {
   }, [cells])
 
   if (tagsLoading || routesLoading) {
-    return <div className="page-section glass-panel p-6 text-sm font-semibold text-theme-muted">Loading Redbus analysis…</div>
+    return <div className="glass-panel p-6 text-sm font-semibold text-theme-muted">Loading Redbus analysis…</div>
   }
   if (isError) {
-    return <div className="page-section glass-panel p-6 text-sm font-semibold text-rose-600">Redbus data could not be loaded.</div>
+    return <div className="glass-panel p-6 text-sm font-semibold text-rose-600">Redbus data could not be loaded.</div>
   }
 
   const displayRoutes = activeRouteFilter ? routes.filter(r => r.id === activeRouteFilter) : routes
@@ -359,18 +360,9 @@ export default function RedbusAnalysisPage() {
   const tagIds = tags.map(tg => tg.id)
 
   return (
-    <div className="page-section">
+    <div className="flex flex-col gap-6">
       <section className="relative z-40 flex flex-col gap-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <SectionHeader
-              variant="hero"
-              divider={false}
-              eyebrow="Redbus · Route reviews"
-              title="Peer competitive analysis"
-              subtitle="Reviews, tag classification, and route-wise breakdown across 24 corridors. Filter by route or tag dimension."
-            />
-          </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-end">
           <RouteDropdown routes={routes} activeRouteFilter={activeRouteFilter} setActiveRouteFilter={setActiveRouteFilter} />
         </div>
         <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">

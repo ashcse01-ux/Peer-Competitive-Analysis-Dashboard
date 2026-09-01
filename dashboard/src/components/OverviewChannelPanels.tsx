@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Map, MessageSquare, Smartphone, Star } from 'lucide-react'
+import { ArrowRight, Compass, Map, MessageSquare, Smartphone, Star } from 'lucide-react'
 import HighestRatedCard from './HighestRatedCard'
 import KPICard from './KPICard'
 import SectionHeader from './SectionHeader'
@@ -32,7 +32,7 @@ export default function OverviewChannelPanels() {
         divider={false}
         eyebrow="Channel highlights"
         title="What each dashboard is showing"
-        subtitle="FreshBus snapshot and peer leaders from Google Play, App Store, Google Search, and Redbus."
+        subtitle="FreshBus snapshot and peer leaders across Google Play, Apple iOS, Google Reviews, Redbus, and Abhibus."
       />
 
       <div className="liquid-glass chart-panel panel-shell overflow-hidden">
@@ -43,23 +43,23 @@ export default function OverviewChannelPanels() {
         />
         <div className="visual-body grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KPICard
-            label="Google Play rating"
+            label="Google Play Store rating"
             value={formatStarRating(ch.freshbusChannel.playRating)}
-            caption="Android app store"
+            caption="Google Play Store"
             icon={<Smartphone size={20} />}
             accent={FB_YELLOW}
           />
           <KPICard
-            label="Apple App Store rating"
+            label="Apple iOS Store rating"
             value={formatStarRating(ch.freshbusChannel.iosRating)}
-            caption="iOS app store"
+            caption="Apple iOS Store"
             icon={<Smartphone size={20} />}
             accent={FB_BLUE}
           />
           <KPICard
-            label="Google Search rating"
+            label="Google Reviews rating"
             value={formatStarRating(ch.freshbusChannel.googleRating)}
-            caption="Knowledge panel"
+            caption="Knowledge panel reviews"
             icon={<Star size={20} />}
             accent={FB_YELLOW}
           />
@@ -76,9 +76,9 @@ export default function OverviewChannelPanels() {
       <div className="flex flex-col gap-4">
         <SectionHeader
           eyebrow="Google Play Store"
-          title="Android highlights"
+          title="Play Store highlights"
           subtitle="Highest rated operator and topic champions from the Play dashboard."
-          trailing={<DashboardLink to="/google-play" label="Open Play" />}
+          trailing={<DashboardLink to="/google-play" label="Open Play Store" />}
           className="panel-header--divider"
         />
         <div className="grid gap-4 xl:grid-cols-[minmax(260px,0.9fr)_minmax(0,2.1fr)]">
@@ -102,26 +102,26 @@ export default function OverviewChannelPanels() {
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="flex flex-col gap-4">
           <SectionHeader
-            eyebrow="Apple App Store"
-            title="iOS highlights"
-            subtitle="Highest rated operator on the App Store."
-            trailing={<DashboardLink to="/apple-store" label="Open iOS" />}
+            eyebrow="Apple iOS Store"
+            title="iOS Store highlights"
+            subtitle="Highest rated operator on the Apple iOS Store."
+            trailing={<DashboardLink to="/apple-store" label="Open iOS Store" />}
             className="panel-header--divider"
           />
           <HighestRatedCard
             name={ch.iosLeader?.name}
             rating={ch.iosLeader?.rating}
             color={ch.iosLeader?.color}
-            ratingCaption="Apple App Store App Rating"
+            ratingCaption="Apple iOS Store App Rating"
           />
         </div>
 
         <div className="flex flex-col gap-4">
           <SectionHeader
-            eyebrow="Google Search"
-            title="Search highlights"
-            subtitle="Highest rated operator in Google Search reviews."
-            trailing={<DashboardLink to="/google-reviews" label="Open Google" />}
+            eyebrow="Google Reviews"
+            title="Review highlights"
+            subtitle="Highest rated operator in Google Reviews."
+            trailing={<DashboardLink to="/google-reviews" label="Open Google Reviews" />}
             className="panel-header--divider"
           />
           <HighestRatedCard
@@ -135,10 +135,15 @@ export default function OverviewChannelPanels() {
 
       <div className="liquid-glass chart-panel panel-shell overflow-hidden">
         <SectionHeader
-          eyebrow="Redbus"
+          eyebrow="Redbus Analytics"
           title="Route review highlights"
           subtitle="Tag leaderboard, FreshBus standing, and operator averages on corridors."
-          trailing={<DashboardLink to="/redbus" label="Open Redbus" />}
+          trailing={
+            <div className="flex flex-wrap items-center gap-4">
+              <DashboardLink to="/redbus" label="Marketplace" />
+              <DashboardLink to="/redbus/srp" label="SRP Tracker" />
+            </div>
+          }
         />
         <div className="visual-body grid gap-4 sm:grid-cols-3">
           <KPICard
@@ -203,6 +208,38 @@ export default function OverviewChannelPanels() {
             </table>
           </div>
         )}
+      </div>
+
+      <div className="liquid-glass chart-panel panel-shell overflow-hidden">
+        <SectionHeader
+          eyebrow="Abhibus Analytics"
+          title="Cross-marketplace intelligence"
+          subtitle="Route reviews and SRP tracking for the Abhibus marketplace — preview the upcoming integration."
+          trailing={<DashboardLink to="/abhibus/kpis" label="Open Abhibus KPIs" />}
+        />
+        <div className="visual-body grid gap-4 sm:grid-cols-3">
+          <KPICard
+            label="Integration status"
+            value="Preview"
+            caption="Scraper pipeline in progress"
+            icon={<Compass size={20} />}
+            accent="#E85D04"
+          />
+          <KPICard
+            label="Planned corridors"
+            value="24+"
+            caption="Aligned with Redbus route network"
+            icon={<Map size={20} />}
+            accent="#E85D04"
+          />
+          <KPICard
+            label="Review dimensions"
+            value="9"
+            caption="Same tag taxonomy as Redbus"
+            icon={<MessageSquare size={20} />}
+            accent="#E85D04"
+          />
+        </div>
       </div>
     </section>
   )

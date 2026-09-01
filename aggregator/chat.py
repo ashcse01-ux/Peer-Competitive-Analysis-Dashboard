@@ -30,8 +30,8 @@ def handle_chat_query(query: str, cache_data: dict[str, Any]) -> str:
             operators_found.append(next(o for o in OPERATORS if o["slug"] == "zingbus"))
         if "flix" in query_clean:
             operators_found.append(next(o for o in OPERATORS if o["slug"] == "flixbus"))
-        if "leafy" in query_clean:
-            operators_found.append(next(o for o in OPERATORS if o["slug"] == "leafy"))
+        if "yolobus" in query_clean:
+            operators_found.append(next(o for o in OPERATORS if o["slug"] == "yolobus"))
 
     # Intent detection
     is_best_query = any(w in query_clean for w in ["best", "excel", "strength", "good at", "strongest", "top", "leader", "advantage"])
@@ -49,7 +49,7 @@ def handle_chat_query(query: str, cache_data: dict[str, Any]) -> str:
             "- *What are the main weaknesses of Zingbus?*\n"
             "- *Compare FreshBus and FlixBus.*\n"
             "- *Which operator has the highest rating on Google Play Store?*\n"
-            "- *What are the passenger complaints about Leafy?*"
+            "- *What are the passenger complaints about YoloBus?*"
         )
 
     # Operator-specific handling

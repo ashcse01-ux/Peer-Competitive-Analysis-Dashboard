@@ -23,7 +23,7 @@ import { Activity, Gauge, Layers3, ShieldCheck, Target, Trophy } from 'lucide-re
 import { useOverview, type OverviewOperator } from '../api'
 import ChartTooltip from '../components/ChartTooltip'
 import KPICard from '../components/KPICard'
-import MetricTip from '../components/MetricTip'
+import OverviewSyncPanel from '../components/OverviewSyncPanel'
 import SectionHeader from '../components/SectionHeader'
 import { useTranslation } from '../i18n/useTranslation'
 import { tip } from '../lib/metricGlossary'
@@ -44,12 +44,27 @@ import {
 
 const METRICS = [
   { key: 'gp_rating', label: 'Google Play Store' },
-  { key: 'ios_rating', label: 'Apple App Store' },
+  { key: 'ios_rating', label: 'Apple iOS Store' },
   { key: 'google_rating', label: 'Google Search' },
-  { key: 'redbus_sentiment', label: 'Redbus Routes' },
+  { key: 'redbus_sentiment', label: 'Redbus Analytics' },
 ] as const
 
 type MetricKey = typeof METRICS[number]['key']
+
+const PILLARS = [
+  { label: 'Google Play Store', to: '/google-play', tipKey: 'googlePlay' as const, ratingKey: 'gp_rating' as const, countKey: 'gp_review_count' as const },
+  { label: 'Apple iOS Store', to: '/apple-store', tipKey: 'appleStore' as const, ratingKey: 'ios_rating' as const, countKey: 'ios_review_count' as const },
+  { label: 'Google Search', to: '/google-reviews', tipKey: 'googleSearch' as const, ratingKey: 'google_rating' as const, countKey: 'google_review_count' as const },
+  { label: 'Redbus Analytics', to: '/redbus', tipKey: 'redbus' as const, ratingKey: 'redbus_sentiment' as const, countKey: 'redbus_review_count' as const },
+  { label: 'Abhibus Analytics', to: '/abhibus/kpis', tipKey: 'redbus' as const, ratingKey: 'redbus_sentiment' as const, countKey: 'redbus_review_count' as const, preview: true },
+]
+
+function pillarRating(operators: OverviewOperator[], key: typeof PILLARS[number]['ratingKey']) {
+  if (key === 'redbus_sentiment') {
+    return sentimentToFive(average(operators.map(o => o.redbus_sentiment)))
+  }
+  return average(operators.map(o => o[key]))
+}
 
 function comparableValue(op: OverviewOperator, key: MetricKey) {
   const value = op[key]
@@ -189,59 +204,50 @@ export default function OverviewPage() {
         </div>
       </section>
 
+      <OverviewSyncPanel />
+
       <section className="liquid-glass chart-panel panel-shell overflow-hidden">
         <SectionHeader
           eyebrow={t('overview.dataSources')}
           title={t('overview.dataSourcesTitle')}
           subtitle="Refreshed on the 28th each month — use Sync Latest in the header for a manual update."
           eyebrowTip={tip('lastRefresh')}
-          titleTip="Four platforms tracked for competitive intelligence"
+          titleTip="Five platforms tracked for competitive intelligence"
         />
-        <div className="visual-body grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              label: 'Google Play Store',
-              rating: average(operators.map(o => o.gp_rating)),
-              count: sum(operators.map(o => o.gp_review_count)),
-              to: '/google-play',
-              tipKey: 'googlePlay',
-            },
-            {
-              label: 'Apple App Store',
-              rating: average(operators.map(o => o.ios_rating)),
-              count: sum(operators.map(o => o.ios_review_count)),
-              to: '/apple-store',
-              tipKey: 'appleStore',
-            },
-            {
-              label: 'Google Search Reviews',
-              rating: average(operators.map(o => o.google_rating)),
-              count: sum(operators.map(o => o.google_review_count)),
-              to: '/google-reviews',
-              tipKey: 'googleSearch',
-            },
-            {
-              label: 'Redbus Analysis',
-              rating: sentimentToFive(routeAvg),
-              count: sum(operators.map(o => o.redbus_review_count)),
-              to: '/redbus',
-              tipKey: 'redbus',
-            },
-          ].map(pillar => (
-            <Link
-              key={pillar.label}
-              to={pillar.to}
-              className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 transition hover:border-[var(--border-glow)] hover:shadow-md"
-            >
-              <MetricTip tip={tip(pillar.tipKey)} className="text-sm font-bold text-theme-primary">{pillar.label}</MetricTip>
-              <p className="mt-2 text-2xl font-extrabold tabular-nums" style={{ color: FB_BLUE }}>
-                {formatStarRating(pillar.rating)}
-                <span className="ml-1 text-base" style={{ color: FB_YELLOW }}>★</span>
-              </p>
-              <p className="mt-1 text-xs font-semibold text-theme-muted">{formatReviewCount(pillar.count)}</p>
-              <p className="mt-2 text-[0.68rem] font-semibold text-theme-muted">Updated {lastUpdated ?? '—'}</p>
-            </Link>
-          ))}
+        <div className="visual-body grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {PILLARS.map(pillar => {
+            const rating = pillarRating(operators, pillar.ratingKey)
+            const count = sum(operators.map(o => o[pillar.countKey]))
+            const isPreview = 'preview' in pillar && pillar.preview
+            return (
+              <Link
+                key={pillar.to}
+                to={pillar.to}
+                className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 transition hover:border-[var(--border-glow)] hover:shadow-md"
+              >
+                <MetricTip tip={tip(pillar.tipKey)} className="text-sm font-bold text-theme-primary">
+                  {pillar.label}
+                </MetricTip>
+                {isPreview ? (
+                  <>
+                    <p className="mt-2 text-lg font-extrabold text-theme-secondary">Sample data</p>
+                    <p className="mt-1 text-xs font-semibold text-theme-muted">22 routes · scrape pending</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-2 text-2xl font-extrabold tabular-nums" style={{ color: FB_BLUE }}>
+                      {formatStarRating(rating)}
+                      <span className="ml-1 text-base" style={{ color: FB_YELLOW }}>★</span>
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-theme-muted">{formatReviewCount(count)}</p>
+                  </>
+                )}
+                <p className="mt-2 text-[0.68rem] font-semibold text-theme-muted">
+                  {isPreview ? 'Sample KPIs live' : `Updated ${lastUpdated ?? '—'}`}
+                </p>
+              </Link>
+            )
+          })}
         </div>
       </section>
 
