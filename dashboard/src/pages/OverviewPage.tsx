@@ -23,6 +23,7 @@ import { Activity, Gauge, Layers3, ShieldCheck, Target, Trophy } from 'lucide-re
 import { useOverview, type OverviewOperator } from '../api'
 import ChartTooltip from '../components/ChartTooltip'
 import KPICard from '../components/KPICard'
+import MetricTip from '../components/MetricTip'
 import OverviewSyncPanel from '../components/OverviewSyncPanel'
 import SectionHeader from '../components/SectionHeader'
 import { useTranslation } from '../i18n/useTranslation'

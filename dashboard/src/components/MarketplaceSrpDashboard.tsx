@@ -5,6 +5,8 @@ import SrpLegendBar from './SrpLegendBar'
 import { useMarketplaceFilters } from '../context/MarketplaceFilterContext'
 import { MARKETPLACE_BRAND, type MarketplaceId } from '../lib/marketplaceConfig'
 import { buildSrpRouteTree } from '../lib/marketplaceMockData'
+import { useRedbusSrp, type RedbusSrpEntry } from '../api'
+import { operatorSlug } from '../lib/marketplaceConfig'
 import { completedSnapshotSlotsForDate } from '../lib/periodPresets'
 
 interface Props {
@@ -40,6 +42,69 @@ function StatChip({
   )
 }
 
+
+import { redbusSrpRouteLabel } from '../lib/redbusRoutes'
+
+function transformSrpData(apiData: RedbusSrpEntry[], selectedRoutes: import('../lib/marketplaceConfig').MarketplaceRoute[], selectedOperators: string[]): any[] {
+  const treeMap = new Map<string, any>()
+  
+  const routeArrows = selectedRoutes.map(r => redbusSrpRouteLabel(r.origin, r.destination))
+
+  for (const entry of apiData) {
+    if (routeArrows.length && !routeArrows.includes(entry.route)) continue;
+    
+    const opName = entry.operator;
+    if (selectedOperators.length && !selectedOperators.includes(opName)) continue;
+
+    const slug = operatorSlug(opName);
+
+    if (!treeMap.has(entry.route)) {
+      treeMap.set(entry.route, [])
+    }
+    const operators = treeMap.get(entry.route)!
+
+    let opBlock = operators.find((o: any) => o.canonicalId === slug)
+    if (!opBlock) {
+      opBlock = {
+        canonicalId: slug,
+        displayName: opName,
+        scrapedNames: [opName],
+        services: []
+      }
+      operators.push(opBlock)
+    }
+
+    const serviceRecord = {
+      serviceId: String(entry.service_key),
+      serviceLabel: entry.service_number,
+      departureTime: entry.timing,
+      scrapedOperatorName: opName,
+      canonicalOperatorId: slug,
+      snapshotsByDate: {} as Record<string, Record<string, number>>
+    }
+
+    for (const [dateStr, rank] of Object.entries(entry.snapshots)) {
+      serviceRecord.snapshotsByDate[dateStr] = {
+        '11am': rank
+      }
+    }
+
+    opBlock.services.push(serviceRecord)
+  }
+
+  const trees = []
+  for (const [routeLabel, operators] of treeMap.entries()) {
+    const matchedRoute = selectedRoutes.find(r => redbusSrpRouteLabel(r.origin, r.destination) === routeLabel);
+    trees.push({
+      routeKey: matchedRoute ? matchedRoute.key : routeLabel,
+      routeLabel: matchedRoute ? matchedRoute.label : routeLabel,
+      operators
+    })
+  }
+
+  return trees
+}
+
 export default function MarketplaceSrpDashboard({ marketplace, embedded = false }: Props) {
   const brand = MARKETPLACE_BRAND[marketplace]
   const {
@@ -50,12 +115,11 @@ export default function MarketplaceSrpDashboard({ marketplace, embedded = false 
     period,
   } = useMarketplaceFilters()
 
+  const srpQuery = useRedbusSrp('', '')
   const trees = useMemo(() => {
-    if (!selectedOperators.length || !selectedRoutes.length) return []
-    return selectedRoutes.map(route =>
-      buildSrpRouteTree(marketplace, route, dates, selectedOperators),
-    )
-  }, [marketplace, selectedRoutes, selectedOperators, dates])
+    if (!srpQuery.data) return []
+    return transformSrpData(srpQuery.data.data, selectedRoutes, selectedOperators)
+  }, [srpQuery.data, selectedRoutes, selectedOperators])
 
   const slotAvailability = useMemo(() => {
     if (period !== 'today') return undefined
@@ -63,7 +127,7 @@ export default function MarketplaceSrpDashboard({ marketplace, embedded = false 
   }, [period])
 
   const totalServices = trees.reduce(
-    (n, t) => n + t.operators.reduce((s, o) => s + o.services.length, 0),
+    (n, t) => n + t.operators.reduce((s: number, o: any) => s + o.services.length, 0),
     0,
   )
   const totalOperators = trees.reduce((n, t) => n + t.operators.length, 0)

@@ -213,10 +213,13 @@ const fetch = {
     () => http.get<ReviewClassificationResponse>(`/api/v1/metrics/review-classification/${source}`).then(r => r.data),
     `review-classification-${source}.json`
   ),
-  redbusSrp: (operator: string, route?: string) => fetchWithFallback(
+  redbusSrp: (operator?: string, route?: string, startDate?: string, endDate?: string) => fetchWithFallback(
     () => {
-      const params: Record<string, any> = { operator }
+      const params: Record<string, any> = {}
+      if (operator) params.operator = operator
       if (route) params.route = route
+      if (startDate) params.start_date = startDate
+      if (endDate) params.end_date = endDate
       return http.get<RedbusSrpResponse>('/api/v1/metrics/redbus/srp', { params }).then(r => r.data)
     },
     'redbus-srp.json'
@@ -244,6 +247,7 @@ export interface DailySnapshotsResponse {
 
 export interface RedbusSrpEntry {
   route: string;
+  operator: string;
   service_key: number;
   service_number: string;
   timing: string;
@@ -252,29 +256,8 @@ export interface RedbusSrpEntry {
   price?: string;
   rating: string;
   reviews: string;
-  feb_mtd: number;
-  mar_mtd: number;
-  apr_mtd: number;
-  may_w1: number;
-  may_w2: number;
-  may_w3: number;
-  may_w4: number;
-  may_mtd: number;
-  jun_w1: number;
-  jun_w2: number;
-  jun_w3: number;
-  jun_w4: number;
-  jun_mtd: number;
-  jul_w1: number;
-  jul_w2: number;
-  jul_w3: number;
-  jul_w4: number;
-  jul_mtd: number;
-  d_08_01: number;
-  d_08_02: number;
-  d_08_03: number;
-  d_08_04: number;
-  d_08_05: number;
+  snapshots: Record<string, number>;
+  [key: string]: any;
 }
 
 export interface RedbusSrpResponse {
@@ -312,10 +295,10 @@ export const useReviewClassification = (source: string) =>
     staleTime: 60_000,
   })
 
-export const useRedbusSrp = (operator: string, route?: string) =>
+export const useRedbusSrp = (operator?: string, route?: string, startDate?: string, endDate?: string) =>
   useQuery({
-    queryKey: ['redbus-srp', operator, route],
-    queryFn: () => fetch.redbusSrp(operator, route),
+    queryKey: ['redbus-srp', operator, route, startDate, endDate],
+    queryFn: () => fetch.redbusSrp(operator, route, startDate, endDate),
     staleTime: 30_000,
   })
 

@@ -28,3 +28,6 @@ node.tar.gz
 
 # Scraped Redbus data and databases
 scraper/redbus_html/
+*.db
+*.sqlite
+scraper/srp.db

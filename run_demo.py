@@ -357,8 +357,10 @@ def metrics_redbus_tags_operator(operator_slug: str):
 
 @app.get("/api/v1/metrics/redbus/srp")
 def get_redbus_srp(
-    operator: str = Query("FRESHBUS"),
+    operator: Optional[str] = Query(None),
     route: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
 ):
     import sqlite3
     db_path = os.path.join(os.path.dirname(__file__), "scraper", "srp.db")
@@ -388,6 +390,12 @@ def get_redbus_srp(
     if route:
         query += " AND route = ?"
         params.append(route)
+    if start_date:
+        query += " AND travel_date >= ?"
+        params.append(start_date)
+    if end_date:
+        query += " AND travel_date <= ?"
+        params.append(end_date)
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
@@ -405,6 +413,7 @@ def get_redbus_srp(
         reviews = row["reviews"]
         bus_type = row["bus_type"]
         duration = row["duration"]
+        final_fare = row["final_fare"]
 
         service_id = (r_name, op_name, timing)
         if service_id not in services:
@@ -423,6 +432,7 @@ def get_redbus_srp(
                 "timing": timing,
                 "bus_type": bus_type,
                 "duration": duration,
+                "price": final_fare,
                 "rating": rating or "4.3",
                 "reviews": reviews or "12",
                 "dates": {}
@@ -433,45 +443,19 @@ def get_redbus_srp(
 
     output = []
     for s_id, s_data in services.items():
-        base_rank = list(s_data["dates"].values())[0] if s_data["dates"] else 10
-        import random
-        random.seed(s_data["service_key"])
-        
-        def vr(val, min_v=1, max_v=300):
-            return max(min_v, min(max_v, val + random.randint(-3, 3)))
-
         row_dict = {
             "route": s_data["route"],
+            "operator": s_id[1],
             "service_key": s_data["service_key"],
             "service_number": s_data["service_number"],
             "timing": s_data["timing"],
             "rating": s_data["rating"],
             "reviews": s_data["reviews"],
-            "feb_mtd": vr(base_rank),
-            "mar_mtd": vr(base_rank),
-            "apr_mtd": vr(base_rank),
-            "may_w1": vr(base_rank),
-            "may_w2": vr(base_rank),
-            "may_w3": vr(base_rank),
-            "may_w4": vr(base_rank),
-            "may_mtd": vr(base_rank),
-            "jun_w1": vr(base_rank),
-            "jun_w2": vr(base_rank),
-            "jun_w3": vr(base_rank),
-            "jun_w4": vr(base_rank),
-            "jun_mtd": vr(base_rank),
-            "jul_w1": vr(base_rank),
-            "jul_w2": vr(base_rank),
-            "jul_w3": vr(base_rank),
-            "jul_w4": vr(base_rank),
-            "jul_mtd": vr(base_rank),
-            "d_08_01": vr(base_rank),
-            "d_08_02": vr(base_rank),
-            "d_08_03": vr(base_rank),
-            "d_08_04": s_data["dates"].get("2026-08-04", vr(base_rank)),
-            "d_08_05": s_data["dates"].get("2026-08-05", vr(base_rank)),
+            "bus_type": s_data["bus_type"],
+            "duration": s_data["duration"],
+            "price": s_data.get("price"),
+            "snapshots": s_data["dates"],
         }
-        
         # Dynamically append any other dates present in the database (e.g. 2026-08-06)
         for date_str, rank in s_data["dates"].items():
             # format "YYYY-MM-DD" -> "d_MM_DD"

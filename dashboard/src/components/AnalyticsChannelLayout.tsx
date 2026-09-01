@@ -1,5 +1,5 @@
 import React from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import MarketplaceFilterBar from './MarketplaceFilterBar'
 import RedbusGlobalHeader from './RedbusGlobalHeader'
 import { MarketplaceFilterProvider } from '../context/MarketplaceFilterContext'
@@ -36,6 +36,9 @@ export default function AnalyticsChannelLayout({
   redbusSpec = false,
   marketplaceSync,
 }: Props) {
+  const location = useLocation()
+  const isSrpPage = location.pathname.includes('/srp')
+
   const content = (
     <>
       {redbusSpec ? (
@@ -73,7 +76,7 @@ export default function AnalyticsChannelLayout({
         ))}
       </nav>
 
-      {marketplaceSync ? <MarketplaceFilterBar /> : null}
+      {marketplaceSync && !isSrpPage ? <MarketplaceFilterBar /> : null}
 
       <Outlet />
     </>

@@ -23,6 +23,8 @@ from __future__ import annotations
 import random
 import threading
 import time
+import json
+import os
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -47,25 +49,28 @@ from scraper.redbus_routes import ROUTES
 __all__ = [
     "CaptchaDetected",
     "RedbusCollector",
-    "OPERATORS",
-    "OPERATOR_REDBUS_NAMES",
-    "ROUTES",
+        "ROUTES",
 ]
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-OPERATORS = ["freshbus", "neugo", "flixbus", "zingbus", "yolobus", "intrcity"]
 
-OPERATOR_REDBUS_NAMES: dict[str, str] = {
-    "freshbus": "FreshBus",
-    "neugo": "Neugo",
-    "flixbus": "FlixBus",
-    "zingbus": "Zingbus",
-    "yolobus": "YoloBus",
-    "intrcity": "IntrCity SmartBus",
-}
+
+def load_route_operators() -> dict[str, list[str]]:
+    config_path = os.path.join(os.path.dirname(__dirname__), "config", "route_operators.json")
+    if not os.path.exists(config_path):
+        return {}
+    with open(config_path, "r") as f:
+        return json.load(f)
+
+def make_slug(name: str) -> str:
+    import re
+    slug = re.sub(r'[^a-zA-Z0-9]', '_', name).lower()
+    return re.sub(r'_+', '_', slug).strip('_')
+
+ROUTE_OPERATORS = load_route_operators()
 
 SLA_SECONDS = 120 * 60  # 120 minutes
 MAX_REVIEWS = 100
@@ -114,22 +119,12 @@ class RedbusCollector:
     # Public API
     # ------------------------------------------------------------------
 
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def collect_all(self) -> dict:
-        """Collect Redbus data for every route × operator combination.
-
-        Enforces a 120-minute wall-clock SLA using threading.Timer.  If the
-        collection overruns the limit, a WARNING is logged and the method
-        returns whatever data has been gathered so far.
-
-        Random sleep of 2–8 seconds is applied *between* requests (not before
-        the first).  If a CAPTCHA is detected, the source is paused immediately
-        and the loop is broken.
-
-        Returns
-        -------
-        dict
-            ``{"total": int, "success": int, "stale": int}``
-        """
         total = 0
         success = 0
         stale = 0
@@ -144,7 +139,6 @@ class RedbusCollector:
 
         logger.info(
             "redbus_collection_started",
-            operators=OPERATORS,
             routes=len(ROUTES),
             sla_minutes=SLA_SECONDS // 60,
         )
@@ -152,472 +146,208 @@ class RedbusCollector:
         try:
             first = True
             for origin, destination in ROUTES:
-                for operator_slug in OPERATORS:
-                    if sla_exceeded.is_set():
-                        logger.warning(
-                            "redbus_sla_exceeded",
-                            completed_so_far=success,
-                            total_attempts=total,
-                            sla_minutes=SLA_SECONDS // 60,
-                        )
-                        break
+                if sla_exceeded.is_set():
+                    break
+                
+                route_key = f"{origin}|{destination}"
+                target_operators = ROUTE_OPERATORS.get(route_key, [])
+                if not target_operators:
+                    continue
 
-                    # Random sleep between requests (not before the first)
-                    if not first:
-                        sleep_seconds = random.uniform(2, 8)
-                        time.sleep(sleep_seconds)
-                    first = False
+                if not first:
+                    time.sleep(random.uniform(2, 8))
+                first = False
 
-                    total += 1
-                    try:
-                        result = self.collect_route_operator(
-                            origin, destination, operator_slug
-                        )
-                    except CaptchaDetected:
-                        logger.warning(
-                            "redbus_captcha_pausing_source",
-                            origin=origin,
-                            destination=destination,
-                            operator_slug=operator_slug,
-                        )
-                        break
-
-                    if result is None:
+                total += 1
+                try:
+                    results = self.collect_route(origin, destination, target_operators)
+                    if results is None:
                         stale += 1
                     else:
                         success += 1
-
-                else:
-                    # Inner loop completed normally; continue to next route
-                    continue
-                # Inner loop was broken (CAPTCHA or SLA); break outer loop too
-                break
-
+                except CaptchaDetected:
+                    logger.warning("redbus_captcha_pausing_source", origin=origin, destination=destination)
+                    break
         finally:
             timer.cancel()
 
-        logger.info(
-            "redbus_collection_finished",
-            total=total,
-            success=success,
-            stale=stale,
-        )
+        logger.info("redbus_collection_finished", total=total, success=success, stale=stale)
+        return {"total": total, "success": success, "stale": stale}
 
-        return {
-            "total": total,
-            "success": success,
-            "stale": stale,
-        }
-
-    def collect_route_operator(
-        self,
-        origin: str,
-        destination: str,
-        operator_slug: str,
-    ) -> dict | None:
-        """Collect Redbus data for one route direction × operator combination.
-
-        Parameters
-        ----------
-        origin:
-            Origin city name (e.g. "Bangalore").
-        destination:
-            Destination city name (e.g. "Chennai").
-        operator_slug:
-            One of the keys in :data:`OPERATOR_REDBUS_NAMES`.
-
-        Returns
-        -------
-        dict | None
-            Result dict on success or when operator is absent on the route;
-            ``None`` when the snapshot was marked stale due to retry exhaustion
-            or when the operator / route is not found in the DB.
-
-        Raises
-        ------
-        CaptchaDetected
-            If a CAPTCHA is detected during Playwright navigation; a
-            captcha_alert record is inserted before re-raising so the caller
-            can pause the source.
-        """
-        operator_id: int | None = get_operator_id(self._conn, operator_slug)
-        if operator_id is None:
-            logger.warning(
-                "operator_not_found_in_db",
-                operator_slug=operator_slug,
-                source="redbus",
-            )
-            return None
-
+    def collect_route(self, origin: str, destination: str, target_operators: list[str]) -> list[dict] | None:
+        collected_at = datetime.now(tz=timezone.utc)
+        
         route_id: int | None = get_route_id(self._conn, origin, destination)
         if route_id is None:
-            logger.warning(
-                "route_not_found_in_db",
-                origin=origin,
-                destination=destination,
-                source="redbus",
-            )
             return None
 
-        operator_name = OPERATOR_REDBUS_NAMES.get(operator_slug, operator_slug)
-        collected_at = datetime.now(tz=timezone.utc)
+        # Resolve operator IDs for targets
+        op_map = {}
+        for op_name in target_operators:
+            slug = make_slug(op_name)
+            op_id = get_operator_id(self._conn, slug)
+            if op_id is not None:
+                op_map[slug] = {"name": op_name, "id": op_id}
+
+        if not op_map:
+            return []
 
         try:
-            fetch_result = self._fetch_with_retry(
-                origin=origin,
-                destination=destination,
-                operator_slug=operator_slug,
-                operator_name=operator_name,
-                collected_at=collected_at,
-            )
+            fetch_results = self._fetch_with_retry(origin, destination, op_map, collected_at)
         except CaptchaDetected:
-            insert_captcha_alert(self._conn, "redbus", operator_id)
+            # Alert on the first operator ID arbitrarily for the captcha alert, or None
+            first_op_id = next(iter(op_map.values()))["id"] if op_map else None
+            insert_captcha_alert(self._conn, "redbus", first_op_id)
             raise
         except RetryExhausted as exc:
-            logger.error(
-                "redbus_retries_exhausted",
-                origin=origin,
-                destination=destination,
-                operator_slug=operator_slug,
-                last_error=str(exc.last_exception),
-            )
-            stale_id = self._get_latest_snapshot_id(operator_id, route_id)
-            if stale_id is not None:
-                set_snapshot_stale(self._conn, "redbus_snapshots", stale_id)
-                logger.warning(
-                    "redbus_snapshot_marked_stale",
-                    operator_slug=operator_slug,
-                    origin=origin,
-                    destination=destination,
-                    snapshot_id=stale_id,
-                )
+            for slug, info in op_map.items():
+                stale_id = self._get_latest_snapshot_id(info["id"], route_id)
+                if stale_id:
+                    set_snapshot_stale(self._conn, "redbus_snapshots", stale_id)
             return None
 
-        # Operator absent on this route
-        if fetch_result.get("operator_absent"):
-            logger.warning(
-                "redbus_operator_absent_on_route",
-                operator_slug=operator_slug,
-                origin=origin,
-                destination=destination,
+        final_results = []
+        for slug, info in op_map.items():
+            result = fetch_results.get(slug)
+            if not result or result.get("operator_absent"):
+                upsert_redbus_snapshot(
+                    conn=self._conn, operator_id=info["id"], route_id=route_id,
+                    collected_at=collected_at, overall_rating=None, review_count=None
+                )
+                continue
+                
+            snapshot_id = upsert_redbus_snapshot(
+                conn=self._conn, operator_id=info["id"], route_id=route_id,
+                collected_at=collected_at, overall_rating=result["overall_rating"], review_count=result["review_count"]
             )
-            upsert_redbus_snapshot(
-                conn=self._conn,
-                operator_id=operator_id,
-                route_id=route_id,
-                collected_at=collected_at,
-                overall_rating=None,
-                review_count=None,
+            insert_redbus_reviews(
+                conn=self._conn, snapshot_id=snapshot_id, operator_id=info["id"],
+                route_id=route_id, reviews=result["reviews"]
             )
-            return {
-                "operator_slug": operator_slug,
-                "origin": origin,
-                "destination": destination,
-                "overall_rating": None,
-                "review_count": None,
-                "reviews_inserted": 0,
-                "operator_absent": True,
-            }
+            final_results.append(result)
 
-        overall_rating: float | None = fetch_result.get("overall_rating")
-        review_count: int | None = fetch_result.get("review_count")
-        reviews: list[dict] = fetch_result.get("reviews", [])
-
-        snapshot_id = upsert_redbus_snapshot(
-            conn=self._conn,
-            operator_id=operator_id,
-            route_id=route_id,
-            collected_at=collected_at,
-            overall_rating=overall_rating,
-            review_count=review_count,
-        )
-
-        reviews_inserted = insert_redbus_reviews(
-            conn=self._conn,
-            snapshot_id=snapshot_id,
-            operator_id=operator_id,
-            route_id=route_id,
-            reviews=reviews,
-        )
-
-        logger.info(
-            "redbus_route_operator_collected",
-            operator_slug=operator_slug,
-            origin=origin,
-            destination=destination,
-            overall_rating=overall_rating,
-            review_count=review_count,
-            reviews_inserted=reviews_inserted,
-            snapshot_id=snapshot_id,
-        )
-
-        return {
-            "operator_slug": operator_slug,
-            "origin": origin,
-            "destination": destination,
-            "overall_rating": overall_rating,
-            "review_count": review_count,
-            "reviews_inserted": reviews_inserted,
-            "snapshot_id": snapshot_id,
-            "operator_absent": False,
-        }
+        return final_results
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
 
     def _fetch_with_retry(
-        self,
-        origin: str,
-        destination: str,
-        operator_slug: str,
-        operator_name: str,
-        collected_at: datetime,
-        travel_date: date | None = None,
+        self, origin: str, destination: str, op_map: dict, collected_at: datetime, travel_date: date | None = None
     ) -> dict:
-        """Wrap the Playwright data fetch in the retry decorator (task 5.5).
-
-        CaptchaDetected is not retried — it propagates immediately to the
-        caller so the captcha alert can be recorded and the source paused.
-        """
-
-        @with_retry(
-            max_retries=5,
-            base_delay=2.0,
-            max_delay=8.0,
-            # Exclude CaptchaDetected so it propagates without retry
-            exceptions=(Exception,),
-        )
+        @with_retry(max_retries=5, base_delay=2.0, max_delay=8.0, exceptions=(Exception,))
         def _do_fetch() -> dict:
             try:
-                return self._fetch_playwright_data(
-                    origin=origin,
-                    destination=destination,
-                    operator_slug=operator_slug,
-                    operator_name=operator_name,
-                    collected_at=collected_at,
-                    travel_date=travel_date,
-                )
+                return self._fetch_playwright_data(origin, destination, op_map, collected_at, travel_date)
             except CaptchaDetected:
-                # Re-raise as a non-retryable sentinel by wrapping; unwrap below
                 raise _CaptchaPassthrough()
-
         try:
             return _do_fetch()
         except _CaptchaPassthrough:
             raise CaptchaDetected()
 
     def _fetch_playwright_data(
-        self,
-        origin: str,
-        destination: str,
-        operator_slug: str,
-        operator_name: str,
-        collected_at: datetime,
-        travel_date: date | None = None,
+        self, origin: str, destination: str, op_map: dict, collected_at: datetime, travel_date: date | None = None
     ) -> dict:
-        """Open a headless Chromium browser and scrape the Redbus route page.
-
-        Parameters
-        ----------
-        origin:
-            Origin city name (e.g. "Bangalore").
-        destination:
-            Destination city name (e.g. "Chennai").
-        operator_slug:
-            Internal slug used for logging.
-        operator_name:
-            Display name used to identify the operator on the Redbus page.
-        collected_at:
-            UTC timestamp to attach to each review dict.
-
-        Returns
-        -------
-        dict
-            ``{"overall_rating": float|None, "review_count": int|None,
-               "reviews": list, "operator_absent": bool}``
-
-        Raises
-        ------
-        CaptchaDetected
-            If the browser is redirected to a CAPTCHA challenge page.
-        """
-        url = (
-            f"https://www.redbus.in/bus-tickets/"
-            f"{origin.lower()}-to-{destination.lower()}"
-        )
+        url = f"https://www.redbus.in/bus-tickets/{origin.lower()}-to-{destination.lower()}"
         if travel_date is not None:
             doj = travel_date.strftime("%d-%b-%Y")
             url = f"{url}?onward={doj}&doj={doj}&ref=home"
+            
         user_agent = get_random_user_agent()
-
         log_http_request(logger, method="GET", url=url)
         t0 = time.monotonic()
-
-        overall_rating: float | None = None
-        review_count: int | None = None
-        reviews: list[dict] = []
+        results = {slug: {"operator_absent": True} for slug in op_map}
 
         try:
-            from playwright.sync_api import sync_playwright  # lazy import
-
+            from playwright.sync_api import sync_playwright
             with sync_playwright() as pw:
                 browser = pw.chromium.launch(headless=True)
                 context = browser.new_context(user_agent=user_agent)
                 page = context.new_page()
-
                 try:
                     page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-
-                    # CAPTCHA detection
                     if "captcha" in page.url.lower() or "captcha" in page.title().lower():
                         raise CaptchaDetected()
 
-                    # Locate operator card using text matching
-                    operator_el = page.query_selector(
-                        f"text={operator_name}"
-                    ) or page.query_selector(
-                        f'[class*="travels"][title*="{operator_name}"]'
-                    )
-
-                    if operator_el is None:
-                        # Try a broader text search within bus-cards
-                        cards = page.query_selector_all('[class*="bus-item"], [class*="travels"]')
-                        for card in cards:
-                            card_text = card.inner_text()
-                            if operator_name.lower() in card_text.lower():
-                                operator_el = card
+                    cards = page.query_selector_all('[class*="bus-item"], [class*="travels"]')
+                    
+                    # We will match cards to operators. Once matched, we don't need to match again.
+                    matched_slugs = set()
+                    
+                    for card in cards:
+                        if len(matched_slugs) == len(op_map):
+                            break # Found all targeted operators
+                            
+                        card_text = card.inner_text().lower()
+                        
+                        # Find which operator this card belongs to
+                        matched_slug = None
+                        for slug, info in op_map.items():
+                            if slug in matched_slugs:
+                                continue
+                            if info["name"].lower() in card_text:
+                                matched_slug = slug
                                 break
-
-                    if operator_el is None:
-                        return {
-                            "overall_rating": None,
-                            "review_count": None,
-                            "reviews": [],
-                            "operator_absent": True,
-                        }
-
-                    # Extract rating
-                    rating_el = operator_el.query_selector(
-                        '[class*="rating"], [class*="star"]'
-                    )
-                    if rating_el:
-                        rating_text = rating_el.inner_text().strip()
-                        try:
-                            overall_rating = float(rating_text.replace(",", "."))
-                        except ValueError:
-                            logger.warning(
-                                "redbus_rating_parse_error",
-                                operator_slug=operator_slug,
-                                raw_text=rating_text,
-                            )
-
-                    # Extract review count
-                    count_el = operator_el.query_selector(
-                        '[class*="review"], [class*="rating-count"]'
-                    )
-                    if count_el:
-                        count_text = count_el.inner_text().strip()
-                        digits = "".join(c for c in count_text if c.isdigit())
-                        if digits:
-                            try:
-                                review_count = int(digits)
-                            except ValueError:
-                                logger.warning(
-                                    "redbus_review_count_parse_error",
-                                    operator_slug=operator_slug,
-                                    raw_text=count_text,
-                                )
-
-                    # Extract reviews (up to MAX_REVIEWS)
-                    review_els = operator_el.query_selector_all(
-                        '[class*="review-item"], [class*="review-text"]'
-                    )
-                    if not review_els:
-                        # Try page-level review elements
-                        review_els = page.query_selector_all(
-                            '[class*="review-item"], [class*="review-text"]'
-                        )
-
-                    for el in review_els[:MAX_REVIEWS]:
-                        try:
-                            text_el = (
-                                el.query_selector('[class*="review-body"]')
-                                or el.query_selector("p")
-                                or el.query_selector("span")
-                            )
-                            review_text = (
-                                text_el.inner_text().strip() if text_el else None
-                            )
-
-                            star_el = el.query_selector(
-                                '[class*="star"], [aria-label]'
-                            )
-                            star_rating: int | None = None
-                            if star_el:
-                                aria = star_el.get_attribute("aria-label") or ""
-                                digits_found = "".join(
-                                    c for c in aria if c.isdigit()
-                                )
-                                if digits_found:
-                                    star_rating = int(digits_found[0])
-
-                            date_el = el.query_selector(
-                                '[class*="date"], [class*="time"]'
-                            )
-                            reviewed_at = (
-                                date_el.inner_text().strip() if date_el else None
-                            )
-
-                            reviews.append(
-                                {
-                                    "review_text": review_text,
-                                    "star_rating": star_rating,
-                                    "reviewed_at": reviewed_at,
-                                    "collected_at": collected_at,
-                                }
-                            )
-                        except Exception:
+                                
+                        if not matched_slug:
                             continue
-
+                            
+                        matched_slugs.add(matched_slug)
+                        
+                        overall_rating, review_count = None, None
+                        rating_el = card.query_selector('[class*="rating"], [class*="star"]')
+                        if rating_el:
+                            try:
+                                overall_rating = float(rating_el.inner_text().strip().replace(",", "."))
+                            except: pass
+                            
+                        count_el = card.query_selector('[class*="review"], [class*="rating-count"]')
+                        if count_el:
+                            digits = "".join(c for c in count_el.inner_text().strip() if c.isdigit())
+                            if digits:
+                                review_count = int(digits)
+                                
+                        reviews = []
+                        review_els = card.query_selector_all('[class*="review-item"], [class*="review-text"]')
+                        for el in review_els[:MAX_REVIEWS]:
+                            try:
+                                text_el = el.query_selector('[class*="review-body"]') or el.query_selector("p")
+                                review_text = text_el.inner_text().strip() if text_el else None
+                                star_el = el.query_selector('[class*="star"], [aria-label]')
+                                star_rating = None
+                                if star_el:
+                                    aria = star_el.get_attribute("aria-label") or ""
+                                    digits_found = "".join(c for c in aria if c.isdigit())
+                                    if digits_found:
+                                        star_rating = int(digits_found[0])
+                                reviews.append({
+                                    "review_text": review_text, "star_rating": star_rating,
+                                    "reviewed_at": None, "collected_at": collected_at
+                                })
+                            except: pass
+                            
+                        results[matched_slug] = {
+                            "operator_absent": False,
+                            "overall_rating": overall_rating,
+                            "review_count": review_count,
+                            "reviews": reviews
+                        }
                 finally:
                     context.close()
                     browser.close()
-
         except CaptchaDetected:
             raise
         except Exception as exc:
-            elapsed_ms = (time.monotonic() - t0) * 1000
-            log_http_error(
-                logger,
-                method="GET",
-                url=url,
-                error=str(exc),
-                attempt=1,
-            )
+            log_http_error(logger, method="GET", url=url, error=str(exc), attempt=1)
             raise
 
         elapsed_ms = (time.monotonic() - t0) * 1000
-        log_http_response(
-            logger,
-            method="GET",
-            url=url,
-            status_code=200,
-            elapsed_ms=round(elapsed_ms, 2),
-        )
+        log_http_response(logger, method="GET", url=url, status_code=200, elapsed_ms=round(elapsed_ms, 2))
+        return results
 
-        return {
-            "overall_rating": overall_rating,
-            "review_count": review_count,
-            "reviews": reviews,
-            "operator_absent": False,
-        }
+    def _get_latest_snapshot_id(self, operator_id: int, route_id: int) -> int | None:
 
-    def _get_latest_snapshot_id(
-        self,
-        operator_id: int,
-        route_id: int,
-    ) -> int | None:
         """Return the most recent redbus_snapshots.id for the operator + route."""
         from sqlalchemy import text
 

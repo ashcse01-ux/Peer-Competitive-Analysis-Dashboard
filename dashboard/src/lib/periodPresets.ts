@@ -60,8 +60,7 @@ export function latestAvailableDate(now = new Date()) {
 }
 
 export function isDateSelectable(iso: string, now = new Date()) {
-  const latest = latestAvailableDate(now)
-  return iso >= MARKETPLACE_DATA_START && iso <= latest
+  return iso >= MARKETPLACE_DATA_START
 }
 
 export function completedSnapshotSlotsForDate(dateIso: string, now = new Date()): SrpSlotKey[] {
