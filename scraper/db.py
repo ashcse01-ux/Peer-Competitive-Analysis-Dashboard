@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from typing import Any, Generator
@@ -59,6 +60,18 @@ def collection_date_ist(collected_at: object | None = None) -> date:
 _engine: Engine | None = None
 
 
+def _normalize_database_url(url: str) -> str:
+    """Use psycopg3 driver on Python 3.14+ when psycopg2 wheels are unavailable."""
+    if not url.startswith("postgresql://"):
+        return url
+    if sys.version_info >= (3, 14):
+        try:
+            import psycopg2  # noqa: F401
+        except ImportError:
+            return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return url
+
+
 def get_engine(database_url: str | None = None) -> Engine:
     """
     Return (and lazily create) the global SQLAlchemy engine.
@@ -78,6 +91,7 @@ def get_engine(database_url: str | None = None) -> Engine:
                 "No database URL provided. Set DATABASE_URL env var or pass "
                 "database_url to get_engine()."
             )
+        url = _normalize_database_url(url)
         _engine = create_engine(
             url,
             pool_pre_ping=True,

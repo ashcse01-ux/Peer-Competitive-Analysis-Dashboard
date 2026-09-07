@@ -18,6 +18,7 @@ import os
 import time
 import json
 from datetime import datetime, timedelta
+from typing import Callable
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -168,31 +169,31 @@ def save_html(driver: webdriver.Chrome, filepath: str) -> None:
 
 # ── Main ───────────────────────────────────────────────────────────────────
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="RedBus Scraper")
-    parser.add_argument("--headed", action="store_true",
-                        help="Run with visible browser window")
-    parser.add_argument("--date", type=str, default=TRAVEL_DATE,
-                        help=f"Travel date DD-Mon-YYYY (default: {TRAVEL_DATE})")
-    parser.add_argument("--force", action="store_true",
-                        help="Force scrape even if output file already exists")
-    args = parser.parse_args()
-
-    # Parse and format the date for the filename and logging
+def run_scrape(
+    *,
+    date: str | None = None,
+    headed: bool = False,
+    force: bool = False,
+    run_parse: bool = True,
+    progress_callback: Callable[..., None] | None = None,
+) -> None:
+    """Programmatic scrape entry (safe to call from API sync / CLI)."""
+    travel_date = date or TRAVEL_DATE
     try:
-        travel_date_obj = datetime.strptime(args.date, "%d-%b-%Y")
+        travel_date_obj = datetime.strptime(travel_date, "%d-%b-%Y")
         date_stamp = travel_date_obj.strftime("%Y%m%d")
     except ValueError:
-        print(f"Error: date '{args.date}' must be in format DD-Mon-YYYY (e.g. 05-Aug-2026)")
+        print(f"Error: date '{travel_date}' must be in format DD-Mon-YYYY (e.g. 05-Aug-2026)")
         return
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     print("=" * 60)
     print("  RedBus Scraper")
-    print(f"  Travel Date : {args.date} (stamp: {date_stamp})")
+    print(f"  Travel Date : {travel_date} (stamp: {date_stamp})")
     print(f"  Routes      : {len(ROUTES_LIST)}")
-    print(f"  Mode        : {'Headed' if args.headed else 'Headless'}")
+    print(f"  Mode        : {'Headed' if headed else 'Headless'}")
+    print(f"  Force       : {force}")
     print(f"  Stop signal : 'End of list' text")
     print(f"  Output      : {OUTPUT_DIR}")
     print("=" * 60)
@@ -201,24 +202,27 @@ def main() -> None:
         print("No routes configuration found. Exiting.")
         return
 
-    driver = create_driver(headed=args.headed)
+    total = len(ROUTES_LIST)
+    driver = create_driver(headed=headed)
 
     try:
         for i, route in enumerate(ROUTES_LIST, 1):
             origin_name, dest_name = route
-            
+
             origin_id = CITIES_MAP.get(origin_name)
             dest_id = CITIES_MAP.get(dest_name)
-            
+
             if not origin_id or not dest_id:
                 print(f"Skipping route {origin_name} → {dest_name}: Missing city ID in config")
+                if progress_callback:
+                    progress_callback(i, total, f"{origin_name} → {dest_name}", "route_done")
                 continue
 
             from_city = {"name": origin_name, "id": origin_id}
             to_city = {"name": dest_name, "id": dest_id}
 
             route_label = f"{origin_name} → {dest_name}"
-            url = build_url(from_city, to_city, args.date)
+            url = build_url(from_city, to_city, travel_date)
             filename = f"{origin_name.lower()}_to_{dest_name.lower()}_{date_stamp}.html"
             filepath = os.path.join(OUTPUT_DIR, filename)
 
@@ -226,40 +230,46 @@ def main() -> None:
             print(f"  [{i}/{len(ROUTES_LIST)}] {route_label}")
             print(f"{'─' * 60}")
 
-            # Check if file already exists
-            if not args.force and os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+            if progress_callback:
+                progress_callback(i - 1, total, route_label, "scraping")
+
+            if not force and os.path.exists(filepath) and os.path.getsize(filepath) > 0:
                 print(f"      Skip: File already exists and is non-empty: {filename}")
+                if progress_callback:
+                    progress_callback(i, total, route_label, "route_done")
                 continue
 
-            # Navigate
             try:
                 driver.get(url)
             except Exception as e:
                 print(f"      ⚠ Nav timeout: {type(e).__name__} (page may still work)")
 
-            # Wait for initial page render
             print(f"      Waiting 10s for page to render...")
             time.sleep(10)
 
-            # Scroll until "End of list"
             print(f"      Scrolling until 'End of list' appears...")
             scroll_until_end_of_list(driver)
 
-            # Save
             save_html(driver, filepath)
+
+            if progress_callback:
+                progress_callback(i, total, route_label, "route_done")
 
             if i < len(ROUTES_LIST):
                 time.sleep(3)
 
     except KeyboardInterrupt:
         print("\n\n  ⚠ Interrupted by user")
+        raise
     finally:
         driver.quit()
         print("\n" + "=" * 60)
         print(f"  Done Scraping! Files in: {OUTPUT_DIR}")
         print("=" * 60)
 
-    # Run the database parsing/updates
+    if not run_parse:
+        return
+
     print("\n" + "=" * 60)
     print("  Running HTML parser / DB update...")
     print("=" * 60)
@@ -271,6 +281,18 @@ def main() -> None:
         parse_main()
     except Exception as e:
         print(f"  ⚠ Failed to run parse_operators: {e}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="RedBus Scraper")
+    parser.add_argument("--headed", action="store_true",
+                        help="Run with visible browser window")
+    parser.add_argument("--date", type=str, default=TRAVEL_DATE,
+                        help=f"Travel date DD-Mon-YYYY (default: {TRAVEL_DATE})")
+    parser.add_argument("--force", action="store_true",
+                        help="Force scrape even if output file already exists")
+    args = parser.parse_args()
+    run_scrape(date=args.date, headed=args.headed, force=args.force, run_parse=True)
 
 
 if __name__ == "__main__":
