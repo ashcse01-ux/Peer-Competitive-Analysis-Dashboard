@@ -30,4 +30,7 @@ node.tar.gz
 scraper/redbus_html/
 *.db
 *.sqlite
+*.db-journal
+*-journal
 scraper/srp.db
+scraper/scraper_status.json
