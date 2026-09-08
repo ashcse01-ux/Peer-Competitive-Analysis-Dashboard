@@ -372,7 +372,7 @@ def get_redbus_srp(
         ]
         return {"data": [], "routes": fallback_routes, "operators": []}
 
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=30.0)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
