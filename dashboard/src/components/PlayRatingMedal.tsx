@@ -15,28 +15,28 @@ const PODIUM: Record<
   }
 > = {
   1: {
-    label: 'Gold · highest App Rating',
+    label: 'Gold · SRP #1',
     w: 20,
     h: 24,
-    metal: ['#FFF8E1', '#FFCA28', '#F9A825'],
-    rim: '#B8860B',
-    ribbon: ['#FFE082', '#FFB300'],
+    metal: ['#F5D76E', '#D4AF37', '#B8860B'],
+    rim: '#8B6914',
+    ribbon: ['#E6C35C', '#C9A227'],
   },
   2: {
-    label: 'Silver · 2nd App Rating',
+    label: 'Silver · SRP #2',
     w: 18,
     h: 22,
-    metal: ['#FAFAFA', '#CFD8DC', '#90A4AE'],
-    rim: '#78909C',
-    ribbon: ['#ECEFF1', '#B0BEC5'],
+    metal: ['#E8ECF0', '#C0C7CE', '#8E99A4'],
+    rim: '#5C6770',
+    ribbon: ['#D5DBE1', '#A7B0B8'],
   },
   3: {
-    label: 'Bronze · 3rd App Rating',
+    label: 'Bronze · SRP #3',
     w: 17,
     h: 21,
-    metal: ['#FFE0B2', '#FF8A65', '#D84315'],
-    rim: '#A1887F',
-    ribbon: ['#FFCCBC', '#FF7043'],
+    metal: ['#E0A06A', '#CD7F32', '#A05A2C'],
+    rim: '#6B3F1D',
+    ribbon: ['#D4924A', '#B87333'],
   },
 }
 

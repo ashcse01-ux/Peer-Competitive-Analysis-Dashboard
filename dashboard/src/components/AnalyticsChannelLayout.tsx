@@ -20,6 +20,7 @@ interface Props {
   tabs: ChannelTab[]
   accent?: string
   redbusSpec?: boolean
+  hideSubnav?: boolean
   marketplaceSync?: {
     label: string
     kpiChannel: string
@@ -34,10 +35,11 @@ export default function AnalyticsChannelLayout({
   tabs,
   accent = FB_BLUE,
   redbusSpec = false,
+  hideSubnav = false,
   marketplaceSync,
 }: Props) {
   const location = useLocation()
-  const isSrpPage = location.pathname.includes('/srp')
+  const isSrpPage = location.pathname.includes('/srp') || (redbusSpec && hideSubnav)
 
   const content = (
     <>
@@ -53,28 +55,30 @@ export default function AnalyticsChannelLayout({
         </header>
       ) : null}
 
-      <nav
-        className="channel-subnav mb-4 flex gap-2 overflow-x-auto pb-1"
-        aria-label="Redbus Analytics sections"
-        style={{ '--channel-accent': accent } as React.CSSProperties}
-      >
-        {tabs.map(tab => (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            end={tab.end}
-            className={({ isActive }) =>
-              cx(
-                'channel-subnav-pill inline-flex h-11 shrink-0 items-center gap-2 rounded-xl px-5 text-sm font-bold uppercase tracking-wide transition',
-                isActive ? 'channel-subnav-pill-active' : 'channel-subnav-pill-idle',
-              )
-            }
-          >
-            {tab.icon}
-            {tab.label}
-          </NavLink>
-        ))}
-      </nav>
+      {!hideSubnav && tabs.length > 0 ? (
+        <nav
+          className="channel-subnav mb-4 flex gap-2 overflow-x-auto pb-1"
+          aria-label="Channel sections"
+          style={{ '--channel-accent': accent } as React.CSSProperties}
+        >
+          {tabs.map(tab => (
+            <NavLink
+              key={tab.to}
+              to={tab.to}
+              end={tab.end}
+              className={({ isActive }) =>
+                cx(
+                  'channel-subnav-pill inline-flex h-11 shrink-0 items-center gap-2 rounded-xl px-5 text-sm font-bold uppercase tracking-wide transition',
+                  isActive ? 'channel-subnav-pill-active' : 'channel-subnav-pill-idle',
+                )
+              }
+            >
+              {tab.icon}
+              {tab.label}
+            </NavLink>
+          ))}
+        </nav>
+      ) : null}
 
       {marketplaceSync && !isSrpPage ? <MarketplaceFilterBar /> : null}
 

@@ -14,7 +14,7 @@ interface Props {
   inline?: boolean
 }
 
-const PRESETS: PeriodPreset[] = ['today', 'yesterday', 'last7days', 'mtd', 'custom']
+const PRESETS: PeriodPreset[] = ['today', 'tomorrow', 'yesterday', 'last7days', 'mtd', 'custom']
 
 export default function PeriodButtonGroup({
   period,

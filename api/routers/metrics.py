@@ -258,6 +258,33 @@ def metrics_redbus(conn=Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# GET /api/v1/metrics/redbus/srp  — SQLite SRP listings (must be before {route_id})
+# ---------------------------------------------------------------------------
+@router.get("/metrics/redbus/srp")
+def metrics_redbus_srp(
+    operator: Optional[str] = Query(None),
+    route: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+):
+    from scraper.srp_pipeline import query_srp_listings
+
+    return query_srp_listings(
+        operator=operator,
+        route=route,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
+@router.get("/metrics/redbus/srp/meta")
+def metrics_redbus_srp_meta():
+    from scraper.srp_pipeline import latest_scraped_at
+
+    return {"last_scraped_at": latest_scraped_at()}
+
+
+# ---------------------------------------------------------------------------
 # GET /api/v1/metrics/redbus/{route_id}  (task 9.7)
 # ---------------------------------------------------------------------------
 @router.get("/metrics/redbus/{route_id}")

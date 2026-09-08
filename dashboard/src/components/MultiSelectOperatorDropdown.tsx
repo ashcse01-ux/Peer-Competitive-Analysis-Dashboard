@@ -16,6 +16,10 @@ interface Props {
   formatOption?: (value: string) => string
   searchPlaceholder?: string
   compact?: boolean
+  /** Show search box in the panel (default true). */
+  showSearch?: boolean
+  /** When nothing is selected, show this label (default "None"). Use "All" when empty means no filter. */
+  emptySummary?: string
 }
 
 export default function MultiSelectOperatorDropdown({
@@ -29,6 +33,8 @@ export default function MultiSelectOperatorDropdown({
   formatOption = displayOperatorName,
   searchPlaceholder = 'Search…',
   compact = true,
+  showSearch = true,
+  emptySummary = 'None',
 }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -62,7 +68,7 @@ export default function MultiSelectOperatorDropdown({
   const summary = allSelected
     ? `All (${options.length})`
     : noneSelected
-      ? 'None'
+      ? emptySummary
       : `${selected.length} picked`
 
   return (
@@ -85,25 +91,27 @@ export default function MultiSelectOperatorDropdown({
       </button>
 
       {open ? (
-        <div className="filter-chip-panel">
+        <div className="filter-chip-panel filter-chip-panel--below">
           <div className="filter-chip-panel-head">
-            <div className="relative">
-              <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-theme-muted" />
-              <input
-                type="search"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder={searchPlaceholder}
-                className="filter-chip-search"
-                autoFocus
-              />
-              {query ? (
-                <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-theme-muted" onClick={() => setQuery('')} aria-label="Clear search">
-                  <X size={13} />
-                </button>
-              ) : null}
-            </div>
-            <div className="mt-1.5 flex gap-1.5">
+            {showSearch ? (
+              <div className="relative">
+                <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-theme-muted" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  className="filter-chip-search"
+                  autoFocus
+                />
+                {query ? (
+                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-theme-muted" onClick={() => setQuery('')} aria-label="Clear search">
+                    <X size={13} />
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            <div className={cx('flex gap-1.5', showSearch && 'mt-1.5')}>
               <button type="button" onClick={selectAll} className="filter-chip-action filter-chip-action--primary">
                 All
               </button>

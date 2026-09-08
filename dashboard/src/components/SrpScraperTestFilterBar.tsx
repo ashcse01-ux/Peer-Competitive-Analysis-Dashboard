@@ -1,120 +1,328 @@
-import React, { useState, useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useIsFetching } from '@tanstack/react-query'
+import { Filter, Search, X } from 'lucide-react'
 import MultiSelectOperatorDropdown from './MultiSelectOperatorDropdown'
 import { useMarketplaceFilters } from '../context/MarketplaceFilterContext'
-import { todayIso, addDaysIso } from '../lib/periodPresets'
+import {
+  resolvePeriodRange,
+  todayIso,
+  addDaysIso,
+  type PeriodPreset,
+} from '../lib/periodPresets'
 import { REDBUS_ROUTE_PAIRS, redbusRouteKey, redbusSrpRouteLabel } from '../lib/redbusRoutes'
 import marketplaceRoutesJson from '../data/marketplace-routes.json'
+import {
+  BUS_TYPE_IDS,
+  RATING_BUCKET_IDS,
+  busTypeLabel,
+  ratingBucketLabel,
+  type BusTypeBucket,
+  type RatingBucket,
+} from '../lib/srpFilters'
+import { cx } from '../lib/insights'
+import { displayOperatorName } from '../lib/marketplaceConfig'
 
-export default function SrpScraperTestFilterBar() {
+export const ALL_ROUTES_VALUE = '__all__'
+
+export interface SrpAppliedFilters {
+  busTypes: BusTypeBucket[]
+  ratingFilters: RatingBucket[]
+}
+
+interface Props {
+  onApplied?: (filters: SrpAppliedFilters) => void
+}
+
+type PeriodChoice = 'yesterday' | 'today' | 'tomorrow' | 'last7days' | 'mtd' | 'custom'
+
+const PERIOD_OPTIONS: { id: PeriodChoice; label: string }[] = [
+  { id: 'yesterday', label: 'Yesterday' },
+  { id: 'today', label: 'Today' },
+  { id: 'tomorrow', label: 'Tomorrow' },
+  { id: 'last7days', label: 'Weekly' },
+  { id: 'mtd', label: 'Monthly' },
+  { id: 'custom', label: 'Custom' },
+]
+
+function rangeForPeriod(period: PeriodChoice, start: string, end: string) {
+  if (period === 'custom') {
+    return { startDate: start, endDate: end }
+  }
+  const r = resolvePeriodRange(period as PeriodPreset, start, end)
+  return { startDate: r.startDate, endDate: r.endDate }
+}
+
+export default function SrpScraperTestFilterBar({ onApplied }: Props) {
   const isFetching = useIsFetching({ queryKey: ['redbus-srp'] })
   const isLoading = isFetching > 0
-  const { setPeriod, setCustomStart, setCustomEnd, setSelectedRouteKeys, setSelectedOperators, selectedRoutes } = useMarketplaceFilters()
-  
-  // Try to use the first selected route from context, fallback to Hyderabad-Vijayawada
-  const initialRouteObj = selectedRoutes[0]
-  const initialRouteKey = initialRouteObj ? initialRouteObj.key : redbusRouteKey('Hyderabad', 'Vijayawada')
+  const {
+    setPeriod,
+    setCustomStart,
+    setCustomEnd,
+    setSelectedRouteKeys,
+    setSelectedOperators,
+    selectedRoutes,
+    allRoutesSelected,
+    routes,
+  } = useMarketplaceFilters()
 
-  // Local state for the filter bar
+  const allRouteKeys = useMemo(() => routes.map(r => r.key), [routes])
+  const initialRouteKey =
+    allRoutesSelected || selectedRoutes.length !== 1
+      ? ALL_ROUTES_VALUE
+      : selectedRoutes[0]?.key ?? ALL_ROUTES_VALUE
+  const initialRange = rangeForPeriod('tomorrow', addDaysIso(todayIso(), 1), addDaysIso(todayIso(), 1))
+
   const [localRouteKey, setLocalRouteKey] = useState(initialRouteKey)
-  const [startDate, setStartDate] = useState(todayIso())
-  const [endDate, setEndDate] = useState(addDaysIso(todayIso(), 1)) // default to tomorrow
-  const [operators, setOperators] = useState<string[]>([]) // default empty implies all
+  const [periodChoice, setPeriodChoice] = useState<PeriodChoice>('tomorrow')
+  const [startDate, setStartDate] = useState(initialRange.startDate)
+  const [endDate, setEndDate] = useState(initialRange.endDate)
+  const [operators, setOperators] = useState<string[]>([])
+  const [busTypes, setBusTypes] = useState<BusTypeBucket[]>([])
+  const [ratingFilters, setRatingFilters] = useState<RatingBucket[]>([])
 
-  // Compute available operators instantly when route dropdown changes
   const localAvailableOperators = useMemo(() => {
-    // marketplaceRoutesJson uses keys like "Hyderabad|Vijayawada"
-    const ops = (marketplaceRoutesJson as Record<string, string[]>)[localRouteKey] || []
+    const catalog = marketplaceRoutesJson as Record<string, string[]>
+    if (localRouteKey === ALL_ROUTES_VALUE) {
+      const set = new Set<string>()
+      for (const ops of Object.values(catalog)) ops.forEach(o => set.add(o))
+      return [...set].sort()
+    }
+    const ops = catalog[localRouteKey] || []
     return [...ops].sort()
   }, [localRouteKey])
 
-  const handleRouteSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setLocalRouteKey(e.target.value)
-    setOperators([]) // Clear operators when route changes
+  const routeLabel = useMemo(() => {
+    if (localRouteKey === ALL_ROUTES_VALUE) return 'All routes'
+    const pair = REDBUS_ROUTE_PAIRS.find(([o, d]) => redbusRouteKey(o, d) === localRouteKey)
+    return pair ? redbusSrpRouteLabel(pair[0], pair[1]) : localRouteKey
+  }, [localRouteKey])
+
+  const activeChips = useMemo(() => {
+    const chips: { key: string; label: string; onClear: () => void }[] = []
+    if (operators.length > 0 && operators.length < localAvailableOperators.length) {
+      chips.push({
+        key: 'ops',
+        label:
+          operators.length <= 2
+            ? operators.map(displayOperatorName).join(', ')
+            : `${operators.length} operators`,
+        onClear: () => setOperators([]),
+      })
+    }
+    if (busTypes.length > 0) {
+      chips.push({
+        key: 'bus',
+        label: busTypes.map(busTypeLabel).join(', '),
+        onClear: () => setBusTypes([]),
+      })
+    }
+    if (ratingFilters.length > 0) {
+      chips.push({
+        key: 'rating',
+        label: ratingFilters.map(ratingBucketLabel).join(', '),
+        onClear: () => setRatingFilters([]),
+      })
+    }
+    return chips
+  }, [operators, busTypes, ratingFilters, localAvailableOperators.length])
+
+  const applyPeriod = (next: PeriodChoice) => {
+    setPeriodChoice(next)
+    if (next === 'custom') return
+    const r = rangeForPeriod(next, startDate, endDate)
+    setStartDate(r.startDate)
+    setEndDate(r.endDate)
   }
 
-  const handleGo = () => {
-    // Commit to context
-    setPeriod('custom')
-    setCustomStart(startDate)
-    setCustomEnd(endDate)
-    setSelectedRouteKeys([localRouteKey])
-    
-    // Pass empty array to mean "all operators" instead of passing the full list, to avoid filtering out scraped operators not in the JSON.
+  const clearRefine = () => {
+    setOperators([])
+    setBusTypes([])
+    setRatingFilters([])
+  }
+
+  const handleApply = () => {
+    const range = rangeForPeriod(periodChoice, startDate, endDate)
+    const start = range.startDate
+    const end = range.endDate < range.startDate ? range.startDate : range.endDate
+    setPeriod(periodChoice === 'custom' ? 'custom' : (periodChoice as PeriodPreset))
+    setCustomStart(start)
+    setCustomEnd(end)
+    if (localRouteKey === ALL_ROUTES_VALUE) {
+      setSelectedRouteKeys(allRouteKeys)
+    } else {
+      setSelectedRouteKeys([localRouteKey])
+    }
     setSelectedOperators(operators)
+    onApplied?.({
+      busTypes,
+      ratingFilters,
+    })
   }
 
   return (
-    <section className="filter-bar-compact bg-amber-50/50 border-amber-200">
-      <div className="filter-bar-row flex-wrap items-center">
-        <label className="filter-chip-field">
-          <span className="filter-field-label">Select Route</span>
-          <select 
-            className="filter-chip-trigger filter-chip-trigger--select bg-white cursor-pointer"
-            value={localRouteKey}
-            onChange={handleRouteSelect}
-          >
-            {REDBUS_ROUTE_PAIRS.map(([o, d]) => (
-              <option key={redbusRouteKey(o, d)} value={redbusRouteKey(o, d)}>
-                {redbusSrpRouteLabel(o, d)}
-              </option>
+    <section className="srp-filter-shell">
+      <div className="srp-filter-shell__glow" aria-hidden />
+      <div className="srp-filter-shell__inner">
+        <div className="srp-filter-toolbar">
+          <div className="srp-filter-toolbar__title">
+            <Filter size={15} strokeWidth={2.5} />
+            <div>
+              <p className="srp-filter-toolbar__heading">Query filters</p>
+              <p className="srp-filter-toolbar__sub">{routeLabel}</p>
+            </div>
+          </div>
+          {activeChips.length > 0 ? (
+            <button type="button" className="srp-filter-clear" onClick={clearRefine}>
+              Clear filters
+            </button>
+          ) : null}
+        </div>
+
+        <div className="srp-filter-sections">
+          <div className="srp-filter-section">
+            <div className="srp-filter-grid srp-filter-grid--scope">
+              <label className="srp-field">
+                <span className="srp-field__label">Route</span>
+                <div className="srp-field__control srp-field__control--select">
+                  <select
+                    value={localRouteKey}
+                    onChange={e => {
+                      setLocalRouteKey(e.target.value)
+                      setOperators([])
+                    }}
+                  >
+                    <option value={ALL_ROUTES_VALUE}>All</option>
+                    {REDBUS_ROUTE_PAIRS.map(([o, d]) => (
+                      <option key={redbusRouteKey(o, d)} value={redbusRouteKey(o, d)}>
+                        {redbusSrpRouteLabel(o, d)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+
+              <div className="srp-field">
+                <span className="srp-field__label">Operator</span>
+                <div className="srp-field__control srp-field__control--dropdown">
+                  <div className="srp-field__dropdown-wrap">
+                    <MultiSelectOperatorDropdown
+                      label=""
+                      options={localAvailableOperators}
+                      selected={operators}
+                      onChange={setOperators}
+                      searchPlaceholder="Search operators…"
+                      maxTriggerWidth={400}
+                      panelWidth={400}
+                      compact={false}
+                      emptySummary="All"
+                      className="srp-operator-dd"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="srp-filter-section">
+            <div className="srp-filter-grid srp-filter-grid--refine">
+              <div className="srp-field">
+                <span className="srp-field__label">Bus type</span>
+                <div className="srp-field__control srp-field__control--dropdown">
+                  <div className="srp-field__dropdown-wrap">
+                    <MultiSelectOperatorDropdown
+                      label=""
+                      options={BUS_TYPE_IDS}
+                      selected={busTypes}
+                      onChange={next => setBusTypes(next as BusTypeBucket[])}
+                      formatOption={busTypeLabel}
+                      maxTriggerWidth={400}
+                      panelWidth={280}
+                      compact={false}
+                      showSearch={false}
+                      emptySummary="All"
+                      className="srp-bus-type-dd"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="srp-field">
+                <span className="srp-field__label">Rating</span>
+                <div className="srp-field__control srp-field__control--dropdown">
+                  <div className="srp-field__dropdown-wrap">
+                    <MultiSelectOperatorDropdown
+                      label=""
+                      options={RATING_BUCKET_IDS}
+                      selected={ratingFilters}
+                      onChange={next => setRatingFilters(next as RatingBucket[])}
+                      formatOption={ratingBucketLabel}
+                      maxTriggerWidth={400}
+                      panelWidth={280}
+                      compact={false}
+                      showSearch={false}
+                      emptySummary="All"
+                      className="srp-rating-dd"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="srp-period-block">
+          <span className="srp-field__label">Travel period</span>
+          <div className="srp-period-pills" role="group" aria-label="Period">
+            {PERIOD_OPTIONS.map(p => (
+              <button
+                key={p.id}
+                type="button"
+                className={cx('srp-period-pill', periodChoice === p.id && 'srp-period-pill--on')}
+                onClick={() => applyPeriod(p.id)}
+                aria-pressed={periodChoice === p.id}
+              >
+                {p.label}
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
 
-        <MultiSelectOperatorDropdown
-          label="Operator"
-          options={localAvailableOperators}
-          selected={operators}
-          onChange={setOperators}
-          searchPlaceholder="Search operators…"
-          maxTriggerWidth={132}
-          panelWidth={220}
-        />
+          {periodChoice === 'custom' ? (
+            <div className="srp-filter-grid srp-filter-grid--dates">
+              <label className="srp-field">
+                <span className="srp-field__label">Start date</span>
+                <div className="srp-field__control">
+                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                </div>
+              </label>
+              <label className="srp-field">
+                <span className="srp-field__label">End date</span>
+                <div className="srp-field__control">
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                </div>
+              </label>
+            </div>
+          ) : null}
+        </div>
 
-        <label className="filter-chip-field">
-          <span className="filter-field-label">Start Date</span>
-          <input 
-            type="date"
-            className="filter-chip-trigger filter-chip-trigger--select h-9 px-3"
-            value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-          />
-        </label>
+        {activeChips.length > 0 ? (
+          <div className="srp-active-chips" aria-label="Active filters">
+            {activeChips.map(chip => (
+              <button key={chip.key} type="button" className="srp-active-chip" onClick={chip.onClear}>
+                <span>{chip.label}</span>
+                <X size={12} strokeWidth={2.5} />
+              </button>
+            ))}
+          </div>
+        ) : null}
 
-        <label className="filter-chip-field">
-          <span className="filter-field-label">End Date</span>
-          <input 
-            type="date"
-            className="filter-chip-trigger filter-chip-trigger--select h-9 px-3"
-            value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-          />
-        </label>
-
-        <button 
-          onClick={handleGo}
-          disabled={isLoading}
-          className={`ml-2 px-8 py-2 font-bold rounded-full shadow transition-all ${
-            isLoading 
-              ? 'bg-gray-400 cursor-not-allowed opacity-70 text-white' 
-              : 'bg-green-600 hover:bg-green-700 text-white hover:shadow-md'
-          }`}
-        >
-          {isLoading ? (
-            <span className="flex items-center gap-2">
-              <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Loading...
-            </span>
-          ) : 'Go'}
-        </button>
+        <div className="srp-filter-actions">
+          <button type="button" onClick={handleApply} disabled={isLoading} className="srp-btn-primary">
+            <Search size={15} strokeWidth={2.5} />
+            {isLoading ? 'Loading…' : 'Apply filters'}
+          </button>
+        </div>
       </div>
-      <p className="filter-bar-meta">
-        <strong>Scraper Test Mode:</strong> Use this panel to test the Python scraper across all supported routes. Click Go to fetch the latest scraped data for your selected dates from the database.
-      </p>
     </section>
   )
 }

@@ -146,7 +146,7 @@ export interface RedbusTagsResponse {
 
 // ── Fetchers ───────────────────────────────────────────────────────────────
 
-const fetch = {
+export const fetch = {
   operators:      ()                => fetchWithFallback(
     () => http.get<Operator[]>('/api/v1/operators').then(r => r.data),
     'operators.json'
@@ -224,6 +224,10 @@ const fetch = {
     },
     'redbus-srp.json'
   ),
+  redbusSrpMeta: () => fetchWithFallback(
+    () => http.get<{ last_scraped_at: string | null }>('/api/v1/metrics/redbus/srp/meta').then(r => r.data),
+    'redbus-srp-meta.json'
+  ),
   dailySnapshots: () => fetchWithFallback(
     () => http.get<DailySnapshotsResponse>('/api/v1/metrics/daily-snapshots').then(r => r.data),
     'daily-snapshots.json'
@@ -235,6 +239,14 @@ const fetch = {
       null,
       { params: { collection_date: collectionDate } },
     ).then(r => r.data),
+  triggerRedbusSrpSync: (travelDate?: string) =>
+    http.post<{ message: string; job: RedbusSrpSyncStatus }>(
+      '/api/v1/refresh/redbus-srp/sync',
+      null,
+      { params: travelDate ? { travel_date: travelDate } : {} },
+    ).then(r => r.data),
+  redbusSrpSyncStatus: () =>
+    http.get<RedbusSrpSyncStatus>('/api/v1/refresh/redbus-srp/status').then(r => r.data),
 }
 
 export interface DailySnapshotsResponse {
@@ -256,6 +268,9 @@ export interface RedbusSrpEntry {
   price?: string;
   rating: string;
   reviews: string;
+  seats_available?: number | null;
+  seat_capacity?: number | null;
+  occupancy_pct?: number | null;
   snapshots: Record<string, number>;
   [key: string]: any;
 }
@@ -264,6 +279,23 @@ export interface RedbusSrpResponse {
   data: RedbusSrpEntry[];
   routes: string[];
   operators: string[];
+  last_scraped_at?: string | null;
+}
+
+export interface RedbusSrpSyncStatus {
+  status: 'idle' | 'running' | 'completed' | 'error'
+  percent: number
+  phase: string
+  current: number
+  total: number
+  route_label: string
+  message: string
+  travel_date: string | null
+  travel_date_iso: string | null
+  error: string | null
+  started_at: string | null
+  finished_at: string | null
+  last_scraped_at: string | null
 }
 
 // ── React Query hooks ──────────────────────────────────────────────────────

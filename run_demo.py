@@ -362,111 +362,21 @@ def get_redbus_srp(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
 ):
-    import sqlite3
-    db_path = os.path.join(os.path.dirname(__file__), "scraper", "srp.db")
-    if not os.path.exists(db_path):
-        from scraper.redbus_routes import load_redbus_route_pairs
+    from scraper.srp_pipeline import query_srp_listings
 
-        fallback_routes = [
-            f"{o} → {d}" for o, d in load_redbus_route_pairs()
-        ]
-        return {"data": [], "routes": fallback_routes, "operators": []}
+    return query_srp_listings(
+        operator=operator,
+        route=route,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
 
-    # Get distinct routes and operators for filters
-    cursor.execute("SELECT DISTINCT route FROM bus_listings ORDER BY route")
-    routes_list = [r["route"] for r in cursor.fetchall()]
-    cursor.execute("SELECT DISTINCT operator FROM bus_listings ORDER BY operator")
-    operators_list = [o["operator"] for o in cursor.fetchall()]
+@app.get("/api/v1/metrics/redbus/srp/meta")
+def get_redbus_srp_meta():
+    from scraper.srp_pipeline import latest_scraped_at
 
-    query = "SELECT * FROM bus_listings WHERE 1=1"
-    params = []
-    if operator:
-        query += " AND UPPER(operator) = ?"
-        params.append(operator.upper())
-    if route:
-        query += " AND route = ?"
-        params.append(route)
-    if start_date:
-        query += " AND travel_date >= ?"
-        params.append(start_date)
-    if end_date:
-        query += " AND travel_date <= ?"
-        params.append(end_date)
-
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
-    conn.close()
-
-    services = {}
-    service_key_counter = 901
-    for row in rows:
-        r_name = row["route"]
-        op_name = row["operator"]
-        timing = row["timing"]
-        travel_date = row["travel_date"]
-        srp_rank = row["srp_rank"]
-        rating = row["rating"]
-        reviews = row["reviews"]
-        bus_type = row["bus_type"]
-        duration = row["duration"]
-        final_fare = row["final_fare"]
-
-        service_id = (r_name, op_name, timing)
-        if service_id not in services:
-            # Generate service number like "HYD-VJY-AC-SE-2130"
-            origin_part = r_name.split("→")[0].strip() if "→" in r_name else "HYD"
-            dest_part = r_name.split("→")[1].strip() if "→" in r_name else "VJY"
-            origin_abbr = "".join([w[0] for w in origin_part.split() if w])[:3].upper()
-            dest_abbr = "".join([w[0] for w in dest_part.split() if w])[:3].upper()
-            time_clean = timing.split("-")[0].strip().replace(":", "") if "-" in timing else "0000"
-            svc_num = f"{origin_abbr}-{dest_abbr}-AC-SE-{time_clean}"
-            
-            services[service_id] = {
-                "route": r_name,
-                "service_key": service_key_counter,
-                "service_number": svc_num,
-                "timing": timing,
-                "bus_type": bus_type,
-                "duration": duration,
-                "price": final_fare,
-                "rating": rating or "4.3",
-                "reviews": reviews or "12",
-                "dates": {}
-            }
-            service_key_counter += 1
-
-        services[service_id]["dates"][travel_date] = srp_rank
-
-    output = []
-    for s_id, s_data in services.items():
-        row_dict = {
-            "route": s_data["route"],
-            "operator": s_id[1],
-            "service_key": s_data["service_key"],
-            "service_number": s_data["service_number"],
-            "timing": s_data["timing"],
-            "rating": s_data["rating"],
-            "reviews": s_data["reviews"],
-            "bus_type": s_data["bus_type"],
-            "duration": s_data["duration"],
-            "price": s_data.get("price"),
-            "snapshots": s_data["dates"],
-        }
-        # Dynamically append any other dates present in the database (e.g. 2026-08-06)
-        for date_str, rank in s_data["dates"].items():
-            # format "YYYY-MM-DD" -> "d_MM_DD"
-            parts = date_str.split("-")
-            if len(parts) == 3:
-                key = f"d_{parts[1]}_{parts[2]}"
-                row_dict[key] = rank
-
-        output.append(row_dict)
-
-    return {"data": output, "routes": routes_list, "operators": operators_list}
+    return {"last_scraped_at": latest_scraped_at()}
 
 
 @app.get("/api/v1/metrics/redbus/{route_id}")
@@ -627,6 +537,28 @@ def refresh_redbus(collection_date: Optional[str] = Query(None)):
     }
 
 
+@app.post("/api/v1/refresh/redbus-srp/sync")
+def refresh_redbus_srp_sync(travel_date: Optional[str] = Query(None)):
+    """On-demand SRP scrape; replaces that travel day's rows in srp.db."""
+    from scraper.srp_sync import get_job_status, start_sync_async
+
+    status = get_job_status()
+    if status.get("status") == "running":
+        raise HTTPException(status_code=409, detail="A Redbus SRP sync is already running")
+    try:
+        job = start_sync_async(travel_date_iso=travel_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"message": "Redbus SRP sync started", "job": job}
+
+
+@app.get("/api/v1/refresh/redbus-srp/status")
+def refresh_redbus_srp_status():
+    from scraper.srp_sync import get_job_status
+
+    return get_job_status()
+
+
 @app.post("/api/v1/refresh/trigger")
 def trigger_refresh():
     global _refresh_running
@@ -733,27 +665,9 @@ else:
         return HTMLResponse("<h1>Build dashboard: cd dashboard && npm run build</h1>")
 
 
-def _start_monthly_scheduler(skip_redbus: bool, skip_google: bool) -> None:
-    try:
-        from apscheduler.schedulers.background import BackgroundScheduler
-        from apscheduler.triggers.cron import CronTrigger
-
-        scheduler = BackgroundScheduler()
-
-        def _monthly_job():
-            print("\n  [scheduler] Monthly refresh (28th) starting…\n")
-            bootstrap(skip_redbus=skip_redbus, skip_google=skip_google)
-
-        scheduler.add_job(
-            _monthly_job,
-            CronTrigger(day=28, hour=2, minute=0, timezone="UTC"),
-            id="monthly_refresh",
-            replace_existing=True,
-        )
-        scheduler.start()
-        print("  [scheduler] Auto-refresh scheduled for the 28th of each month (02:00 UTC).")
-    except Exception as exc:
-        print(f"  [scheduler] Could not start monthly scheduler: {exc}")
+def _start_srp_scheduler() -> None:
+    """Deprecated: SRP sync is on-demand via Sync button / API."""
+    print("  [scheduler] Redbus SRP cron disabled — use Sync on the dashboard (anytime).")
 
 
 if __name__ == "__main__":
@@ -783,7 +697,7 @@ if __name__ == "__main__":
         print("  No cache found — running initial data fetch…")
         bootstrap(skip_redbus=args.skip_redbus, skip_google=args.skip_google)
 
-    _start_monthly_scheduler(skip_redbus=args.skip_redbus, skip_google=args.skip_google)
+    _start_srp_scheduler()
 
     print("=" * 60)
     print(f"  Dashboard : http://localhost:{args.port}")

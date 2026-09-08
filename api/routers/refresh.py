@@ -69,3 +69,29 @@ def trigger_refresh(
         "source_filter": source,
         "mode": "daily_upsert",
     }
+
+
+@router.post("/refresh/redbus-srp/sync")
+def trigger_redbus_srp_sync(travel_date: Optional[str] = None):
+    """
+    Start on-demand Redbus SRP scrape. Replaces all listings for that travel day.
+    Poll GET /refresh/redbus-srp/status for progress.
+    """
+    from scraper.srp_sync import get_job_status, start_sync_async
+
+    status = get_job_status()
+    if status.get("status") == "running":
+        raise HTTPException(status_code=409, detail="A Redbus SRP sync is already running")
+
+    try:
+        job = start_sync_async(travel_date_iso=travel_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"message": "Redbus SRP sync started", "job": job}
+
+
+@router.get("/refresh/redbus-srp/status")
+def redbus_srp_sync_status():
+    from scraper.srp_sync import get_job_status
+
+    return get_job_status()

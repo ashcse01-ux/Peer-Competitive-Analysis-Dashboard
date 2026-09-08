@@ -9,9 +9,6 @@ const GooglePlayPage = lazy(() => import('./pages/GooglePlayPage'))
 const AppleStorePage = lazy(() => import('./pages/AppleStorePage'))
 const GooglePage = lazy(() => import('./pages/GooglePage'))
 const RedbusLayout = lazy(() => import('./layouts/RedbusLayout'))
-const RedbusMarketplacePage = lazy(() => import('./pages/RedbusMarketplacePage'))
-const RedbusRoutesPage = lazy(() => import('./pages/RedbusRoutesPage'))
-const RedbusOperatorsPage = lazy(() => import('./pages/RedbusOperatorsPage'))
 const RedbusSrpPage = lazy(() => import('./pages/RedbusSrpPage'))
 const AbhibusLayout = lazy(() => import('./layouts/AbhibusLayout'))
 const AbhibusKpiPage = lazy(() => import('./pages/AbhibusKpiPage'))
@@ -28,10 +25,10 @@ export default function App() {
           <Route path="/google-reviews" element={<GooglePage />} />
 
           <Route path="/redbus" element={<RedbusLayout />}>
-            <Route index element={<RedbusMarketplacePage />} />
-            <Route path="routes" element={<RedbusRoutesPage />} />
-            <Route path="operators" element={<RedbusOperatorsPage />} />
+            <Route index element={<RedbusSrpPage />} />
             <Route path="srp" element={<RedbusSrpPage />} />
+            <Route path="routes" element={<Navigate to="/redbus" replace />} />
+            <Route path="operators" element={<Navigate to="/redbus" replace />} />
             <Route path="kpis" element={<Navigate to="/redbus" replace />} />
           </Route>
 

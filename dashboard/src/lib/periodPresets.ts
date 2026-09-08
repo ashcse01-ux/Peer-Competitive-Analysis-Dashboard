@@ -2,8 +2,8 @@ import { MARKETPLACE_DATA_START } from './marketplaceConstants'
 import { MARKETPLACE_SYNC_SLOTS, lastCompletedSlot, nextSyncSlot } from './syncSchedules'
 import { SRP_SLOT_KEYS, type SrpSlotKey } from './srpAnalytics'
 
-/** @deprecated alias — use `last7days` */
-export type PeriodPreset = 'today' | 'yesterday' | 'last7days' | 'mtd' | 'custom'
+/** Marketplace / Redbus period presets (travel-date oriented). */
+export type PeriodPreset = 'today' | 'tomorrow' | 'yesterday' | 'last7days' | 'mtd' | 'custom'
 
 export interface PeriodRange {
   preset: PeriodPreset
@@ -56,7 +56,8 @@ export function clampIsoToDataStart(iso: string) {
 }
 
 export function latestAvailableDate(now = new Date()) {
-  return todayIso(now)
+  // Scrapes target the next travel day; allow selecting through tomorrow.
+  return addDaysIso(todayIso(now), 1)
 }
 
 export function isDateSelectable(iso: string, now = new Date()) {
@@ -81,6 +82,7 @@ export function formatPeriodDisplay(iso: string) {
 export function periodPresetLabel(preset: PeriodPreset): string {
   const labels: Record<PeriodPreset, string> = {
     today: 'Today',
+    tomorrow: 'Tomorrow',
     yesterday: 'Yesterday',
     last7days: 'Last 7 days',
     mtd: 'Month to date',
@@ -98,6 +100,7 @@ export function resolvePeriodRange(
   const { year, month, day } = istParts(now)
   const today = isoFromParts(year, month, day)
   const yesterday = addDaysIso(today, -1)
+  const tomorrow = addDaysIso(today, 1)
   const latest = latestAvailableDate(now)
 
   if (preset === 'today') {
@@ -107,6 +110,17 @@ export function resolvePeriodRange(
       endDate: today,
       label: 'Today',
       completedSlotsToday: completedSnapshotSlotsForDate(today, now),
+      partialData: false,
+    }
+  }
+
+  if (preset === 'tomorrow') {
+    return {
+      preset,
+      startDate: tomorrow,
+      endDate: tomorrow,
+      label: 'Tomorrow',
+      completedSlotsToday: [...SRP_SLOT_KEYS],
       partialData: false,
     }
   }
@@ -121,7 +135,7 @@ export function resolvePeriodRange(
       completedSlotsToday: beforeTracking ? [] : [...SRP_SLOT_KEYS],
       partialData: beforeTracking,
       emptyReason: beforeTracking
-        ? 'No data available. Marketplace tracking started on 01 Sep 2026.'
+        ? 'No data available. Marketplace tracking started on 08 Sep 2026.'
         : undefined,
     }
   }
@@ -201,8 +215,10 @@ export function syncStatusLine(now = new Date()) {
 export function normalizePeriodPreset(p: string): PeriodPreset {
   if (p === 'weekly') return 'last7days'
   if (p === 'monthly') return 'mtd'
-  if (p === 'today' || p === 'yesterday' || p === 'last7days' || p === 'mtd' || p === 'custom') return p
-  return 'today'
+  if (p === 'today' || p === 'tomorrow' || p === 'yesterday' || p === 'last7days' || p === 'mtd' || p === 'custom') {
+    return p
+  }
+  return 'tomorrow'
 }
 
 /** Previous comparable period for comparison KPIs */
@@ -224,6 +240,18 @@ export function resolveComparisonRange(range: PeriodRange): PeriodRange | null {
       endDate: prev,
       label: 'Previous day',
       completedSlotsToday: [...SRP_SLOT_KEYS],
+      partialData: false,
+    }
+  }
+
+  if (range.preset === 'tomorrow') {
+    const prev = addDaysIso(range.startDate, -1) // today
+    return {
+      preset: 'today',
+      startDate: prev,
+      endDate: prev,
+      label: 'Previous day',
+      completedSlotsToday: completedSnapshotSlotsForDate(prev),
       partialData: false,
     }
   }
@@ -278,5 +306,5 @@ export function resolveComparisonRange(range: PeriodRange): PeriodRange | null {
 }
 
 export function comparisonUnavailableMessage() {
-  return 'Comparison unavailable — historical tracking began on 01 Sep 2026.'
+  return 'Comparison unavailable — historical tracking began on 08 Sep 2026.'
 }

@@ -3,8 +3,7 @@ api/main.py
 
 FastAPI application entry-point.
 
-- Lifespan: verifies DB connectivity and starts the APScheduler cron job
-  (every day at 10:00 Asia/Kolkata).
+- Lifespan: verifies DB connectivity (no fixed SRP cron — Sync is on-demand).
 - All business routes are mounted from api/routers/.
 - /health endpoint for subsystem health checks.
 
@@ -13,7 +12,6 @@ Tasks covered: 9.1, 8.5
 
 from __future__ import annotations
 
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -24,47 +22,8 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Scheduler setup — daily 10:00 AM IST
-# ---------------------------------------------------------------------------
-
-def _create_scheduler():
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler
-    from apscheduler.triggers.cron import CronTrigger
-
-    scheduler = AsyncIOScheduler()
-
-    async def _scheduled_refresh():
-        """APScheduler job: run the full refresh pipeline on a background thread."""
-        import asyncio
-        from scraper.db import get_session
-        from aggregator.orchestrator import RefreshOrchestrator
-
-        orch = RefreshOrchestrator(
-            db_connection_factory=get_session,
-            trigger_type="scheduled",
-        )
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, orch.run)
-
-    # Cron: 10:00 every day, India Standard Time
-    scheduler.add_job(
-        _scheduled_refresh,
-        CronTrigger(hour=10, minute=0, timezone="Asia/Kolkata"),
-        id="daily_refresh_10am_ist",
-        replace_existing=True,
-    )
-    return scheduler
-
-
-_scheduler = None
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _scheduler
-
-    # Verify DB connectivity
     try:
         from scraper.db import get_engine
         engine = get_engine()
@@ -75,22 +34,10 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.error("db_connectivity_failed", error=str(exc))
 
-    # Start daily 10 AM IST scheduler
-    _scheduler = _create_scheduler()
-    _scheduler.start()
-    logger.info("scheduler_started", job="daily_refresh_10am_ist", timezone="Asia/Kolkata")
-
+    logger.info("api_started", note="Redbus SRP sync is on-demand via POST /api/v1/refresh/redbus-srp/sync")
     yield
+    logger.info("api_stopped")
 
-    # Shutdown
-    if _scheduler and _scheduler.running:
-        _scheduler.shutdown(wait=False)
-        logger.info("scheduler_stopped")
-
-
-# ---------------------------------------------------------------------------
-# App factory
-# ---------------------------------------------------------------------------
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -106,7 +53,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Mount routers
     from api.routers import operators, metrics, reviews, history, refresh, export, health
 
     app.include_router(operators.router, prefix="/api/v1")
@@ -115,7 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(history.router,   prefix="/api/v1")
     app.include_router(refresh.router,   prefix="/api/v1")
     app.include_router(export.router,    prefix="/api/v1")
-    app.include_router(health.router)   # /health — no prefix
+    app.include_router(health.router)
 
     return app
 

@@ -140,8 +140,7 @@ export default function OverviewChannelPanels() {
           subtitle="Tag leaderboard, FreshBus standing, and operator averages on corridors."
           trailing={
             <div className="flex flex-wrap items-center gap-4">
-              <DashboardLink to="/redbus" label="Marketplace" />
-              <DashboardLink to="/redbus/srp" label="SRP Tracker" />
+              <DashboardLink to="/redbus" label="SRP Tracker" />
             </div>
           }
         />
