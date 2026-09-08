@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { addDaysIso, todayIso } from '../lib/periodPresets'
 import { cx } from '../lib/insights'
+import SyncProgressModal from './SyncProgressModal'
 import { fetch as apiFetch, type RedbusSrpSyncStatus } from '../api'
 import { useMarketplaceFilters } from '../context/MarketplaceFilterContext'
 
@@ -16,6 +17,8 @@ function formatScrapedAt(raw: string | null | undefined): string | null {
 }
 
 export default function RedbusGlobalHeader() {
+  const [modalOpen, setModalOpen] = useState(false)
+  const status = syncStatusLine()
   const queryClient = useQueryClient()
   const filters = useMarketplaceFilters()
   const [job, setJob] = useState<RedbusSrpSyncStatus | null>(null)
@@ -80,121 +83,53 @@ export default function RedbusGlobalHeader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleSync = async () => {
-    stopPoll()
-    setJob({
-      status: 'running',
-      percent: 0,
-      phase: 'starting',
-      current: 0,
-      total: 0,
-      route_label: '',
-      message: 'Starting scrape…',
-      travel_date: null,
-      travel_date_iso: travelDateIso,
-      error: null,
-      started_at: null,
-      finished_at: null,
-      last_scraped_at: null,
-    })
-    try {
-      const res = await apiFetch.triggerRedbusSrpSync(travelDateIso)
-      setJob(res.job)
-      pollRef.current = window.setInterval(() => void pollStatus(), 1500)
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail
-      setJob(prev => ({
-        ...(prev ?? {
-          status: 'error',
-          percent: 0,
-          phase: 'error',
-          current: 0,
-          total: 0,
-          route_label: '',
-          message: '',
-          travel_date: null,
-          travel_date_iso: travelDateIso,
-          error: null,
-          started_at: null,
-          finished_at: null,
-          last_scraped_at: null,
-        }),
-        status: 'error',
-        message: typeof detail === 'string' ? detail : 'Unable to start sync',
-        error: typeof detail === 'string' ? detail : 'Unable to start sync',
-      }))
-    }
+  const handleSyncClick = () => {
+    setModalOpen(true)
   }
 
   const lastScrapedLabel = formatScrapedAt(job?.last_scraped_at || dbLastScraped) ?? '—'
 
   return (
-    <header className="redbus-global-header mb-4 flex flex-col gap-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/90 p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <>
+      <header className="redbus-global-header mb-4 flex flex-col gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)]/90 p-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-1">
           <p className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-theme-muted">Red Bus Analytics</p>
-          <h1 className="text-xl font-extrabold tracking-tight text-theme-primary sm:text-2xl">SRP Tracker</h1>
+          <h1 className="text-xl font-extrabold tracking-tight text-theme-primary sm:text-2xl">Marketplace intelligence</h1>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-xs font-semibold text-theme-secondary">
             <span className="inline-flex items-center gap-1.5">
-              <span
-                className={cx(
-                  'inline-block h-2 w-2 rounded-full',
-                  syncError ? 'bg-red-500' : syncing ? 'bg-[var(--fb-yellow)]' : 'bg-emerald-500',
-                )}
-                aria-hidden
-              />
-              {syncing ? 'Scraping' : syncError ? 'Sync failed' : 'Ready'}
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
+              Current
             </span>
             <span>
-              Travel day: <strong className="text-theme-primary">{travelDateIso}</strong>
+              Last scraped: <strong className="text-theme-primary">{status.lastScraped} IST</strong>
             </span>
             <span>
-              Last scraped: <strong className="text-theme-primary">{lastScrapedLabel}</strong>
+              Latest snapshot: <strong className="text-theme-primary">{status.latestSnapshot}</strong>
+            </span>
+            <span>
+              Next expected: <strong className="text-[var(--fb-blue)]">{status.nextExpected} IST</strong>
             </span>
           </div>
+          <p className="text-[0.65rem] font-semibold text-theme-muted">
+            Data available from {status.dataAvailableFrom}
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 self-start">
-          <button
-            type="button"
-            onClick={handleSync}
-            disabled={syncing}
-            title="Starts a live Redbus scrape and replaces that travel day's SRP data."
-            className={cx(
-              'inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-5 text-sm font-extrabold text-[#0f1d35] shadow-sm',
-              syncing && 'opacity-70',
-            )}
-            style={{ background: 'var(--fb-yellow)' }}
-          >
-            <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
-            {syncing ? 'Syncing…' : 'Sync'}
-          </button>
-        </div>
-      </div>
+        <button
+          type="button"
+          onClick={handleSyncClick}
+          title="Click to start real-time scraper & ratings sync"
+          className={cx(
+            'inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-xl px-5 text-sm font-extrabold text-[#0f1d35] shadow-sm hover:opacity-90 active:scale-95 transition-all'
+          )}
+          style={{ background: 'var(--fb-yellow)' }}
+        >
+          <RefreshCw size={16} />
+          Sync
+        </button>
+      </header>
 
-      {(syncing || job?.status === 'completed' || syncError) && (
-        <div className="space-y-2" aria-live="polite">
-          <div className="flex items-center justify-between gap-3 text-xs font-bold text-theme-secondary">
-            <span className="truncate">{job?.message || (syncing ? 'Scraping…' : '')}</span>
-            <span className="shrink-0 tabular-nums text-theme-primary">{percent}%</span>
-          </div>
-          <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--border-subtle)]">
-            <div
-              className={cx(
-                'h-full rounded-full transition-[width] duration-500 ease-out',
-                syncError ? 'bg-red-500' : 'bg-[var(--fb-blue)]',
-              )}
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          {syncing && job?.total ? (
-            <p className="text-[0.65rem] font-semibold text-theme-muted">
-              Route {job.current}/{job.total}
-              {job.route_label ? ` · ${job.route_label}` : ''}
-            </p>
-          ) : null}
-        </div>
-      )}
-    </header>
+      <SyncProgressModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />
+    </>
   )
 }

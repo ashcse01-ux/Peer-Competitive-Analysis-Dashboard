@@ -55,7 +55,7 @@ def occupancy_pct(capacity: int, seats_available: int | None) -> float | None:
 
 
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=30.0)
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS bus_listings (

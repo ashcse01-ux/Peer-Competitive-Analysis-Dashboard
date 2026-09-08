@@ -362,21 +362,144 @@ def get_redbus_srp(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
 ):
-    from scraper.srp_pipeline import query_srp_listings
+    import sqlite3
+    db_path = os.path.join(os.path.dirname(__file__), "scraper", "srp.db")
+    if not os.path.exists(db_path):
+        from scraper.redbus_routes import load_redbus_route_pairs
 
-    return query_srp_listings(
-        operator=operator,
-        route=route,
-        start_date=start_date,
-        end_date=end_date,
-    )
+        fallback_routes = [
+            f"{o} → {d}" for o, d in load_redbus_route_pairs()
+        ]
+        return {"data": [], "routes": fallback_routes, "operators": []}
 
+    conn = sqlite3.connect(db_path, timeout=30.0)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
 
-@app.get("/api/v1/metrics/redbus/srp/meta")
-def get_redbus_srp_meta():
-    from scraper.srp_pipeline import latest_scraped_at
+    # Ensure schema updates (route_id column & bus_ratings table) exist on new systems
+    try:
+        cursor.execute("ALTER TABLE bus_listings ADD COLUMN route_id TEXT")
+    except sqlite3.OperationalError:
+        pass
 
-    return {"last_scraped_at": latest_scraped_at()}
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bus_ratings (
+            route_id TEXT PRIMARY KEY,
+            avg_rating REAL,
+            total_ratings INTEGER,
+            total_reviews INTEGER,
+            tags TEXT,
+            fetched_at TEXT
+        )
+    """)
+    conn.commit()
+
+    # Get distinct routes and operators for filters
+    cursor.execute("SELECT DISTINCT route FROM bus_listings ORDER BY route")
+    routes_list = [r["route"] for r in cursor.fetchall()]
+    cursor.execute("SELECT DISTINCT operator FROM bus_listings ORDER BY operator")
+    operators_list = [o["operator"] for o in cursor.fetchall()]
+
+    query = """
+        SELECT b.*, r.tags 
+        FROM bus_listings b
+        LEFT JOIN bus_ratings r ON b.route_id = r.route_id
+        WHERE 1=1
+    """
+    params = []
+    if operator:
+        query += " AND UPPER(b.operator) = ?"
+        params.append(operator.upper())
+    if route:
+        query += " AND b.route = ?"
+        params.append(route)
+    if start_date:
+        query += " AND b.travel_date >= ?"
+        params.append(start_date)
+    if end_date:
+        query += " AND b.travel_date <= ?"
+        params.append(end_date)
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+
+    import json
+    services = {}
+    service_key_counter = 901
+    for row in rows:
+        r_name = row["route"]
+        op_name = row["operator"]
+        timing = row["timing"]
+        travel_date = row["travel_date"]
+        srp_rank = row["srp_rank"]
+        rating = row["rating"]
+        reviews = row["reviews"]
+        bus_type = row["bus_type"]
+        duration = row["duration"]
+        final_fare = row["final_fare"]
+        tags_raw = row["tags"] if "tags" in row.keys() else None
+
+        tags_list = []
+        if tags_raw:
+            try:
+                tags_list = json.loads(tags_raw)
+            except Exception:
+                tags_list = []
+
+        service_id = (r_name, op_name, timing)
+        if service_id not in services:
+            origin_part = r_name.split("→")[0].strip() if "→" in r_name else "HYD"
+            dest_part = r_name.split("→")[1].strip() if "→" in r_name else "VJY"
+            origin_abbr = "".join([w[0] for w in origin_part.split() if w])[:3].upper()
+            dest_abbr = "".join([w[0] for w in dest_part.split() if w])[:3].upper()
+            time_clean = timing.split("-")[0].strip().replace(":", "") if "-" in timing else "0000"
+            svc_num = f"{origin_abbr}-{dest_abbr}-AC-SE-{time_clean}"
+            
+            services[service_id] = {
+                "route": r_name,
+                "service_key": service_key_counter,
+                "service_number": svc_num,
+                "timing": timing,
+                "bus_type": bus_type,
+                "duration": duration,
+                "price": final_fare,
+                "rating": rating or "4.3",
+                "reviews": reviews or "12",
+                "tags": tags_list,
+                "dates": {}
+            }
+            service_key_counter += 1
+        elif tags_list and not services[service_id]["tags"]:
+            services[service_id]["tags"] = tags_list
+
+        services[service_id]["dates"][travel_date] = srp_rank
+
+    output = []
+    for s_id, s_data in services.items():
+        row_dict = {
+            "route": s_data["route"],
+            "operator": s_id[1],
+            "service_key": s_data["service_key"],
+            "service_number": s_data["service_number"],
+            "timing": s_data["timing"],
+            "rating": s_data["rating"],
+            "reviews": s_data["reviews"],
+            "bus_type": s_data["bus_type"],
+            "duration": s_data["duration"],
+            "price": s_data.get("price"),
+            "tags": s_data.get("tags", []),
+            "snapshots": s_data["dates"],
+        }
+        for date_str, rank in s_data["dates"].items():
+            parts = date_str.split("-")
+            if len(parts) == 3:
+                key = f"d_{parts[1]}_{parts[2]}"
+                row_dict[key] = rank
+
+        output.append(row_dict)
+
+    return {"data": output, "routes": routes_list, "operators": operators_list}
 
 
 @app.get("/api/v1/metrics/redbus/{route_id}")
@@ -501,62 +624,92 @@ def refresh_status():
     }
 
 
+@app.get("/api/v1/refresh/redbus/status")
+def redbus_status():
+    status_file = os.path.join(os.path.dirname(__file__), "scraper", "scraper_status.json")
+    if os.path.exists(status_file):
+        try:
+            import json as _json
+            with open(status_file, "r", encoding="utf-8") as f:
+                return _json.load(f)
+        except Exception:
+            pass
+    return {
+        "status": "idle",
+        "step": "idle",
+        "completed_routes": 0,
+        "total_routes": 24,
+        "current_route": "",
+        "logs": []
+    }
+
+
 _refresh_running = False
 _redbus_refresh_running = False
 
 
 @app.post("/api/v1/refresh/redbus")
-def refresh_redbus(collection_date: Optional[str] = Query(None)):
+def refresh_redbus(collection_date: Optional[str] = Query(None), force: bool = Query(True)):
     """Scrape Redbus for a specific collection date (travel date on Redbus SRP)."""
     global _redbus_refresh_running
     if _redbus_refresh_running:
         return {"message": "Redbus scrape already in progress."}
 
-    from datetime import date as date_cls
+    import subprocess
+    import sys
+    import json as _json
 
+    status_file = os.path.join(os.path.dirname(__file__), "scraper", "scraper_status.json")
     try:
-        scrape_day = date_cls.fromisoformat(collection_date) if collection_date else date_cls.today()
-    except ValueError:
-        raise HTTPException(status_code=400, detail="collection_date must be YYYY-MM-DD")
+        if os.path.exists(status_file):
+            os.remove(status_file)
+    except Exception:
+        pass
 
-    skip_redbus = os.getenv("SKIP_REDBUS", "0") == "1"
+    # Initialize fresh status file
+    initial_data = {
+        "status": "running",
+        "step": "scraping",
+        "completed_routes": 0,
+        "total_routes": 24,
+        "current_route": "Starting fresh sync...",
+        "logs": ["🚀 Starting fresh scraper sync for all 24 routes..."],
+        "updated_at": datetime.now(tz=timezone.utc).isoformat()
+    }
+    try:
+        with open(status_file, "w", encoding="utf-8") as f:
+            _json.dump(initial_data, f, indent=2)
+    except Exception:
+        pass
+
+    venv_python = os.path.join(os.path.dirname(__file__), "peer_dashboard", "bin", "python")
+    py_exec = venv_python if os.path.exists(venv_python) else sys.executable
+    scraper_script = os.path.join(os.path.dirname(__file__), "scraper", "redbus_scraper.py")
 
     def _run():
         global _redbus_refresh_running
         _redbus_refresh_running = True
         try:
-            merge_redbus_scrape_for_date(scrape_day, skip_redbus=skip_redbus)
+            cmd = [py_exec, scraper_script]
+            if force:
+                cmd.append("--force")
+            if collection_date:
+                try:
+                    from datetime import datetime as dt
+                    d_obj = dt.strptime(collection_date, "%Y-%m-%d")
+                    cmd.extend(["--date", d_obj.strftime("%d-%b-%Y")])
+                except Exception:
+                    pass
+            subprocess.run(cmd, cwd=os.path.dirname(__file__))
         finally:
             _redbus_refresh_running = False
 
     import threading
     threading.Thread(target=_run, daemon=True).start()
     return {
-        "message": f"Redbus scrape started for {scrape_day.isoformat()} — may take several minutes.",
-        "collection_date": scrape_day.isoformat(),
+        "message": "Redbus fresh scrape started",
+        "status": "started"
     }
-
-
-@app.post("/api/v1/refresh/redbus-srp/sync")
-def refresh_redbus_srp_sync(travel_date: Optional[str] = Query(None)):
-    """On-demand SRP scrape; replaces that travel day's rows in srp.db."""
-    from scraper.srp_sync import get_job_status, start_sync_async
-
-    status = get_job_status()
-    if status.get("status") == "running":
-        raise HTTPException(status_code=409, detail="A Redbus SRP sync is already running")
-    try:
-        job = start_sync_async(travel_date_iso=travel_date)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"message": "Redbus SRP sync started", "job": job}
-
-
-@app.get("/api/v1/refresh/redbus-srp/status")
-def refresh_redbus_srp_status():
-    from scraper.srp_sync import get_job_status
-
-    return get_job_status()
 
 
 @app.post("/api/v1/refresh/trigger")
