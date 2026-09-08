@@ -41,7 +41,7 @@ export default function RedbusSrpPage() {
         
         {!isLoading && !error && (
           <div className="overflow-x-auto">
-            <table className="data-table min-w-[900px]">
+            <table className="data-table min-w-[1050px]">
               <thead>
                 <tr>
                   <th>Route</th>
@@ -50,23 +50,26 @@ export default function RedbusSrpPage() {
                   <th>Bus Type</th>
                   <th>Price</th>
                   <th>Rating (Reviews)</th>
+                  <th>Loved by Travelers</th>
                   <th>Avg SRP Rank</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-theme-muted">
+                    <td colSpan={8} className="text-center py-8 text-theme-muted">
                       No data found for the selected dates and operators.
                     </td>
                   </tr>
                 ) : (
-                  filteredData.map((row, idx) => {
+                  filteredData.map((row: any, idx: number) => {
                     // Calculate average rank from snapshots if needed, or just show the first one
                     const slots = Object.values(row.snapshots || {})
                     const avgRank = slots.length > 0 
-                      ? Math.round(slots.reduce((a, b) => a + b, 0) / slots.length) 
+                      ? Math.round(slots.reduce((a: any, b: any) => a + b, 0) / slots.length) 
                       : 'N/A'
+
+                    const tags: Array<{ tagmsg: string; count: number }> = row.tags || []
 
                     return (
                       <tr key={`${row.service_key}-${idx}`}>
@@ -80,6 +83,27 @@ export default function RedbusSrpPage() {
                             <span>⭐ {row.rating} <span className="text-xs text-theme-muted">({row.reviews || '0'})</span></span>
                           ) : (
                             <span className="text-theme-muted text-xs">No rating</span>
+                          )}
+                        </td>
+                        <td>
+                          {tags && tags.length > 0 ? (
+                            <div className="flex flex-wrap gap-1 max-w-[280px]">
+                              {tags.slice(0, 3).map((tag, tIdx) => (
+                                <span
+                                  key={tIdx}
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                >
+                                  {tag.tagmsg} <span className="ml-1 opacity-75">({tag.count})</span>
+                                </span>
+                              ))}
+                              {tags.length > 3 && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+                                  +{tags.length - 3}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-theme-muted text-xs">—</span>
                           )}
                         </td>
                         <td className="tabular-nums text-center font-bold">

@@ -376,31 +376,55 @@ def get_redbus_srp(
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
+    # Ensure schema updates (route_id column & bus_ratings table) exist on new systems
+    try:
+        cursor.execute("ALTER TABLE bus_listings ADD COLUMN route_id TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bus_ratings (
+            route_id TEXT PRIMARY KEY,
+            avg_rating REAL,
+            total_ratings INTEGER,
+            total_reviews INTEGER,
+            tags TEXT,
+            fetched_at TEXT
+        )
+    """)
+    conn.commit()
+
     # Get distinct routes and operators for filters
     cursor.execute("SELECT DISTINCT route FROM bus_listings ORDER BY route")
     routes_list = [r["route"] for r in cursor.fetchall()]
     cursor.execute("SELECT DISTINCT operator FROM bus_listings ORDER BY operator")
     operators_list = [o["operator"] for o in cursor.fetchall()]
 
-    query = "SELECT * FROM bus_listings WHERE 1=1"
+    query = """
+        SELECT b.*, r.tags 
+        FROM bus_listings b
+        LEFT JOIN bus_ratings r ON b.route_id = r.route_id
+        WHERE 1=1
+    """
     params = []
     if operator:
-        query += " AND UPPER(operator) = ?"
+        query += " AND UPPER(b.operator) = ?"
         params.append(operator.upper())
     if route:
-        query += " AND route = ?"
+        query += " AND b.route = ?"
         params.append(route)
     if start_date:
-        query += " AND travel_date >= ?"
+        query += " AND b.travel_date >= ?"
         params.append(start_date)
     if end_date:
-        query += " AND travel_date <= ?"
+        query += " AND b.travel_date <= ?"
         params.append(end_date)
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
     conn.close()
 
+    import json
     services = {}
     service_key_counter = 901
     for row in rows:
@@ -414,10 +438,17 @@ def get_redbus_srp(
         bus_type = row["bus_type"]
         duration = row["duration"]
         final_fare = row["final_fare"]
+        tags_raw = row["tags"] if "tags" in row.keys() else None
+
+        tags_list = []
+        if tags_raw:
+            try:
+                tags_list = json.loads(tags_raw)
+            except Exception:
+                tags_list = []
 
         service_id = (r_name, op_name, timing)
         if service_id not in services:
-            # Generate service number like "HYD-VJY-AC-SE-2130"
             origin_part = r_name.split("→")[0].strip() if "→" in r_name else "HYD"
             dest_part = r_name.split("→")[1].strip() if "→" in r_name else "VJY"
             origin_abbr = "".join([w[0] for w in origin_part.split() if w])[:3].upper()
@@ -435,9 +466,12 @@ def get_redbus_srp(
                 "price": final_fare,
                 "rating": rating or "4.3",
                 "reviews": reviews or "12",
+                "tags": tags_list,
                 "dates": {}
             }
             service_key_counter += 1
+        elif tags_list and not services[service_id]["tags"]:
+            services[service_id]["tags"] = tags_list
 
         services[service_id]["dates"][travel_date] = srp_rank
 
@@ -454,11 +488,10 @@ def get_redbus_srp(
             "bus_type": s_data["bus_type"],
             "duration": s_data["duration"],
             "price": s_data.get("price"),
+            "tags": s_data.get("tags", []),
             "snapshots": s_data["dates"],
         }
-        # Dynamically append any other dates present in the database (e.g. 2026-08-06)
         for date_str, rank in s_data["dates"].items():
-            # format "YYYY-MM-DD" -> "d_MM_DD"
             parts = date_str.split("-")
             if len(parts) == 3:
                 key = f"d_{parts[1]}_{parts[2]}"
@@ -591,39 +624,91 @@ def refresh_status():
     }
 
 
+@app.get("/api/v1/refresh/redbus/status")
+def redbus_status():
+    status_file = os.path.join(os.path.dirname(__file__), "scraper", "scraper_status.json")
+    if os.path.exists(status_file):
+        try:
+            import json as _json
+            with open(status_file, "r", encoding="utf-8") as f:
+                return _json.load(f)
+        except Exception:
+            pass
+    return {
+        "status": "idle",
+        "step": "idle",
+        "completed_routes": 0,
+        "total_routes": 24,
+        "current_route": "",
+        "logs": []
+    }
+
+
 _refresh_running = False
 _redbus_refresh_running = False
 
 
 @app.post("/api/v1/refresh/redbus")
-def refresh_redbus(collection_date: Optional[str] = Query(None)):
+def refresh_redbus(collection_date: Optional[str] = Query(None), force: bool = Query(True)):
     """Scrape Redbus for a specific collection date (travel date on Redbus SRP)."""
     global _redbus_refresh_running
     if _redbus_refresh_running:
         return {"message": "Redbus scrape already in progress."}
 
-    from datetime import date as date_cls
+    import subprocess
+    import sys
+    import json as _json
 
+    status_file = os.path.join(os.path.dirname(__file__), "scraper", "scraper_status.json")
     try:
-        scrape_day = date_cls.fromisoformat(collection_date) if collection_date else date_cls.today()
-    except ValueError:
-        raise HTTPException(status_code=400, detail="collection_date must be YYYY-MM-DD")
+        if os.path.exists(status_file):
+            os.remove(status_file)
+    except Exception:
+        pass
 
-    skip_redbus = os.getenv("SKIP_REDBUS", "0") == "1"
+    # Initialize fresh status file
+    initial_data = {
+        "status": "running",
+        "step": "scraping",
+        "completed_routes": 0,
+        "total_routes": 24,
+        "current_route": "Starting fresh sync...",
+        "logs": ["🚀 Starting fresh scraper sync for all 24 routes..."],
+        "updated_at": datetime.now(tz=timezone.utc).isoformat()
+    }
+    try:
+        with open(status_file, "w", encoding="utf-8") as f:
+            _json.dump(initial_data, f, indent=2)
+    except Exception:
+        pass
+
+    venv_python = os.path.join(os.path.dirname(__file__), "peer_dashboard", "bin", "python")
+    py_exec = venv_python if os.path.exists(venv_python) else sys.executable
+    scraper_script = os.path.join(os.path.dirname(__file__), "scraper", "redbus_scraper.py")
 
     def _run():
         global _redbus_refresh_running
         _redbus_refresh_running = True
         try:
-            merge_redbus_scrape_for_date(scrape_day, skip_redbus=skip_redbus)
+            cmd = [py_exec, scraper_script]
+            if force:
+                cmd.append("--force")
+            if collection_date:
+                try:
+                    from datetime import datetime as dt
+                    d_obj = dt.strptime(collection_date, "%Y-%m-%d")
+                    cmd.extend(["--date", d_obj.strftime("%d-%b-%Y")])
+                except Exception:
+                    pass
+            subprocess.run(cmd, cwd=os.path.dirname(__file__))
         finally:
             _redbus_refresh_running = False
 
     import threading
     threading.Thread(target=_run, daemon=True).start()
     return {
-        "message": f"Redbus scrape started for {scrape_day.isoformat()} — may take several minutes.",
-        "collection_date": scrape_day.isoformat(),
+        "message": "Redbus fresh scrape started",
+        "status": "started"
     }
 
 

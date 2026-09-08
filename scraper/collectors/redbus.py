@@ -59,7 +59,7 @@ __all__ = [
 
 
 def load_route_operators() -> dict[str, list[str]]:
-    config_path = os.path.join(os.path.dirname(__dirname__), "config", "route_operators.json")
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "route_operators.json")
     if not os.path.exists(config_path):
         return {}
     with open(config_path, "r") as f:
