@@ -3,6 +3,7 @@ aggregator/live_bootstrap.py — Fetch live data on server startup (no PostgreSQ
 """
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
@@ -14,7 +15,7 @@ import urllib.parse
 import urllib.request
 from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from aggregator.validate import (
     validate_app_store_entry,
@@ -35,19 +36,35 @@ OPERATORS = [
     {"id": 4, "name": "Zingbus", "slug": "zingbus"},
     {"id": 5, "name": "YoloBus", "slug": "yolobus"},
     {"id": 6, "name": "IntrCity SmartBus", "slug": "intrcity"},
+    {"id": 7, "name": "LeafyBus", "slug": "leafybus"},
 ]
 
 from scraper.redbus_routes import load_redbus_routes_with_ids
 
 ROUTES = load_redbus_routes_with_ids()
 
+# Knowledge-panel queries. Avoid NueGo Lounge / local depot listings.
 GOOGLE_SEARCH_NAMES = {
-    "freshbus": "FreshBus bus",
-    "neugo": "Neugo bus",
-    "flixbus": "FlixBus India",
-    "zingbus": "Zingbus",
-    "yolobus": "YoloBus",
+    "freshbus": "Fresh Bus Private Limited",
+    "neugo": "NueGo Greencell Express bus company",
+    "flixbus": "FlixBus India bus company",
+    "zingbus": "zingbus transportation service Gurugram",
+    "yolobus": "YOLO bus company Nanakramguda Hyderabad",
     "intrcity": "IntrCity SmartBus",
+    "leafybus": "LeafyBus LEAFYMOBILITY Private Limited",
+}
+
+GOOGLE_SEARCH_URLS = {
+    "freshbus": (
+        "https://www.google.com/search?q=Fresh+Bus+Private+Limited+Reviews"
+        "&hl=en&gl=in"
+    ),
+    "zingbus": "https://www.google.com/search?q=Zingbus+google+reviews&hl=en&gl=in",
+    "flixbus": "https://www.google.com/search?q=FlixBus+India+reviews&hl=en&gl=in",
+    "intrcity": "https://www.google.com/search?q=IntrCity+SmartBus+reviews&hl=en&gl=in",
+    "neugo": "https://www.google.com/search?q=NueGo+electric+bus+company+reviews&hl=en&gl=in",
+    "yolobus": "https://www.google.com/search?q=YOLO+bus+company+Hyderabad+reviews&hl=en&gl=in",
+    "leafybus": "https://www.google.com/search?q=LeafyBus+LEAFYMOBILITY+reviews&hl=en&gl=in",
 }
 
 REDBUS_OPERATOR_NAMES = {
@@ -57,6 +74,7 @@ REDBUS_OPERATOR_NAMES = {
     "zingbus": "Zingbus",
     "yolobus": "YoloBus",
     "intrcity": "IntrCity SmartBus",
+    "leafybus": "LeafyBus",
 }
 
 REDBUS_TAGS = [
@@ -149,6 +167,47 @@ def _set_phase(phase: str) -> None:
     print(f"  [live-fetch] {phase}")
 
 
+def begin_store_sync(channel: str) -> str:
+    """Mark a store sync as running immediately so the UI does not treat stale 'completed' as done."""
+    ts = _now()
+    with _lock:
+        LIVE_CACHE["status"] = "loading"
+        LIVE_CACHE["triggered_at"] = ts
+        LIVE_CACHE["sync_channel"] = channel
+        LIVE_CACHE["sync_current"] = 0
+        LIVE_CACHE["sync_total"] = len(OPERATORS)
+        LIVE_CACHE["sync_percent"] = 0
+        LIVE_CACHE["sync_operator"] = ""
+        LIVE_CACHE["fetch_phase"] = "Starting sync…"
+        LIVE_CACHE["last_error"] = None
+        LIVE_CACHE["operators_ready"] = 0
+    print(f"  [live-fetch] Sync started ({channel})")
+    return ts
+
+
+def _set_sync_progress(
+    *,
+    channel: str,
+    current: int,
+    total: int,
+    operator: str = "",
+    phase: str = "",
+) -> None:
+    percent = int(round(100 * current / total)) if total else 0
+    with _lock:
+        LIVE_CACHE["status"] = "loading"
+        LIVE_CACHE["sync_channel"] = channel
+        LIVE_CACHE["sync_current"] = current
+        LIVE_CACHE["sync_total"] = total
+        LIVE_CACHE["sync_operator"] = operator
+        LIVE_CACHE["sync_percent"] = min(99, max(0, percent))
+        LIVE_CACHE["operators_ready"] = current
+        if phase:
+            LIVE_CACHE["fetch_phase"] = phase
+    if phase:
+        print(f"  [live-fetch] {phase}")
+
+
 def _stars_sentiment(reviews: list[dict]) -> tuple[float | None, float | None]:
     stars = [r["star_rating"] for r in reviews if r.get("star_rating") is not None]
     if not stars:
@@ -183,19 +242,21 @@ def get_mock_app_store_entry(slug: str, source: str) -> dict[str, Any]:
         "flixbus": 4.5,
         "zingbus": 4.1,
         "yolobus": 4.1,
-        "intrcity": 4.2
+        "intrcity": 4.2,
+        "leafybus": 2.6,
     }
     base_downloads = {
-        "freshbus": {"google_play": "50,000+", "ios_app_store": "15,000+"},
-        "neugo": {"google_play": "35,000+", "ios_app_store": "10,000+"},
-        "flixbus": {"google_play": "1,000,000+", "ios_app_store": "300,000+"},
-        "zingbus": {"google_play": "100,000+", "ios_app_store": "35,000+"},
-        "yolobus": {"google_play": "500,000+", "ios_app_store": "50,000+"},
-        "intrcity": {"google_play": "250,000+", "ios_app_store": "80,000+"}
+        "freshbus": {"google_play": "50,000+"},
+        "neugo": {"google_play": "35,000+"},
+        "flixbus": {"google_play": "1,000,000+"},
+        "zingbus": {"google_play": "100,000+"},
+        "yolobus": {"google_play": "500,000+"},
+        "intrcity": {"google_play": "250,000+"},
+        "leafybus": {"google_play": "10,000+"},
     }
     rating = base_ratings.get(slug, 4.0) + random.uniform(-0.15, 0.15)
     rating = round(min(5.0, max(1.0, rating)), 2)
-    downloads = base_downloads.get(slug, {}).get(source, "10,000+")
+    downloads = None if source == "ios_app_store" else base_downloads.get(slug, {}).get(source, "10,000+")
     
     # Generate some mock reviews
     reviews = []
@@ -313,8 +374,6 @@ def fetch_ios(app_id: str, operator_slug: str) -> dict[str, Any]:
         "overall_rating": meta.get("overall_rating"),
         "review_count": meta.get("review_count"),
         "app_version": meta.get("app_version"),
-        "downloads": None,
-        "downloads_raw": None,
         "star_1": hist.get("star_1"),
         "star_2": hist.get("star_2"),
         "star_3": hist.get("star_3"),
@@ -339,6 +398,7 @@ def fetch_google_search(operator_slug: str) -> dict[str, Any]:
         operator_slug=operator_slug,
         operator_name=name,
         collected_at=collected_at,
+        search_url=GOOGLE_SEARCH_URLS.get(operator_slug),
     )
     reviews = [
         {
@@ -359,6 +419,10 @@ def fetch_google_search(operator_slug: str) -> dict[str, Any]:
         hist = histogram_from_reviews(
             [{"star_rating": r["star_rating"]} for r in reviews]
         )
+    from scraper.play_topics import estimate_star_histogram, histogram_sum
+    review_count = result.get("review_count")
+    if (review_count or 0) >= 20 and histogram_sum(hist) < 15:
+        hist = estimate_star_histogram(result.get("overall_rating"), review_count)
     return {
         "overall_rating": result.get("overall_rating"),
         "review_count": result.get("review_count"),
@@ -476,6 +540,11 @@ def load_cache_from_disk() -> bool:
             LIVE_CACHE.update(payload)
             if LIVE_CACHE.get("status") != "loading":
                 LIVE_CACHE["status"] = "completed"
+        try:
+            from aggregator.peer_store_db import load_daily_snapshots
+            LIVE_CACHE["daily_snapshots"] = load_daily_snapshots()
+        except Exception:
+            pass
         logger.info("cache_loaded path=%s", CACHE_PATH)
         return True
     except Exception as exc:
@@ -578,6 +647,7 @@ def _mock_redbus_cells_for_routes(
         "zingbus": {"base_rating": 4.1, "base_sentiment": 0.55, "reviews_per_route": 40},
         "yolobus": {"base_rating": 4.1, "base_sentiment": 0.52, "reviews_per_route": 22},
         "intrcity": {"base_rating": 4.2, "base_sentiment": 0.6, "reviews_per_route": 55},
+        "leafybus": {"base_rating": 4.0, "base_sentiment": 0.48, "reviews_per_route": 18},
     }
 
     positive_keywords_by_tag = {
@@ -911,7 +981,7 @@ def _build_history(app_store: dict, google: dict) -> dict[str, list]:
     # Operator-specific volatility profiles for realistic divergence
     volatility = {
         "freshbus": 0.08, "neugo": 0.12, "flixbus": 0.06,
-        "zingbus": 0.14, "yolobus": 0.16, "intrcity": 0.10,
+        "zingbus": 0.14, "yolobus": 0.16, "intrcity": 0.10, "leafybus": 0.18,
     }
 
     def walk_back(curr_rating: float | None, curr_sentiment: float | None, count: int, slug: str):
@@ -999,100 +1069,238 @@ def ensure_redbus_daily_in_cache() -> None:
         LIVE_CACHE["redbus_cells"] = _latest_redbus_day_cells(daily)
 
 
-def bootstrap(*, skip_redbus: bool = False, skip_google: bool = False) -> None:
-    LIVE_CACHE["triggered_at"] = _now()
-    LIVE_CACHE["status"] = "loading"
+def persist_store_snapshots(
+    app_store: dict,
+    google: dict,
+    *,
+    sources: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    """Write today's IST snapshots (last sync wins) and return the full history payload."""
+    from aggregator.peer_store_db import ist_today, load_daily_snapshots, upsert_app_store_rows, upsert_google_rows
+
+    day = ist_today()
+    wanted = set(sources) if sources else {"google_play", "ios_app_store", "google_search"}
+    app_rows: list[dict] = []
+    google_rows: list[dict] = []
+    for op in OPERATORS:
+        slug = op["slug"]
+        for source in ("google_play", "ios_app_store"):
+            if source not in wanted:
+                continue
+            entry = (app_store.get(slug) or {}).get(source) or {}
+            if not entry:
+                continue
+            row = {
+                "operator_id": op["id"],
+                "operator_name": op["name"],
+                "operator_slug": slug,
+                "source": source,
+                "collection_date": day,
+                **{k: entry.get(k) for k in (
+                    "overall_rating", "review_count", "ratings_count",
+                    "star_1", "star_2", "star_3", "star_4", "star_5", "play_topics",
+                    "sentiment_score", "positive_review_ratio", "cycle_timestamp", "is_stale",
+                )},
+            }
+            if source != "ios_app_store":
+                row["downloads"] = entry.get("downloads")
+                row["downloads_raw"] = entry.get("downloads_raw")
+            app_rows.append(row)
+        if "google_search" in wanted or "google_reviews" in wanted:
+            entry = google.get(slug) or {}
+            google_rows.append({
+                "operator_id": op["id"],
+                "operator_name": op["name"],
+                "operator_slug": slug,
+                "collection_date": day,
+                **{k: entry.get(k) for k in (
+                    "overall_rating", "review_count", "star_1", "star_2", "star_3", "star_4", "star_5",
+                    "sentiment_score", "positive_review_ratio", "cycle_timestamp", "is_stale",
+                )},
+            })
+    upsert_app_store_rows(app_rows)
+    upsert_google_rows(google_rows)
+    return load_daily_snapshots()
+
+
+def bootstrap(
+    *,
+    skip_redbus: bool = False,
+    skip_google: bool = False,
+    sources: Iterable[str] | None = None,
+) -> None:
+    """Fetch live store metrics. ``sources`` limits the scrape (partial sync)."""
+    wanted = set(sources) if sources else None
+    do_gp = wanted is None or "google_play" in wanted
+    do_ios = wanted is None or "ios_app_store" in wanted
+    do_google = (wanted is None or "google_search" in wanted or "google_reviews" in wanted) and not skip_google
+    do_redbus = wanted is None and not skip_redbus
+
+    with _lock:
+        if LIVE_CACHE.get("status") != "loading" or not LIVE_CACHE.get("triggered_at"):
+            LIVE_CACHE["triggered_at"] = _now()
+        LIVE_CACHE["status"] = "loading"
+        LIVE_CACHE["last_error"] = None
+        LIVE_CACHE["stale_sources"] = []
+        LIVE_CACHE["sync_total"] = len(OPERATORS)
     app_ids = load_app_ids()
-    app_store: dict[str, dict[str, dict]] = {}
-    google: dict[str, dict] = {}
+
+    with _lock:
+        app_store = copy.deepcopy(LIVE_CACHE.get("app_store") or {})
+        google = copy.deepcopy(LIVE_CACHE.get("google_reviews") or {})
+        keep_redbus_cells = list(LIVE_CACHE.get("redbus_cells") or [])
+        keep_redbus_reviews = copy.deepcopy(LIVE_CACHE.get("redbus_reviews") or {})
+        keep_redbus_daily = list(LIVE_CACHE.get("redbus_daily_cells") or [])
+        keep_redbus_daily_rev = copy.deepcopy(LIVE_CACHE.get("redbus_daily_reviews") or {})
+        keep_redbus_tags = copy.deepcopy(LIVE_CACHE.get("redbus_tags") or {})
+
     top_reviews: list[dict] = []
     ready = 0
 
-    _set_phase("Fetching Google Play Store ratings…")
-    for op in OPERATORS:
-        slug = op["slug"]
-        app_store.setdefault(slug, {})
-        gp_id = app_ids.get(slug, {}).get("google_play")
-        if not gp_id:
-            app_store[slug]["google_play"] = {
-                "overall_rating": None, "review_count": None, "reviews": [],
-                "sentiment_score": None, "positive_review_ratio": None,
-                "is_stale": False, "cycle_timestamp": _now(), "app_absent": True,
-            }
-        else:
-            try:
-                raw = fetch_google_play(gp_id)
-                app_store[slug]["google_play"] = validate_app_store_entry(
-                    raw, ios_app_id=None, source="google_play",
-                )
-                print(f"    GP {op['name']}: {raw.get('overall_rating')} ({raw.get('review_count')} reviews)")
-            except Exception as exc:
-                LIVE_CACHE["last_error"] = str(exc)
-                logger.error("gp_fetch_failed %s, using mock fallback: %s", slug, exc)
-                raw = get_mock_app_store_entry(slug, "google_play")
-                app_store[slug]["google_play"] = validate_app_store_entry(
-                    raw, ios_app_id=None, source="google_play",
-                )
+    if do_gp:
+        total_ops = len(OPERATORS)
+        _set_phase("Fetching Google Play Store ratings…")
+        for idx, op in enumerate(OPERATORS, start=1):
+            slug = op["slug"]
+            _set_sync_progress(
+                channel="google_play",
+                current=idx - 1,
+                total=total_ops,
+                operator=op["name"],
+                phase=f"Google Play: {op['name']} ({idx}/{total_ops})",
+            )
+            app_store.setdefault(slug, {})
+            gp_id = app_ids.get(slug, {}).get("google_play")
+            if not gp_id:
+                app_store[slug]["google_play"] = {
+                    "overall_rating": None, "review_count": None, "reviews": [],
+                    "sentiment_score": None, "positive_review_ratio": None,
+                    "is_stale": False, "cycle_timestamp": _now(), "app_absent": True,
+                }
+            else:
+                try:
+                    raw = fetch_google_play(gp_id)
+                    app_store[slug]["google_play"] = validate_app_store_entry(
+                        raw, ios_app_id=None, source="google_play",
+                    )
+                    print(f"    GP {op['name']}: {raw.get('overall_rating')} ({raw.get('review_count')} reviews)")
+                except Exception as exc:
+                    LIVE_CACHE["last_error"] = str(exc)
+                    logger.error("gp_fetch_failed %s, using mock fallback: %s", slug, exc)
+                    raw = get_mock_app_store_entry(slug, "google_play")
+                    fallback = validate_app_store_entry(
+                        raw, ios_app_id=None, source="google_play",
+                    )
+                    fallback["is_stale"] = True
+                    app_store[slug]["google_play"] = fallback
+            ready += 1
+            _set_sync_progress(
+                channel="google_play",
+                current=idx,
+                total=total_ops,
+                operator=op["name"],
+                phase=f"Google Play: saved {op['name']} ({idx}/{total_ops})",
+            )
 
-    _set_phase("Fetching Apple App Store ratings (iTunes Lookup)…")
-    for op in OPERATORS:
-        slug = op["slug"]
-        ios_id = app_ids.get(slug, {}).get("ios_app_store")
-        if not ios_id:
-            app_store[slug]["ios_app_store"] = {
-                "overall_rating": None, "review_count": None, "reviews": [],
-                "sentiment_score": None, "positive_review_ratio": None,
-                "is_stale": False, "cycle_timestamp": _now(), "app_absent": True,
-            }
-            print(f"    iOS {op['name']}: No app on App Store")
-        else:
-            try:
-                raw = fetch_ios(str(ios_id), slug)
-                validated = validate_app_store_entry(
-                    raw, ios_app_id=str(ios_id), source="ios_app_store",
-                )
-                # If live fetch returned null rating, use mock fallback
-                if validated.get("overall_rating") is None:
-                    logger.warning("ios_null_rating %s, using mock fallback", slug)
-                    raw = get_mock_app_store_entry(slug, "ios_app_store")
+    if do_ios:
+        total_ops = len(OPERATORS)
+        _set_phase("Fetching Apple App Store ratings (iTunes Lookup)…")
+        for idx, op in enumerate(OPERATORS, start=1):
+            slug = op["slug"]
+            _set_sync_progress(
+                channel="ios_app_store",
+                current=idx - 1,
+                total=total_ops,
+                operator=op["name"],
+                phase=f"Apple App Store: {op['name']} ({idx}/{total_ops})",
+            )
+            app_store.setdefault(slug, {})
+            ios_id = app_ids.get(slug, {}).get("ios_app_store")
+            if not ios_id:
+                app_store[slug]["ios_app_store"] = {
+                    "overall_rating": None, "review_count": None, "reviews": [],
+                    "sentiment_score": None, "positive_review_ratio": None,
+                    "is_stale": False, "cycle_timestamp": _now(), "app_absent": True,
+                }
+                print(f"    iOS {op['name']}: No app on App Store")
+            else:
+                try:
+                    raw = fetch_ios(str(ios_id), slug)
                     validated = validate_app_store_entry(
                         raw, ios_app_id=str(ios_id), source="ios_app_store",
                     )
-                app_store[slug]["ios_app_store"] = validated
-                print(f"    iOS {op['name']}: {validated.get('overall_rating')} ({validated.get('review_count')} reviews)")
-            except Exception as exc:
-                LIVE_CACHE["last_error"] = str(exc)
-                logger.error("ios_fetch_failed %s, using mock fallback: %s", slug, exc)
-                raw = get_mock_app_store_entry(slug, "ios_app_store")
-                app_store[slug]["ios_app_store"] = validate_app_store_entry(
-                    raw, ios_app_id=str(ios_id), source="ios_app_store",
-                )
-        ready += 1
-        LIVE_CACHE["operators_ready"] = ready
+                    if validated.get("overall_rating") is None:
+                        logger.warning("ios_null_rating %s, using mock fallback", slug)
+                        raw = get_mock_app_store_entry(slug, "ios_app_store")
+                        validated = validate_app_store_entry(
+                            raw, ios_app_id=str(ios_id), source="ios_app_store",
+                        )
+                    app_store[slug]["ios_app_store"] = validated
+                    print(f"    iOS {op['name']}: {validated.get('overall_rating')} ({validated.get('review_count')} reviews)")
+                except Exception as exc:
+                    LIVE_CACHE["last_error"] = str(exc)
+                    logger.error("ios_fetch_failed %s, using mock fallback: %s", slug, exc)
+                    raw = get_mock_app_store_entry(slug, "ios_app_store")
+                    app_store[slug]["ios_app_store"] = validate_app_store_entry(
+                        raw, ios_app_id=str(ios_id), source="ios_app_store",
+                    )
+            ready += 1
+            _set_sync_progress(
+                channel="ios_app_store",
+                current=idx,
+                total=total_ops,
+                operator=op["name"],
+                phase=f"Apple App Store: saved {op['name']} ({idx}/{total_ops})",
+            )
 
-    if not skip_google:
+    if do_google:
+        total_ops = len(OPERATORS)
         _set_phase("Fetching Google Search reviews…")
-        for op in OPERATORS:
+        for idx, op in enumerate(OPERATORS, start=1):
             slug = op["slug"]
+            _set_sync_progress(
+                channel="google_search",
+                current=idx - 1,
+                total=total_ops,
+                operator=op["name"],
+                phase=f"Google Search: {op['name']} ({idx}/{total_ops})",
+            )
+            prev = dict(google.get(slug) or {})
             try:
                 raw = fetch_google_search(slug)
-                google[slug] = {
+                incoming = {
                     **raw,
                     "overall_rating": validate_rating(raw.get("overall_rating")),
                     "review_count": validate_review_count(raw.get("review_count")),
                     "sentiment_score": validate_sentiment(raw.get("sentiment_score")),
                 }
-                print(f"    Google {op['name']}: {google[slug].get('overall_rating')}")
+                if incoming.get("overall_rating") is None and prev.get("overall_rating") is not None:
+                    google[slug] = {**prev, "is_stale": True, "cycle_timestamp": _now()}
+                    print(f"    Google {op['name']}: scrape empty, kept previous {prev.get('overall_rating')}")
+                else:
+                    google[slug] = incoming
+                    print(f"    Google {op['name']}: {google[slug].get('overall_rating')} ({google[slug].get('review_count')} reviews)")
             except Exception as exc:
                 LIVE_CACHE["last_error"] = str(exc)
-                google[slug] = {
-                    "overall_rating": None, "review_count": None, "reviews": [],
-                    "sentiment_score": None, "positive_review_ratio": None,
-                    "is_stale": True, "cycle_timestamp": _now(),
-                }
+                if prev.get("overall_rating") is not None:
+                    google[slug] = {**prev, "is_stale": True, "cycle_timestamp": _now()}
+                    print(f"    Google {op['name']}: scrape failed, kept previous {prev.get('overall_rating')}")
+                else:
+                    google[slug] = {
+                        "overall_rating": None, "review_count": None, "reviews": [],
+                        "sentiment_score": None, "positive_review_ratio": None,
+                        "is_stale": True, "cycle_timestamp": _now(),
+                    }
                 LIVE_CACHE["stale_sources"].append(f"google:{slug}")
                 logger.error("google_fetch_failed %s: %s", slug, exc)
-    else:
+            _set_sync_progress(
+                channel="google_search",
+                current=idx,
+                total=total_ops,
+                operator=op["name"],
+                phase=f"Google Search: saved {op['name']} ({idx}/{total_ops})",
+            )
+    elif wanted is None and skip_google:
         mock_ratings = {
             "freshbus": {"rating": 4.6, "count": 1420, "sentiment": 0.8},
             "neugo": {"rating": 4.4, "count": 980, "sentiment": 0.7},
@@ -1100,10 +1308,11 @@ def bootstrap(*, skip_redbus: bool = False, skip_google: bool = False) -> None:
             "zingbus": {"rating": 4.1, "count": 1780, "sentiment": 0.55},
             "yolobus": {"rating": 4.1, "count": 420, "sentiment": 0.52},
             "intrcity": {"rating": 4.2, "count": 2900, "sentiment": 0.6},
+            "leafybus": {"rating": 2.6, "count": 15, "sentiment": 0.2},
         }
         for op in OPERATORS:
             slug = op["slug"]
-            info = mock_ratings[slug]
+            info = mock_ratings.get(slug, {"rating": 4.0, "count": 100, "sentiment": 0.5})
             google[slug] = {
                 "overall_rating": info["rating"],
                 "review_count": info["count"],
@@ -1118,10 +1327,28 @@ def bootstrap(*, skip_redbus: bool = False, skip_google: bool = False) -> None:
                 "cycle_timestamp": _now(),
             }
 
-    _set_phase("Fetching Redbus reviews…" if not skip_redbus else "Skipping Redbus (use without --skip-redbus to fetch)")
-    redbus_cells, redbus_review_texts = fetch_redbus_cells(skip_redbus)
+    if do_redbus:
+        _set_phase("Fetching Redbus reviews…")
+        redbus_cells, redbus_review_texts = fetch_redbus_cells(False)
+        flattened_rb_reviews = {}
+        for slug, r_dict in redbus_review_texts.items():
+            flattened_rb_reviews[slug] = []
+            for texts in r_dict.values():
+                flattened_rb_reviews[slug].extend(texts)
+        redbus_tags = _build_tag_data(flattened_rb_reviews)
+        redbus_daily_cells, redbus_daily_reviews = _expand_redbus_daily_history(
+            redbus_cells, redbus_review_texts,
+        )
+        if redbus_daily_cells:
+            redbus_cells = _latest_redbus_day_cells(redbus_daily_cells)
+    else:
+        _set_phase("Keeping existing Redbus snapshots…")
+        redbus_cells = keep_redbus_cells
+        redbus_review_texts = keep_redbus_reviews
+        redbus_tags = keep_redbus_tags
+        redbus_daily_cells = keep_redbus_daily
+        redbus_daily_reviews = keep_redbus_daily_rev
 
-    # Build top reviews from live data
     for op in OPERATORS:
         slug = op["slug"]
         for source_key, store_key in [("google_play", "google_play"), ("ios_app_store", "ios_app_store")]:
@@ -1154,20 +1381,14 @@ def bootstrap(*, skip_redbus: bool = False, skip_google: bool = False) -> None:
                 "top_negative": [{"text": r["text"], "score": -0.7} for r in gr_revs[-3:]],
             })
 
-    # Flatten nested review texts for _build_tag_data
-    flattened_rb_reviews = {}
-    for slug, r_dict in redbus_review_texts.items():
-        flattened_rb_reviews[slug] = []
-        for r_id, texts in r_dict.items():
-            flattened_rb_reviews[slug].extend(texts)
-
-    redbus_tags = _build_tag_data(flattened_rb_reviews)
-    redbus_daily_cells, redbus_daily_reviews = _expand_redbus_daily_history(
-        redbus_cells,
-        redbus_review_texts,
-    )
-    if redbus_daily_cells:
-        redbus_cells = _latest_redbus_day_cells(redbus_daily_cells)
+    persist_sources = wanted or {"google_play", "ios_app_store", "google_search"}
+    if do_gp or do_ios or do_google:
+        daily_snapshots = persist_store_snapshots(
+            app_store, google, sources=persist_sources,
+        )
+    else:
+        from aggregator.peer_store_db import load_daily_snapshots
+        daily_snapshots = load_daily_snapshots()
 
     history = _build_history(app_store, google)
     review_classification = _build_all_review_classifications(app_store, google)
@@ -1186,9 +1407,11 @@ def bootstrap(*, skip_redbus: bool = False, skip_google: bool = False) -> None:
             "review_classification": review_classification,
             "history": history,
             "top_reviews": top_reviews,
+            "daily_snapshots": daily_snapshots,
             "completed_at": _now(),
             "operators_ready": len(OPERATORS),
-            "stale_sources": [],
+            "sync_percent": 100,
+            "sync_current": LIVE_CACHE.get("sync_total") or len(OPERATORS),
         })
 
     save_cache_to_disk()

@@ -28,6 +28,7 @@ from aggregator.live_bootstrap import (
     LIVE_CACHE,
     OPERATORS,
     ROUTES,
+    begin_store_sync,
     bootstrap,
     get_cache,
     load_cache_from_disk,
@@ -169,7 +170,10 @@ def metrics_app_store():
                 continue
             downloads = entry.get("downloads")
             downloads_raw = entry.get("downloads_raw")
-            if downloads_raw is None:
+            if source == "ios_app_store":
+                downloads = None
+                downloads_raw = None
+            elif downloads_raw is None:
                 downloads_raw = _downloads_raw(downloads)
 
             has_stars = any(entry.get(f"star_{i}") for i in range(1, 6))
@@ -232,7 +236,7 @@ def metrics_google_reviews(
             "star_3": entry.get("star_3"),
             "star_4": entry.get("star_4"),
             "star_5": entry.get("star_5"),
-            "collection_date": (entry.get("cycle_timestamp") or c.get("completed_at") or "")[:10] or None,
+            "collection_date": entry.get("collection_date") or (entry.get("cycle_timestamp") or c.get("completed_at") or "")[:10] or None,
             "cycle_timestamp": entry.get("cycle_timestamp") or c.get("completed_at"),
             "is_stale": entry.get("is_stale", False),
         })
@@ -439,6 +443,9 @@ def get_redbus_srp(
         duration = row["duration"]
         final_fare = row["final_fare"]
         tags_raw = row["tags"] if "tags" in row.keys() else None
+        occupancy = row["occupancy_pct"] if "occupancy_pct" in row.keys() else None
+        seats_available = row["seats_available"] if "seats_available" in row.keys() else None
+        seat_capacity = row["seat_capacity"] if "seat_capacity" in row.keys() else None
 
         tags_list = []
         if tags_raw:
@@ -446,6 +453,15 @@ def get_redbus_srp(
                 tags_list = json.loads(tags_raw)
             except Exception:
                 tags_list = []
+
+        occ_val = None
+        try:
+            if occupancy is not None and occupancy != "":
+                occ_val = float(occupancy)
+                if occ_val != occ_val:  # NaN
+                    occ_val = None
+        except (TypeError, ValueError):
+            occ_val = None
 
         service_id = (r_name, op_name, timing)
         if service_id not in services:
@@ -467,16 +483,29 @@ def get_redbus_srp(
                 "rating": rating or "4.3",
                 "reviews": reviews or "12",
                 "tags": tags_list,
+                "seats_available": seats_available,
+                "seat_capacity": seat_capacity,
+                "occupancy_vals": [],
                 "dates": {}
             }
             service_key_counter += 1
-        elif tags_list and not services[service_id]["tags"]:
-            services[service_id]["tags"] = tags_list
+        else:
+            if tags_list and not services[service_id]["tags"]:
+                services[service_id]["tags"] = tags_list
+            if seats_available is not None:
+                services[service_id]["seats_available"] = seats_available
+            if seat_capacity is not None:
+                services[service_id]["seat_capacity"] = seat_capacity
+
+        if occ_val is not None:
+            services[service_id]["occupancy_vals"].append(occ_val)
 
         services[service_id]["dates"][travel_date] = srp_rank
 
     output = []
     for s_id, s_data in services.items():
+        occ_vals = s_data.get("occupancy_vals") or []
+        occupancy_pct = round(sum(occ_vals) / len(occ_vals), 1) if occ_vals else None
         row_dict = {
             "route": s_data["route"],
             "operator": s_id[1],
@@ -489,6 +518,9 @@ def get_redbus_srp(
             "duration": s_data["duration"],
             "price": s_data.get("price"),
             "tags": s_data.get("tags", []),
+            "seats_available": s_data.get("seats_available"),
+            "seat_capacity": s_data.get("seat_capacity"),
+            "occupancy_pct": occupancy_pct,
             "snapshots": s_data["dates"],
         }
         for date_str, rank in s_data["dates"].items():
@@ -551,8 +583,16 @@ def daily_snapshots():
     import json as _json
 
     cached = _cache().get("daily_snapshots")
-    if cached:
+    if cached and (cached.get("app_store") or cached.get("google_reviews")):
         return cached
+
+    try:
+        from aggregator.peer_store_db import load_daily_snapshots
+        from_disk = load_daily_snapshots()
+        if from_disk.get("app_store") or from_disk.get("google_reviews"):
+            return from_disk
+    except Exception:
+        pass
 
     static_path = Path(__file__).resolve().parent / "dashboard" / "public" / "api-static" / "daily-snapshots.json"
     if static_path.exists():
@@ -612,15 +652,27 @@ def history(source: str):
 @app.get("/api/v1/refresh/status")
 def refresh_status():
     c = _cache()
+    total = int(c.get("sync_total") or len(OPERATORS) or 7)
+    current = int(c.get("sync_current") or c.get("operators_ready") or 0)
+    percent = c.get("sync_percent")
+    if percent is None:
+        percent = int(round(100 * current / total)) if total else 0
+    running = bool(_refresh_running) or c.get("status") == "loading"
     return {
         "cycle_id": 1,
         "status": c.get("status", "loading"),
+        "running": running,
         "fetch_phase": c.get("fetch_phase"),
         "operators_ready": c.get("operators_ready", 0),
         "last_error": c.get("last_error"),
         "triggered_at": c.get("triggered_at"),
         "completed_at": c.get("completed_at"),
         "stale_sources": c.get("stale_sources", []),
+        "sync_channel": c.get("sync_channel"),
+        "sync_operator": c.get("sync_operator") or "",
+        "sync_current": current,
+        "sync_total": total,
+        "sync_percent": min(100, int(percent)),
     }
 
 
@@ -713,25 +765,55 @@ def refresh_redbus(collection_date: Optional[str] = Query(None), force: bool = Q
 
 
 @app.post("/api/v1/refresh/trigger")
-def trigger_refresh():
+def trigger_refresh(source: Optional[str] = Query(None)):
+    """Scrape Play / iOS / Google Search. Last sync of the IST day overwrites that day's row."""
     global _refresh_running
     if _refresh_running or LIVE_CACHE.get("status") == "loading":
-        return {"message": "Refresh already in progress — please wait."}
+        raise HTTPException(
+            status_code=409,
+            detail="A sync is already running. Watch the progress bar, then try again.",
+        )
 
     skip_redbus = os.getenv("SKIP_REDBUS", "0") == "1"
     skip_google = os.getenv("SKIP_GOOGLE", "0") == "1"
+    source_map = {
+        "google_play": ["google_play"],
+        "ios_app_store": ["ios_app_store"],
+        "google_search": ["google_search"],
+        "google_reviews": ["google_search"],
+    }
+    sources = source_map.get(source) if source else None
+    if source and sources is None:
+        raise HTTPException(status_code=400, detail=f"Unknown source: {source}")
+
+    triggered_at = begin_store_sync(source or "all")
+    _refresh_running = True
 
     def _run():
         global _refresh_running
-        _refresh_running = True
         try:
-            bootstrap(skip_redbus=skip_redbus, skip_google=skip_google)
+            if sources:
+                bootstrap(skip_redbus=True, skip_google=False, sources=sources)
+            else:
+                bootstrap(skip_redbus=skip_redbus, skip_google=skip_google)
+        except Exception as exc:
+            LIVE_CACHE["status"] = "failed"
+            LIVE_CACHE["last_error"] = str(exc)
+            LIVE_CACHE["fetch_phase"] = "failed"
+            raise
         finally:
             _refresh_running = False
 
     import threading
     threading.Thread(target=_run, daemon=True).start()
-    return {"message": "Full data refresh started — may take several minutes."}
+    return {
+        "message": "Sync started — today's snapshot will be replaced with the latest scrape.",
+        "source_filter": source,
+        "mode": "daily_upsert",
+        "status": "started",
+        "triggered_at": triggered_at,
+        "sync_total": len(OPERATORS),
+    }
 
 
 @app.get("/api/v1/export")

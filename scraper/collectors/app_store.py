@@ -193,7 +193,7 @@ class AppStoreCollector:
     # Public API
     # ------------------------------------------------------------------
 
-    def collect_all(self) -> dict:
+    def collect_all(self, stores: list[str] | None = None) -> dict:
         """Collect app store data for every operator on both stores.
 
         Enforces a 60-minute wall-clock SLA.  If the collection overruns the
@@ -222,7 +222,8 @@ class AppStoreCollector:
         try:
             with timeout_ctx:
                 for operator_slug, app_ids in OPERATOR_APP_IDS.items():
-                    for source in (GOOGLE_PLAY, IOS_APP_STORE):
+                    store_list = stores or [GOOGLE_PLAY, IOS_APP_STORE]
+                    for source in store_list:
                         # Windows: check timer flag between iterations
                         if isinstance(timeout_ctx, _ThreadingTimerContext):
                             timeout_ctx.check()

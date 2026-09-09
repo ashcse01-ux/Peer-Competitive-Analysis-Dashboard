@@ -108,10 +108,20 @@ export interface TopReviewGroup {
 }
 
 export interface RefreshStatus {
-  cycle_id: number; status: string; fetch_phase: string | null
-  operators_ready: number; last_error: string | null
-  triggered_at: string | null; completed_at: string | null
+  cycle_id: number
+  status: string
+  running?: boolean
+  fetch_phase: string | null
+  operators_ready: number
+  last_error: string | null
+  triggered_at: string | null
+  completed_at: string | null
   stale_sources: string[]
+  sync_channel?: string | null
+  sync_operator?: string
+  sync_current?: number
+  sync_total?: number
+  sync_percent?: number
 }
 
 export interface RedbusTag {
@@ -232,7 +242,18 @@ export const fetch = {
     () => http.get<DailySnapshotsResponse>('/api/v1/metrics/daily-snapshots').then(r => r.data),
     'daily-snapshots.json'
   ),
-  triggerRefresh: () => http.post<{ message: string }>('/api/v1/refresh/trigger').then(r => r.data),
+  triggerRefresh: (source?: string) =>
+    http.post<{
+      message: string
+      source_filter?: string | null
+      status?: string
+      triggered_at?: string
+      sync_total?: number
+    }>(
+      '/api/v1/refresh/trigger',
+      null,
+      { params: source ? { source } : {} },
+    ).then(r => r.data),
   triggerRedbusRefresh: (collectionDate: string) =>
     http.post<{ message: string; collection_date: string }>(
       '/api/v1/refresh/redbus',
@@ -354,9 +375,9 @@ export function useTriggerRedbusRefresh() {
 export function useTriggerRefresh() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: fetch.triggerRefresh,
+    mutationFn: (source?: string) => fetch.triggerRefresh(source),
     onSuccess: () => {
-      queryClient.invalidateQueries()
+      queryClient.invalidateQueries({ queryKey: ['refresh-status'] })
     },
   })
 }

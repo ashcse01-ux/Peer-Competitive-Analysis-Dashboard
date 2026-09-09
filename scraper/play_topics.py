@@ -133,6 +133,43 @@ def normalize_histogram(histogram: Any) -> dict[str, int | None]:
     return out
 
 
+def estimate_star_histogram(rating: Any, n: Any) -> dict[str, int | None]:
+    """Approximate 1–5★ counts from overall rating and review volume."""
+    try:
+        count = max(0, int(n or 0))
+    except (TypeError, ValueError):
+        count = 0
+    empty = {f"star_{i}": None for i in range(1, 6)}
+    if not count:
+        return empty
+    try:
+        score = float(rating)
+    except (TypeError, ValueError):
+        return empty
+    if not 1.0 <= score <= 5.0:
+        return empty
+    bias = max(0.0, min(1.0, (score - 1.0) / 4.0))
+    low = [0.2, 0.18, 0.22, 0.22, 0.18]
+    high = [0.02, 0.03, 0.08, 0.22, 0.65]
+    weights = [w * (1 - bias) + high[i] * bias for i, w in enumerate(low)]
+    total = sum(weights) or 1.0
+    stars = [round(count * (w / total)) for w in weights]
+    stars[4] = max(0, count - sum(stars[:4]))
+    return {f"star_{i + 1}": stars[i] for i in range(5)}
+
+
+def histogram_sum(hist: dict[str, Any] | None) -> int:
+    if not hist:
+        return 0
+    total = 0
+    for i in range(1, 6):
+        try:
+            total += int(hist.get(f"star_{i}") or 0)
+        except (TypeError, ValueError):
+            continue
+    return total
+
+
 def histogram_from_reviews(reviews: list[dict]) -> dict[str, int | None]:
     """Build star histogram from a list of review dicts with star_rating."""
     counts = [0, 0, 0, 0, 0]

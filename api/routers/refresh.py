@@ -60,6 +60,7 @@ def trigger_refresh(
         orch = RefreshOrchestrator(
             db_connection_factory=get_session,
             trigger_type="manual",
+            source_filter=source,
         )
         orch.run()
 

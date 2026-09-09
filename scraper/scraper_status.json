@@ -1,18 +1,11 @@
 {
   "status": "running",
-  "step": "parsing",
+  "step": "scraping",
   "completed_routes": 0,
   "total_routes": 24,
-  "current_route": "",
+  "current_route": "Starting fresh sync...",
   "logs": [
-    "\ud83d\ude80 Starting Redbus scraper for date: 09-Sep-2026 (24 routes)",
-    "[1/24] Scraping route: Vijayawada \u2192 Visakhapatnam...",
-    "[1/24] \u2705 Scraped Vijayawada \u2192 Visakhapatnam",
-    "[2/24] Scraping route: Visakhapatnam \u2192 Vijayawada...",
-    "[2/24] \u2705 Scraped Visakhapatnam \u2192 Vijayawada",
-    "[3/24] Scraping route: Vijayawada \u2192 Hyderabad...",
-    "\u26a0\ufe0f Scraping interrupted by user",
-    "\u26a1 Parsing HTML files into database..."
+    "\ud83d\ude80 Starting fresh scraper sync for all 24 routes..."
   ],
-  "updated_at": "2026-09-08T14:11:31.254818"
+  "updated_at": "2026-09-08T13:31:23.252318+00:00"
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { addDaysIso, todayIso } from '../lib/periodPresets'
+import { addDaysIso, syncStatusLine, todayIso } from '../lib/periodPresets'
 import { cx } from '../lib/insights'
 import SyncProgressModal from './SyncProgressModal'
 import { fetch as apiFetch, type RedbusSrpSyncStatus } from '../api'

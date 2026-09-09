@@ -48,9 +48,11 @@ class RefreshOrchestrator:
         self,
         db_connection_factory: Any,
         trigger_type: str = "scheduled",
+        source_filter: str | None = None,
     ) -> None:
         self._db_factory = db_connection_factory
         self.trigger_type = trigger_type
+        self.source_filter = source_filter
 
     # ------------------------------------------------------------------
     # Public API
@@ -131,25 +133,32 @@ class RefreshOrchestrator:
 
         stale: list[str] = []
 
-        # App store
-        app_result = AppStoreCollector(db_connection=conn).collect_all()
-        stale.extend(app_result.get("stale_operators", []))
+        filt = self.source_filter
+        run_stores = filt in (None, "google_play", "ios_app_store")
+        run_google = filt in (None, "google_search", "google_reviews")
+        run_redbus = filt is None
 
-        # Google reviews
-        google_result = GoogleReviewsCollector(db_connection=conn).collect_all()
-        stale.extend(
-            [f"google:{s}" for s in google_result.get("stale_operators", [])]
-        )
+        if run_stores:
+            app_result = AppStoreCollector(db_connection=conn).collect_all(
+                stores=None if filt is None else [filt],
+            )
+            stale.extend(app_result.get("stale_operators", []))
 
-        # Redbus
-        try:
-            redbus_result = RedbusCollector(db_connection=conn).collect_all()
-            stale_count = redbus_result.get("stale", 0)
-            if stale_count:
-                stale.append(f"redbus:{stale_count}_combinations_stale")
-        except CaptchaDetected:
-            logger.warning("refresh_redbus_captcha_paused")
-            stale.append("redbus:captcha_detected")
+        if run_google:
+            google_result = GoogleReviewsCollector(db_connection=conn).collect_all()
+            stale.extend(
+                [f"google:{s}" for s in google_result.get("stale_operators", [])]
+            )
+
+        if run_redbus:
+            try:
+                redbus_result = RedbusCollector(db_connection=conn).collect_all()
+                stale_count = redbus_result.get("stale", 0)
+                if stale_count:
+                    stale.append(f"redbus:{stale_count}_combinations_stale")
+            except CaptchaDetected:
+                logger.warning("refresh_redbus_captcha_paused")
+                stale.append("redbus:captcha_detected")
 
         return stale
 

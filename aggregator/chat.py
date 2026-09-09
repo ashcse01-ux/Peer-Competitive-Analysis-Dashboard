@@ -32,6 +32,8 @@ def handle_chat_query(query: str, cache_data: dict[str, Any]) -> str:
             operators_found.append(next(o for o in OPERATORS if o["slug"] == "flixbus"))
         if "yolobus" in query_clean:
             operators_found.append(next(o for o in OPERATORS if o["slug"] == "yolobus"))
+        if "leafy" in query_clean:
+            operators_found.append(next(o for o in OPERATORS if o["slug"] == "leafybus"))
 
     # Intent detection
     is_best_query = any(w in query_clean for w in ["best", "excel", "strength", "good at", "strongest", "top", "leader", "advantage"])
@@ -70,7 +72,6 @@ def handle_chat_query(query: str, cache_data: dict[str, Any]) -> str:
     gr_rating = gr_entry.get("overall_rating")
     
     gp_downloads = gp_entry.get("downloads") or "N/A"
-    ios_downloads = ios_entry.get("downloads") or "N/A"
 
     # Compile topic classification scores (across all three sources: google_play, ios_app_store, google_reviews)
     review_classification = cache_data.get("review_classification") or {}
@@ -248,7 +249,7 @@ def handle_chat_query(query: str, cache_data: dict[str, Any]) -> str:
         return (
             f"### 📱 **Ratings & App Store Metrics for {name}**\n\n"
             f"- **Google Play Store:** ⭐ **{gp_rating or 'N/A'}** (with **{gp_downloads}** downloads)\n"
-            f"- **iOS App Store:** ⭐ **{ios_rating or 'N/A'}** (with **{ios_downloads}** downloads)\n"
+            f"- **iOS App Store:** ⭐ **{ios_rating or 'N/A'}**\n"
             f"- **Google Search Reviews:** ⭐ **{gr_rating or 'N/A'}**\n"
             f"- **Redbus Sentiment:** **{rb_op_data.get('composite_tag_score', 'N/A') if rb_op_data else 'N/A'}**\n"
         )

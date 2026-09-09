@@ -5,6 +5,7 @@ export const OPERATOR_COLOR_MAP: Record<string, string> = {
   zingbus: '#7c3aed',
   yolobus: '#7c3aed',
   intrcity: '#d97706',
+  leafybus: '#16a34a',
 }
 
 export const OPERATOR_COLORS = Object.values(OPERATOR_COLOR_MAP)
@@ -36,6 +37,7 @@ const NAME_TO_SLUG: Record<string, string> = {
   Zingbus: 'zingbus',
   YoloBus: 'yolobus',
   'IntrCity SmartBus': 'intrcity',
+  LeafyBus: 'leafybus',
 }
 
 export function operatorColor(slug: string): string {
@@ -190,25 +192,6 @@ function formatSnapshotTime(iso: string): string {
     hour: 'numeric',
     minute: '2-digit',
   })
-}
-
-/** Y-axis label for install counts (50K, 1L, 1.5L, …). */
-export function formatIndianInstallAxis(value: number): string {
-  if (value >= 100_000) {
-    const lakhs = value / 100_000
-    const rounded = Math.round(lakhs * 10) / 10
-    return Number.isInteger(rounded) ? `${rounded}L` : `${rounded}L`
-  }
-  if (value >= 1_000) return `${Math.round(value / 1_000)}K`
-  return String(value)
-}
-
-/** 50K steps from 50K up to at least `minTop` or data max (for iOS download chart). */
-export function indianDownloadAxis(maxDownloads: number, minTop = 350_000) {
-  const top = Math.max(minTop, Math.ceil(maxDownloads / 50_000) * 50_000)
-  const ticks: number[] = []
-  for (let v = 50_000; v <= top; v += 50_000) ticks.push(v)
-  return { domain: [0, top] as [number, number], ticks }
 }
 
 export function pct(value: number | null | undefined, digits = 0) {

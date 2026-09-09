@@ -21,6 +21,7 @@ Responsibilities (tasks 4.1 – 4.6):
 
 from __future__ import annotations
 
+import re
 import random
 import threading
 import time
@@ -50,21 +51,61 @@ __all__ = ["GoogleReviewsCollector", "OPERATOR_SEARCH_NAMES"]
 # Operator search names (task 4.1)
 # ---------------------------------------------------------------------------
 OPERATOR_SEARCH_NAMES: dict[str, str] = {
-    "freshbus": "FreshBus",
-    "neugo": "Neugo",
-    "flixbus": "FlixBus",
-    "zingbus": "Zingbus",
-    "yolobus": "YoloBus",
+    "freshbus": "Fresh Bus Private Limited",
+    "neugo": "NueGo Greencell Express bus company",
+    "flixbus": "FlixBus India bus company",
+    "zingbus": "zingbus transportation service Gurugram",
+    "yolobus": "YOLO bus company Nanakramguda Hyderabad",
     "intrcity": "IntrCity SmartBus",
+    "leafybus": "LeafyBus LEAFYMOBILITY Private Limited",
 }
 
-# SLA constants
+OPERATOR_SEARCH_URLS: dict[str, str] = {
+    "freshbus": "https://www.google.com/search?q=Fresh+Bus+Private+Limited+Reviews&hl=en&gl=in",
+    "zingbus": "https://www.google.com/search?q=Zingbus+google+reviews&hl=en&gl=in",
+    "flixbus": "https://www.google.com/search?q=FlixBus+India+reviews&hl=en&gl=in",
+    "intrcity": "https://www.google.com/search?q=IntrCity+SmartBus+reviews&hl=en&gl=in",
+    "neugo": "https://www.google.com/search?q=NueGo+electric+bus+company+reviews&hl=en&gl=in",
+    "yolobus": "https://www.google.com/search?q=YOLO+bus+company+Hyderabad+reviews&hl=en&gl=in",
+    "leafybus": "https://www.google.com/search?q=LeafyBus+LEAFYMOBILITY+reviews&hl=en&gl=in",
+}
+
+OPERATOR_MAPS_URLS: dict[str, str] = {
+    "freshbus": "https://www.google.com/maps/search/Fresh+Bus+Private+Limited",
+    "zingbus": "https://www.google.com/maps/search/zingbus+Gurugram",
+    "flixbus": "https://www.google.com/maps/search/FlixBus+India",
+    "intrcity": "https://www.google.com/maps/search/IntrCity+SmartBus",
+    "neugo": "https://www.google.com/maps/search/NueGo+bus",
+    "yolobus": "https://www.google.com/maps/search/YOLO+bus+Hyderabad",
+    "leafybus": "https://www.google.com/maps/search/LeafyBus",
+}
+
+_DESKTOP_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+_RATED_RE = re.compile(r"Rated\s+(\d(?:[.,]\d)?)\s+out of\s+5", re.I)
+_RATING_VALUE_RE = re.compile(r'"ratingValue"\s*:\s*"?(\d(?:\.\d)?)"?', re.I)
+_REVIEW_COUNT_JSON_RE = re.compile(r'"reviewCount"\s*:\s*"?(\d{2,})"?', re.I)
+_GOOGLE_REVIEWS_RE = re.compile(r"([\d,]+)\s+Google reviews", re.I)
+_REVIEWS_PAREN_RE = re.compile(r"(\d(?:[.,]\d)?)\s*\(([\d,]+)\s*reviews?\)", re.I)
+_STARS_LABEL_RE = re.compile(r"([1-5][.,]\d)\s+stars?", re.I)
+_REVIEWS_COUNT_LABEL_RE = re.compile(r"([\d,]+)\s+(?:Google\s+)?reviews", re.I)
+_MAPS_NULL_PAIR_RE = re.compile(r"\[null,([1-5]\.\d),(\d{2,})\]")
 SLA_SECONDS = 30 * 60  # 30 minutes
 MAX_REVIEWS = 50
 
 # Selectors for Knowledge Panel elements
-_RATING_SELECTORS = ["span.Aq14fc", "div.BHMmbe"]
+_RATING_SELECTORS = [
+    "span.Aq14fc",
+    "div.BHMmbe",
+    "div.F7nice span",
+    "[data-attrid='kc:/collection/knowledge_panels/local_reviewable:star_score'] span",
+    "span[aria-hidden='true'].yi40Hd",
+]
 _REVIEW_COUNT_SELECTOR = "span.hqzQac span"
+_REVIEW_COUNT_FALLBACKS = ["span.hqzQac", "a span.Y0A0hc", ".z5jxId"]
 _REVIEW_ITEM_SELECTORS = [
     "div.gws-localreviews__google-review",
     "div[data-review-id]",
@@ -72,6 +113,80 @@ _REVIEW_ITEM_SELECTORS = [
 ]
 
 logger = get_logger(__name__)
+
+
+def parse_google_rating_html(html: str) -> tuple[float | None, int | None]:
+    """Pull overall rating + review count from Search/Maps HTML."""
+    if not html:
+        return None, None
+    rating: float | None = None
+    count: int | None = None
+
+    rated = _RATED_RE.search(html)
+    if rated:
+        try:
+            rating = float(rated.group(1).replace(",", "."))
+        except ValueError:
+            rating = None
+
+    if rating is None:
+        m = _RATING_VALUE_RE.search(html)
+        if m:
+            try:
+                rating = float(m.group(1))
+            except ValueError:
+                rating = None
+
+    if rating is None:
+        m = _STARS_LABEL_RE.search(html)
+        if m:
+            try:
+                rating = float(m.group(1).replace(",", "."))
+            except ValueError:
+                rating = None
+
+    if rating is None or count is None:
+        m = _MAPS_NULL_PAIR_RE.search(html)
+        if m:
+            if rating is None:
+                try:
+                    rating = float(m.group(1))
+                except ValueError:
+                    pass
+            if count is None:
+                count = int(m.group(2))
+
+    paren = _REVIEWS_PAREN_RE.search(html)
+    if paren:
+        if rating is None:
+            try:
+                rating = float(paren.group(1).replace(",", "."))
+            except ValueError:
+                pass
+        digits = paren.group(2).replace(",", "")
+        if digits.isdigit():
+            count = int(digits)
+
+    if count is None:
+        m = _REVIEW_COUNT_JSON_RE.search(html)
+        if m:
+            count = int(m.group(1))
+    if count is None:
+        m = _GOOGLE_REVIEWS_RE.search(html)
+        if m:
+            digits = m.group(1).replace(",", "")
+            if digits.isdigit():
+                count = int(digits)
+    if count is None:
+        m = _REVIEWS_COUNT_LABEL_RE.search(html)
+        if m:
+            digits = m.group(1).replace(",", "")
+            if digits.isdigit() and int(digits) >= 10:
+                count = int(digits)
+
+    if rating is not None and not (1.0 <= rating <= 5.0):
+        rating = None
+    return rating, count
 
 
 # ---------------------------------------------------------------------------
@@ -322,22 +437,146 @@ class GoogleReviewsCollector:
 
         return _do_fetch()
 
+    def _dismiss_consent(self, page: Any) -> None:
+        for selector in (
+            'button#L2AGLb',
+            'button:has-text("Accept all")',
+            'button:has-text("I agree")',
+            'button:has-text("Accept")',
+        ):
+            try:
+                btn = page.query_selector(selector)
+                if btn:
+                    btn.click(timeout=1500)
+                    page.wait_for_timeout(400)
+                    return
+            except Exception:
+                continue
+
+    def _extract_from_page(self, page: Any, collected_at: datetime) -> dict:
+        overall_rating: float | None = None
+        review_count: int | None = None
+        reviews: list[dict] = []
+
+        try:
+            aria_payload = page.evaluate(
+                """() => {
+                  const labels = [...document.querySelectorAll('[aria-label]')]
+                    .map(e => e.getAttribute('aria-label') || '');
+                  const rated = labels.find(l => /Rated\\s+\\d/.test(l) || /\\d(?:[.,]\\d)?\\s+stars?/i.test(l)) || '';
+                  const count = labels.find(l => /\\d[\\d,]*\\s+(Google\\s+)?reviews/i.test(l)) || '';
+                  return { rated, count };
+                }"""
+            )
+            if aria_payload:
+                rated_text = aria_payload.get("rated") or ""
+                m = _RATED_RE.search(rated_text) or _STARS_LABEL_RE.search(rated_text)
+                if m:
+                    overall_rating = float(m.group(1).replace(",", "."))
+                cm = re.search(r"([\d,]+)", aria_payload.get("count") or "")
+                if cm:
+                    review_count = int(cm.group(1).replace(",", ""))
+        except Exception:
+            pass
+
+        html = page.content() or ""
+        html_rating, html_count = parse_google_rating_html(html)
+        if overall_rating is None:
+            overall_rating = html_rating
+        if review_count is None:
+            review_count = html_count
+
+        if overall_rating is None:
+            for selector in _RATING_SELECTORS + ["span.ceNzKf", "div.F7nice", "span.fontDisplayLarge"]:
+                el = page.query_selector(selector)
+                if not el:
+                    continue
+                raw = (el.get_attribute("aria-label") or el.inner_text() or "").strip()
+                m = re.search(r"(\d(?:[.,]\d)?)", raw)
+                if m:
+                    try:
+                        val = float(m.group(1).replace(",", "."))
+                    except ValueError:
+                        continue
+                    if 1.0 <= val <= 5.0:
+                        overall_rating = val
+                        break
+
+        if review_count is None:
+            for selector in [_REVIEW_COUNT_SELECTOR, *_REVIEW_COUNT_FALLBACKS, "span.F7nice span", "button[jsaction*='review']"]:
+                el = page.query_selector(selector)
+                if not el:
+                    continue
+                digits = "".join(c for c in (el.inner_text() or "") if c.isdigit())
+                if digits and len(digits) >= 2:
+                    review_count = int(digits)
+                    break
+
+        review_els = []
+        for selector in _REVIEW_ITEM_SELECTORS + ["div.MyEned", "span.wiI7pd", "div.OA1nbd"]:
+            review_els = page.query_selector_all(selector)
+            if review_els:
+                break
+        for el in review_els[:MAX_REVIEWS]:
+            try:
+                text_el = (
+                    el.query_selector("span[data-expandable-section]")
+                    or el.query_selector("div.Jtu6Td")
+                    or el.query_selector("span.review-full-text")
+                    or el.query_selector("span.wiI7pd")
+                    or el.query_selector("span")
+                )
+                review_text = text_el.inner_text().strip() if text_el else (el.inner_text() or "").strip()
+                star_el = el.query_selector("span[aria-label]")
+                star_rating: int | None = None
+                if star_el:
+                    aria = star_el.get_attribute("aria-label") or ""
+                    sm = re.search(r"Rated\s+([1-5])", aria, re.I) or re.search(
+                        r"\b([1-5])(?:[.,]\d)?\s+stars?\b", aria, re.I
+                    )
+                    if sm:
+                        star_rating = int(sm.group(1))
+                if review_text:
+                    reviews.append({
+                        "review_text": review_text[:2000],
+                        "star_rating": star_rating,
+                        "reviewed_at": None,
+                        "collected_at": collected_at,
+                    })
+            except Exception:
+                continue
+
+        return {
+            "overall_rating": overall_rating,
+            "review_count": review_count,
+            "reviews": reviews,
+        }
+
+    def _open_and_extract(self, page: Any, url: str, collected_at: datetime) -> dict:
+        try:
+            page.goto(url, wait_until="commit", timeout=60_000)
+        except Exception:
+            page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+        self._dismiss_consent(page)
+        try:
+            page.wait_for_timeout(4000)
+        except Exception:
+            pass
+        return self._extract_from_page(page, collected_at)
+
     def _fetch_playwright_data(
         self,
         operator_slug: str,
         operator_name: str,
         collected_at: datetime,
+        search_url: str | None = None,
     ) -> dict:
-        """Open a headless Chromium browser and scrape the Google Knowledge Panel.
-
-        Returns
-        -------
-        dict
-            ``{"overall_rating": float|None, "review_count": int|None, "reviews": list}``
-        """
         search_query = urllib.parse.quote(operator_name)
-        url = f"https://www.google.com/search?q={search_query}+reviews"
-        user_agent = get_random_user_agent()
+        url = search_url or OPERATOR_SEARCH_URLS.get(operator_slug) or (
+            f"https://www.google.com/search?q={search_query}+reviews&hl=en&gl=in"
+        )
+        maps_url = OPERATOR_MAPS_URLS.get(operator_slug)
+        user_agent = _DESKTOP_UA
 
         log_http_request(logger, method="GET", url=url)
         t0 = time.monotonic()
@@ -347,87 +586,51 @@ class GoogleReviewsCollector:
         reviews: list[dict] = []
 
         try:
-            from playwright.sync_api import sync_playwright  # lazy import
+            from playwright.sync_api import sync_playwright
             with sync_playwright() as pw:
-                browser = pw.chromium.launch(headless=True)
-                context = browser.new_context(user_agent=user_agent)
-                page = context.new_page()
-
+                launch_args = ["--disable-blink-features=AutomationControlled"]
                 try:
-                    page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-
-                    # Extract overall rating — try primary selector then fallback
-                    rating_el = None
-                    for selector in _RATING_SELECTORS:
-                        rating_el = page.query_selector(selector)
-                        if rating_el:
-                            break
-
-                    if rating_el:
-                        rating_text = rating_el.inner_text().strip()
-                        try:
-                            overall_rating = float(rating_text.replace(",", "."))
-                        except ValueError:
-                            logger.warning(
-                                "google_rating_parse_error",
-                                operator_slug=operator_slug,
-                                raw_text=rating_text,
-                            )
-
-                    # Extract review count
-                    count_el = page.query_selector(_REVIEW_COUNT_SELECTOR)
-                    if count_el:
-                        count_text = count_el.inner_text().strip()
-                        # Strip non-numeric characters (commas, spaces, letters)
-                        digits = "".join(c for c in count_text if c.isdigit())
-                        if digits:
-                            try:
-                                review_count = int(digits)
-                            except ValueError:
-                                logger.warning(
-                                    "google_review_count_parse_error",
-                                    operator_slug=operator_slug,
-                                    raw_text=count_text,
-                                )
-
-                    # Extract review snippets (up to MAX_REVIEWS)
-                    review_els = []
-                    for selector in _REVIEW_ITEM_SELECTORS:
-                        review_els = page.query_selector_all(selector)
-                        if review_els:
-                            break
-
-                    for el in review_els[:MAX_REVIEWS]:
-                        try:
-                            text_el = el.query_selector("span[data-expandable-section]") or \
-                                      el.query_selector("div.Jtu6Td") or \
-                                      el.query_selector("span.review-full-text") or \
-                                      el.query_selector("span")
-                            review_text = text_el.inner_text().strip() if text_el else None
-
-                            # Attempt to parse star rating from aria-label or data attributes
-                            star_el = el.query_selector("span[aria-label]")
-                            star_rating: int | None = None
-                            if star_el:
-                                aria = star_el.get_attribute("aria-label") or ""
-                                digits_found = "".join(c for c in aria if c.isdigit())
-                                if digits_found:
-                                    star_rating = int(digits_found[0])  # first digit
-
-                            reviews.append({
-                                "review_text": review_text,
-                                "star_rating": star_rating,
-                                "reviewed_at": None,
-                                "collected_at": collected_at,
-                            })
-                        except Exception:
-                            # Skip malformed review elements
-                            continue
-
+                    browser = pw.chromium.launch(
+                        headless=True,
+                        channel="chrome",
+                        args=launch_args,
+                    )
+                except Exception:
+                    browser = pw.chromium.launch(headless=True, args=launch_args)
+                context = browser.new_context(
+                    user_agent=user_agent,
+                    locale="en-IN",
+                    timezone_id="Asia/Kolkata",
+                    viewport={"width": 1440, "height": 900},
+                    extra_http_headers={"Accept-Language": "en-IN,en;q=0.9"},
+                )
+                context.add_init_script(
+                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+                )
+                page = context.new_page()
+                try:
+                    extracted: dict = {
+                        "overall_rating": None,
+                        "review_count": None,
+                        "reviews": [],
+                    }
+                    if maps_url:
+                        log_http_request(logger, method="GET", url=maps_url)
+                        extracted = self._open_and_extract(page, maps_url, collected_at)
+                    if extracted.get("overall_rating") is None:
+                        extracted = self._open_and_extract(page, url, collected_at)
+                    overall_rating = extracted.get("overall_rating")
+                    review_count = extracted.get("review_count")
+                    reviews = extracted.get("reviews") or []
+                    if overall_rating is None:
+                        logger.warning(
+                            "google_panel_parse_miss slug=%s title=%s",
+                            operator_slug,
+                            page.title(),
+                        )
                 finally:
                     context.close()
                     browser.close()
-
         except Exception as exc:
             elapsed_ms = (time.monotonic() - t0) * 1000
             log_http_error(
@@ -449,7 +652,6 @@ class GoogleReviewsCollector:
         )
 
         hist = histogram_from_reviews(reviews)
-
         return {
             "overall_rating": overall_rating,
             "review_count": review_count,

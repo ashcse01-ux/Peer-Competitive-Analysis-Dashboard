@@ -57,7 +57,6 @@ const PILLARS = [
   { label: 'Apple iOS Store', to: '/apple-store', tipKey: 'appleStore' as const, ratingKey: 'ios_rating' as const, countKey: 'ios_review_count' as const },
   { label: 'Google Search', to: '/google-reviews', tipKey: 'googleSearch' as const, ratingKey: 'google_rating' as const, countKey: 'google_review_count' as const },
   { label: 'Redbus Analytics', to: '/redbus', tipKey: 'redbus' as const, ratingKey: 'redbus_sentiment' as const, countKey: 'redbus_review_count' as const },
-  { label: 'Abhibus Analytics', to: '/abhibus/kpis', tipKey: 'redbus' as const, ratingKey: 'redbus_sentiment' as const, countKey: 'redbus_review_count' as const, preview: true },
 ]
 
 function pillarRating(operators: OverviewOperator[], key: typeof PILLARS[number]['ratingKey']) {

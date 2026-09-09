@@ -135,6 +135,13 @@ export const TRACKED_PEER_OPERATORS = [
     accent: '#ea580c',
     match: (name: string) => /yolo\s*bus/i.test(name),
   },
+  {
+    id: 'leafybus',
+    label: 'LeafyBus',
+    shortLabel: 'LeafyBus',
+    accent: '#16a34a',
+    match: (name: string) => /leafy\s*bus/i.test(name),
+  },
 ] as const
 
 export type TrackedPeerId = (typeof TRACKED_PEER_OPERATORS)[number]['id']

@@ -287,36 +287,50 @@ export default function RedbusSrpPage() {
         )}
 
         {!isLoading && !error && (
-          <div className="overflow-x-auto">
-            <table className="data-table min-w-[1050px]">
+          <div className="srp-listings-scroll">
+            <table className="data-table srp-listings-table min-w-[1100px]">
               <thead>
                 <tr>
-                  <th>Route</th>
-                  <th>Operator</th>
-                  <th>Timing</th>
-                  <th>Bus Type</th>
-                  <th>Price</th>
-                  <th>Rating (Reviews)</th>
-                  <th>Loved by Travelers</th>
-                  <th>Avg SRP Rank</th>
+                  <SortableTh label="Route" sortKey="route" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortableTh label="Operator" sortKey="operator" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortableTh label="Timing" sortKey="timing" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortableTh label="Duration" sortKey="duration" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortableTh label="Bus Type" sortKey="busType" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortableTh label="SRP Rank" sortKey="srpRank" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortableTh label="Rating" sortKey="rating" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortableTh
+                    label="Total No. of Ratings"
+                    sortKey="reviews"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    label={'Occupancy\u00A0%'}
+                    sortKey="occupancy"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh label="Price" sortKey="price" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                 </tr>
               </thead>
               <tbody>
                 {visibleListings.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-theme-muted">
-                      No data found for the selected dates and operators.
+                    <td colSpan={10} className="py-8 text-center text-theme-muted">
+                      No data found for the selected filters.
                     </td>
                   </tr>
                 ) : (
-                  filteredData.map((row: any, idx: number) => {
-                    // Calculate average rank from snapshots if needed, or just show the first one
-                    const slots = Object.values(row.snapshots || {})
-                    const avgRank = slots.length > 0 
-                      ? Math.round(slots.reduce((a: any, b: any) => a + b, 0) / slots.length) 
-                      : 'N/A'
-
-                    const tags: Array<{ tagmsg: string; count: number }> = row.tags || []
+                  visibleListings.map((row, idx) => {
+                    const srpRank = rowSrpRank(row)
+                    const podium = (srpRank === 1 || srpRank === 2 || srpRank === 3
+                      ? srpRank
+                      : undefined) as PodiumRank | undefined
+                    const fresh = isFreshBus(row.operator)
+                    const ratingText = formatRating(row.rating)
+                    const ratingsCount = row.reviews ? String(row.reviews).replace(/[^\d]/g, '') : ''
 
                     return (
                       <tr key={`${row.service_key}-${idx}`} className={podiumRowClass(podium)}>
@@ -350,29 +364,15 @@ export default function RedbusSrpPage() {
                             ''
                           )}
                         </td>
-                        <td>
-                          {tags && tags.length > 0 ? (
-                            <div className="flex flex-wrap gap-1 max-w-[280px]">
-                              {tags.slice(0, 3).map((tag, tIdx) => (
-                                <span
-                                  key={tIdx}
-                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                >
-                                  {tag.tagmsg} <span className="ml-1 opacity-75">({tag.count})</span>
-                                </span>
-                              ))}
-                              {tags.length > 3 && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
-                                  +{tags.length - 3}
-                                </span>
-                              )}
-                            </div>
+                        <td className="tabular-nums">
+                          {ratingText ? (
+                            <span className="srp-rating-cell">
+                              <Star size={12} className="srp-rating-cell__star" fill="currentColor" />
+                              {ratingText}
+                            </span>
                           ) : (
-                            <span className="text-theme-muted text-xs">—</span>
+                            ''
                           )}
-                        </td>
-                        <td className="tabular-nums text-center font-bold">
-                          {avgRank !== 'N/A' ? `#${avgRank}` : '—'}
                         </td>
                         <td className="tabular-nums font-medium">{ratingsCount}</td>
                         <td className="tabular-nums font-bold">{formatOccupancyPct(row.occupancy_pct)}</td>

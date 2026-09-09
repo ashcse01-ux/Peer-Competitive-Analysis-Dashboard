@@ -20,6 +20,7 @@ import {
 } from '../api'
 import ChartTooltip from '../components/ChartTooltip'
 import DateRangeBar, { todayIso, type DateFilterValue } from '../components/DateRangeBar'
+import SyncControlPanel from '../components/SyncControlPanel'
 import HighestRatedCard from '../components/HighestRatedCard'
 import KPICard from '../components/KPICard'
 import PeerScopeLine from '../components/PeerScopeLine'
@@ -30,11 +31,9 @@ import TopicChampionsBoard from '../components/TopicChampionsBoard'
 import OperatorTopicKPIGrid from '../components/OperatorTopicKPIGrid'
 import {
   average,
-  formatIndianInstallAxis,
   formatMetric,
   formatSnapshotStamp,
   formatStarRating,
-  indianDownloadAxis,
   operatorColor,
   percentSharesOneDecimal,
   sum,
@@ -121,22 +120,25 @@ function toAppStoreSummary(row: AppStoreEntry): OpSummary {
 }
 
 function toGoogleSummary(row: GoogleEntry): OpSummary {
-  const hasStars = [row.star_1, row.star_2, row.star_3, row.star_4, row.star_5].some(
-    v => v != null && v > 0,
-  )
-  const hist = hasStars
+  const scraped = [row.star_1 ?? 0, row.star_2 ?? 0, row.star_3 ?? 0, row.star_4 ?? 0, row.star_5 ?? 0]
+  const scrapedSum = scraped.reduce((a, b) => a + b, 0)
+  const reviewN = row.review_count ?? 0
+  const trustScraped = scrapedSum > 0 && (reviewN < 15 || scrapedSum >= 15)
+  const hist = trustScraped
     ? {
-        star1: row.star_1 ?? 0,
-        star2: row.star_2 ?? 0,
-        star3: row.star_3 ?? 0,
-        star4: row.star_4 ?? 0,
-        star5: row.star_5 ?? 0,
+        star1: scraped[0],
+        star2: scraped[1],
+        star3: scraped[2],
+        star4: scraped[3],
+        star5: scraped[4],
       }
     : (() => {
+        if (row.review_count == null || row.review_count <= 0) {
+          return { star1: 0, star2: 0, star3: 0, star4: 0, star5: 0 }
+        }
         const h = estimateStarHistogram(row.overall_rating, row.review_count)
         return { star1: h.star_1, star2: h.star_2, star3: h.star_3, star4: h.star_4, star5: h.star_5 }
       })()
-  const histSum = hist.star1 + hist.star2 + hist.star3 + hist.star4 + hist.star5
 
   return {
     slug: row.operator_slug,
@@ -146,7 +148,7 @@ function toGoogleSummary(row: GoogleEntry): OpSummary {
     downloads: null,
     downloadsRaw: null,
     reviewCount: row.review_count,
-    ratingsCount: histSum || row.review_count || 0,
+    ratingsCount: row.review_count ?? 0,
     ...hist,
     playTopics: {},
     availableTopicKeys: [],
@@ -155,7 +157,25 @@ function toGoogleSummary(row: GoogleEntry): OpSummary {
   }
 }
 
-function pickLatestPool<T extends { operator_slug: string; collection_date?: string | null; cycle_timestamp?: string | null }>(
+function rowDay<T extends { collection_date?: string | null; cycle_timestamp?: string | null }>(row: T): string {
+  return row.collection_date || (row.cycle_timestamp || '').slice(0, 10)
+}
+
+function pickLatestRated<T extends { operator_slug: string; overall_rating?: number | null; collection_date?: string | null; cycle_timestamp?: string | null }>(
+  pool: T[],
+): T[] {
+  const bySlug = new Map<string, T>()
+  for (const row of pool) {
+    if (row.overall_rating == null) continue
+    const day = rowDay(row)
+    const prev = bySlug.get(row.operator_slug)
+    const prevDay = prev ? rowDay(prev) : ''
+    if (!prev || day >= prevDay) bySlug.set(row.operator_slug, row)
+  }
+  return [...bySlug.values()]
+}
+
+function pickLatestPool<T extends { operator_slug: string; overall_rating?: number | null; collection_date?: string | null; cycle_timestamp?: string | null }>(
   pool: T[],
   today: string,
   historyLocked: boolean,
@@ -165,14 +185,14 @@ function pickLatestPool<T extends { operator_slug: string; collection_date?: str
   const bySlug = new Map<string, T>()
 
   for (const row of pool) {
-    const day = row.collection_date || (row.cycle_timestamp || '').slice(0, 10)
+    const day = rowDay(row)
     if (historyLocked) {
       const prev = bySlug.get(row.operator_slug)
       if (!prev) {
         bySlug.set(row.operator_slug, row)
         continue
       }
-      const prevDay = prev.collection_date || (prev.cycle_timestamp || '').slice(0, 10)
+      const prevDay = rowDay(prev)
       if ((day || '') >= (prevDay || '')) bySlug.set(row.operator_slug, row)
       continue
     }
@@ -184,15 +204,21 @@ function pickLatestPool<T extends { operator_slug: string; collection_date?: str
   if (!historyLocked && dateFilter.from !== dateFilter.to) {
     bySlug.clear()
     for (const row of pool) {
-      const day = row.collection_date || (row.cycle_timestamp || '').slice(0, 10)
+      const day = rowDay(row)
       if (!day || day < dateFilter.from || day > dateFilter.to) continue
       const prev = bySlug.get(row.operator_slug)
-      const prevDay = prev?.collection_date || (prev?.cycle_timestamp || '').slice(0, 10)
-      if (!prev || day >= (prevDay || '')) bySlug.set(row.operator_slug, row)
+      const prevDay = prev ? rowDay(prev) : ''
+      if (!prev || day >= prevDay) bySlug.set(row.operator_slug, row)
     }
   }
 
-  return [...bySlug.values()]
+  const selected = [...bySlug.values()]
+  const hasRating = selected.some(r => r.overall_rating != null)
+  if (!historyLocked && dateFilter.from === dateFilter.to && !hasRating) {
+    return pickLatestRated(pool)
+  }
+
+  return selected
 }
 
 interface Props {
@@ -231,7 +257,6 @@ export default function PeerStoreDashboard({ config }: Props) {
         if (d) dates.add(d)
       })
     }
-    dates.add(today)
     return Array.from(dates).sort()
   }, [daily, isGoogle, source, today])
   const historyLocked = false
@@ -241,7 +266,8 @@ export default function PeerStoreDashboard({ config }: Props) {
     if (isGoogle) {
       const dailyRows = daily?.google_reviews ?? []
       const fallback = googleData?.data ?? []
-      const pool = dailyRows.length ? dailyRows : fallback
+      const dailyHasRatings = dailyRows.some(r => r.overall_rating != null)
+      const pool = dailyHasRatings ? dailyRows : (fallback.some(r => r.overall_rating != null) ? fallback : dailyRows)
       return pickLatestPool(pool, today, historyLocked, dateFilter)
         .map(toGoogleSummary)
         .sort((a, b) => a.name.localeCompare(b.name))
@@ -313,12 +339,8 @@ export default function PeerStoreDashboard({ config }: Props) {
   const snapshotLabel = formatSnapshotStamp(dateFilter.to, visible.map(s => s.cycle))
 
   const chartRows = sortByPlayRating(visible)
-  const maxDownloads = Math.max(0, ...chartRows.map(effectiveDownloadsRaw))
   const hasDownloadMetrics =
-    config.showDownloads &&
-    (config.kind === 'ios_app_store'
-      ? chartRows.some(s => effectiveDownloadsRaw(s) > 0)
-      : chartRows.some(s => (s.downloadsRaw ?? 0) > 0))
+    config.showDownloads && chartRows.some(s => (s.downloadsRaw ?? 0) > 0)
 
   const downloadsBar = chartRows.map(s => ({
     name: shortName(s.name),
@@ -327,8 +349,6 @@ export default function PeerStoreDashboard({ config }: Props) {
     fill: s.color,
   }))
 
-  const isIosDownloadsAxis = config.kind === 'ios_app_store'
-  const iosAxis = indianDownloadAxis(maxDownloads)
   const playAxis = {
     domain: [0, 10_000_000] as [number, number],
     ticks: [1_000_000, 2_000_000, 3_000_000, 4_000_000, 5_000_000, 6_000_000, 7_000_000, 8_000_000, 9_000_000, 10_000_000],
@@ -375,6 +395,30 @@ export default function PeerStoreDashboard({ config }: Props) {
 
   const ratingRanks = ratingRankMap(summaries)
   const tableRows = sortByPlayRating(visible)
+  const placeRatingBesideLeader = isAll && !config.showTopicBoard
+
+  const ratingChartPanel = (
+    <div className="liquid-glass chart-panel panel-shell h-full min-h-[220px]">
+      <SectionHeader
+        eyebrow="Quality"
+        title={ratingLabel}
+        subtitle="Average star score out of 5 - size-independent quality signal"
+      />
+      <div className="visual-body">
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={ratingBar} margin={{ top: 12, right: 8, left: -8, bottom: 0 }}>
+            <CartesianGrid className="chart-grid" vertical={false} />
+            <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+            <YAxis domain={[0, 5]} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip />} />
+            <Bar dataKey={ratingLabel} radius={[8, 8, 0, 0]}>
+              {ratingBar.map(row => <Cell key={row.name} fill={row.fill} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
 
   return (
     <div className="page-section">
@@ -402,6 +446,10 @@ export default function PeerStoreDashboard({ config }: Props) {
         </div>
 
         <DateRangeBar value={dateFilter} onChange={setDateFilter} availableDates={availableDates} />
+        <SyncControlPanel
+          compact
+          channels={[config.kind === 'google_search' ? 'google_search' : (config.appStoreSource ?? 'google_play')]}
+        />
       </section>
 
       {isAll ? (
@@ -426,13 +474,14 @@ export default function PeerStoreDashboard({ config }: Props) {
             )}
           </section>
         ) : (
-          <section className="max-w-lg">
+          <section className="grid gap-4 xl:grid-cols-[minmax(260px,0.9fr)_minmax(0,2.1fr)]">
             <HighestRatedCard
               name={highestRated?.name}
               rating={highestRated?.rating}
               color={highestRated?.color}
               ratingCaption={config.ratingCaption}
             />
+            {ratingChartPanel}
           </section>
         )
       ) : (
@@ -440,7 +489,9 @@ export default function PeerStoreDashboard({ config }: Props) {
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <KPICard label={ratingLabel} value={formatStarRating(avgRating)} caption={visible[0]?.name} icon={<Star size={20} />} accent={FB_YELLOW} />
             <KPICard label="Star Ratings" value={totalRatings != null ? totalRatings.toLocaleString() : null} caption="People who rated" icon={<ThumbsUp size={20} />} accent={FB_BLUE} />
-            <KPICard label="Text Reviews" value={totalReviews != null ? totalReviews.toLocaleString() : null} caption="Written reviews" icon={<MessageSquare size={20} />} accent={FB_BLUE} />
+            {config.showReviewsColumn ? (
+              <KPICard label="Text Reviews" value={totalReviews != null ? totalReviews.toLocaleString() : null} caption="Written reviews" icon={<MessageSquare size={20} />} accent={FB_BLUE} />
+            ) : null}
             {config.showDownloads ? (
               <KPICard
                 label="Downloads"
@@ -467,7 +518,6 @@ export default function PeerStoreDashboard({ config }: Props) {
         <SectionHeader
           eyebrow="Operator ledger"
           title="Storefront scorecard"
-          subtitle={`Sorted by ${ratingLabel} - gold, silver, bronze first - then remaining peers`}
         />
         <div className="visual-body overflow-x-auto">
           <table className="data-table min-w-[720px]">
@@ -476,8 +526,8 @@ export default function PeerStoreDashboard({ config }: Props) {
                 <th>Operator</th>
                 {config.showDownloads ? <th>Downloads</th> : null}
                 <th>{ratingLabel}</th>
-                <th>Ratings</th>
-                <th>Reviews</th>
+                <th>{config.ratingsCountLabel}</th>
+                {config.showReviewsColumn ? <th>Reviews</th> : null}
                 <th>Star mix</th>
               </tr>
             </thead>
@@ -512,8 +562,16 @@ export default function PeerStoreDashboard({ config }: Props) {
                         <span style={{ color: FB_YELLOW }}>★</span>
                       </span>
                     </td>
-                    <td className="tabular-nums font-semibold">{s.ratingsCount.toLocaleString()}</td>
-                    <td className="tabular-nums font-semibold">{s.reviewCount?.toLocaleString() ?? '—'}</td>
+                    <td className="tabular-nums font-semibold">
+                      {s.reviewCount != null && s.reviewCount > 0
+                        ? s.reviewCount.toLocaleString()
+                        : '—'}
+                    </td>
+                    {config.showReviewsColumn ? (
+                      <td className="tabular-nums font-semibold">
+                        {s.reviewCount != null && s.reviewCount > 0 ? s.reviewCount.toLocaleString() : '—'}
+                      </td>
+                    ) : null}
                     <td>
                       <StarMixCell stars={[s.star1, s.star2, s.star3, s.star4, s.star5]} />
                     </td>
@@ -525,6 +583,7 @@ export default function PeerStoreDashboard({ config }: Props) {
         </div>
       </section>
 
+      {(config.showDownloads || !placeRatingBesideLeader || config.showReviewsColumn || (config.showNormalizedVolume && hasDownloadMetrics) || config.showStarMixChart) ? (
       <section className="grid gap-6 xl:grid-cols-2">
         {config.showDownloads ? (
           <div className="liquid-glass chart-panel panel-shell">
@@ -544,13 +603,13 @@ export default function PeerStoreDashboard({ config }: Props) {
                     <CartesianGrid className="chart-grid" vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
                     <YAxis
-                      domain={isIosDownloadsAxis ? iosAxis.domain : playAxis.domain}
-                      ticks={isIosDownloadsAxis ? iosAxis.ticks : playAxis.ticks}
+                      domain={playAxis.domain}
+                      ticks={playAxis.ticks}
                       tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 700 }}
                       axisLine={false}
                       tickLine={false}
-                      width={isIosDownloadsAxis ? 44 : 52}
-                      tickFormatter={isIosDownloadsAxis ? formatIndianInstallAxis : playAxis.tickFormatter}
+                      width={52}
+                      tickFormatter={playAxis.tickFormatter}
                     />
                     <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="downloads" name="Downloads" radius={[8, 8, 0, 0]}>
@@ -575,6 +634,7 @@ export default function PeerStoreDashboard({ config }: Props) {
           </div>
         ) : null}
 
+        {placeRatingBesideLeader ? null : (
         <div className={`liquid-glass chart-panel panel-shell ${!config.showDownloads ? '' : ''}`}>
           <SectionHeader
             eyebrow="Quality"
@@ -595,7 +655,9 @@ export default function PeerStoreDashboard({ config }: Props) {
             </ResponsiveContainer>
           </div>
         </div>
+        )}
 
+        {config.showReviewsColumn ? (
         <div className={`liquid-glass chart-panel panel-shell ${!config.showDownloads ? 'xl:col-span-1' : ''}`}>
           <SectionHeader eyebrow="Volume" title="Total reviews" subtitle="Written public reviews" />
           <div className="visual-body">
@@ -612,6 +674,7 @@ export default function PeerStoreDashboard({ config }: Props) {
             </ResponsiveContainer>
           </div>
         </div>
+        ) : null}
 
         {config.showNormalizedVolume && hasDownloadMetrics ? (
           <div className="liquid-glass chart-panel panel-shell xl:col-span-2">
@@ -636,6 +699,7 @@ export default function PeerStoreDashboard({ config }: Props) {
           </div>
         ) : null}
 
+        {config.showStarMixChart ? (
         <div className={`liquid-glass chart-panel panel-shell xl:col-span-2 ${!config.showDownloads && !config.showNormalizedVolume ? '' : ''}`}>
           <SectionHeader
             eyebrow="Sentiment shape"
@@ -663,7 +727,9 @@ export default function PeerStoreDashboard({ config }: Props) {
             </ResponsiveContainer>
           </div>
         </div>
+        ) : null}
       </section>
+      ) : null}
 
       {config.showTopicBoard && activeTopicKeys.length > 0 ? (
         <section className="liquid-glass chart-panel panel-shell">

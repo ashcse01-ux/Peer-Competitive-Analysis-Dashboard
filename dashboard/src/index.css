@@ -1994,12 +1994,13 @@
   }
 
   .srp-viz-chart-scroll {
-    max-height: 360px;
-    overflow: auto;
+    max-height: none;
+    overflow: visible;
     padding-right: 0.15rem;
   }
 
   .srp-viz-chart-scroll--open {
+    overflow: auto;
     max-height: min(72vh, 780px);
   }
 

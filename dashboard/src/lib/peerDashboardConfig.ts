@@ -16,6 +16,12 @@ export interface PeerDashboardConfig {
   /** Per 10k downloads chart - only when installs exist */
   showNormalizedVolume: boolean
   downloadsUnavailableNote: string
+  /** Written-review count is distinct from star ratings (Play yes; Apple publishes one count) */
+  showReviewsColumn: boolean
+  /** Table column for rating volume */
+  ratingsCountLabel: string
+  /** Stacked 1–5★ share chart; table Star mix is enough when this is false */
+  showStarMixChart: boolean
 }
 
 export const GOOGLE_PLAY_DASHBOARD: PeerDashboardConfig = {
@@ -30,6 +36,9 @@ export const GOOGLE_PLAY_DASHBOARD: PeerDashboardConfig = {
   showDownloads: true,
   showNormalizedVolume: true,
   downloadsUnavailableNote: '',
+  showReviewsColumn: true,
+  ratingsCountLabel: 'Ratings',
+  showStarMixChart: true,
 }
 
 export const IOS_APP_STORE_DASHBOARD: PeerDashboardConfig = {
@@ -41,20 +50,26 @@ export const IOS_APP_STORE_DASHBOARD: PeerDashboardConfig = {
   loadingMessage: 'Loading Apple iOS Store metrics…',
   errorMessage: 'Apple iOS Store data could not be loaded.',
   showTopicBoard: false,
-  showDownloads: true,
+  showDownloads: false,
   showNormalizedVolume: false,
-  downloadsUnavailableNote: 'Apple does not publish install counts publicly.',
+  downloadsUnavailableNote: '',
+  showReviewsColumn: false,
+  ratingsCountLabel: 'Ratings',
+  showStarMixChart: false,
 }
 
 export const GOOGLE_SEARCH_DASHBOARD: PeerDashboardConfig = {
   kind: 'google_search',
-  heroEyebrow: 'Google Reviews',
-  ratingLabel: 'Google Reviews Rating',
-  ratingCaption: 'Google Reviews Rating',
-  loadingMessage: 'Loading Google Reviews metrics…',
-  errorMessage: 'Google Reviews data could not be loaded.',
+  heroEyebrow: 'Google Search',
+  ratingLabel: 'Google Search Rating',
+  ratingCaption: 'Google Search Rating',
+  loadingMessage: 'Loading Google Search metrics…',
+  errorMessage: 'Google Search data could not be loaded.',
   showTopicBoard: false,
   showDownloads: false,
   showNormalizedVolume: false,
   downloadsUnavailableNote: '',
+  showReviewsColumn: false,
+  ratingsCountLabel: 'Total No. of Ratings',
+  showStarMixChart: false,
 }

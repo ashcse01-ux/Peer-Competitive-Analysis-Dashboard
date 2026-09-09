@@ -5,7 +5,7 @@
   },
   "neugo": {
     "google_play": "com.gcm.nuego",
-    "ios_app_store": "1614748106"
+    "ios_app_store": "1643122909"
   },
   "flixbus": {
     "google_play": "de.flixbus.app",
@@ -22,5 +22,9 @@
   "intrcity": {
     "google_play": "bus.tickets.intrcity",
     "ios_app_store": "1493367638"
+  },
+  "leafybus": {
+    "google_play": "com.leafybus.booking",
+    "ios_app_store": "6756869933"
   }
 }

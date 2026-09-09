@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Compass, Map, MessageSquare, Smartphone, Star } from 'lucide-react'
+import { ArrowRight, Map, MessageSquare, Smartphone, Star } from 'lucide-react'
 import HighestRatedCard from './HighestRatedCard'
 import KPICard from './KPICard'
 import SectionHeader from './SectionHeader'
@@ -32,7 +32,7 @@ export default function OverviewChannelPanels() {
         divider={false}
         eyebrow="Channel highlights"
         title="What each dashboard is showing"
-        subtitle="FreshBus snapshot and peer leaders across Google Play, Apple iOS, Google Reviews, Redbus, and Abhibus."
+        subtitle="FreshBus snapshot and peer leaders across Google Play, Apple iOS, Google Reviews, and Redbus."
       />
 
       <div className="liquid-glass chart-panel panel-shell overflow-hidden">
@@ -207,38 +207,6 @@ export default function OverviewChannelPanels() {
             </table>
           </div>
         )}
-      </div>
-
-      <div className="liquid-glass chart-panel panel-shell overflow-hidden">
-        <SectionHeader
-          eyebrow="Abhibus Analytics"
-          title="Cross-marketplace intelligence"
-          subtitle="Route reviews and SRP tracking for the Abhibus marketplace — preview the upcoming integration."
-          trailing={<DashboardLink to="/abhibus/kpis" label="Open Abhibus KPIs" />}
-        />
-        <div className="visual-body grid gap-4 sm:grid-cols-3">
-          <KPICard
-            label="Integration status"
-            value="Preview"
-            caption="Scraper pipeline in progress"
-            icon={<Compass size={20} />}
-            accent="#E85D04"
-          />
-          <KPICard
-            label="Planned corridors"
-            value="24+"
-            caption="Aligned with Redbus route network"
-            icon={<Map size={20} />}
-            accent="#E85D04"
-          />
-          <KPICard
-            label="Review dimensions"
-            value="9"
-            caption="Same tag taxonomy as Redbus"
-            icon={<MessageSquare size={20} />}
-            accent="#E85D04"
-          />
-        </div>
       </div>
     </section>
   )

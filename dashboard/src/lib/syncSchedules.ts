@@ -32,19 +32,19 @@ export const SYNC_CHANNEL_META: Record<
 > = {
   google_play: {
     title: 'Google Play Store',
-    description: 'Daily scrape at 08:00 IST — one snapshot per calendar day.',
+    description: 'Live scrape of all 7 operators. Last sync of the IST day overwrites that day’s row.',
     slots: APP_STORE_SYNC_SLOTS,
     oncePerDay: true,
   },
   ios_app_store: {
     title: 'Apple iOS Store',
-    description: 'Daily scrape at 08:00 IST — one snapshot per calendar day.',
+    description: 'Live scrape of all 7 operators. Last sync of the IST day overwrites that day’s row.',
     slots: APP_STORE_SYNC_SLOTS,
     oncePerDay: true,
   },
   google_search: {
     title: 'Google Search',
-    description: 'Daily scrape at 08:00 IST — one snapshot per calendar day.',
+    description: 'Live scrape of all 7 operators. Last sync of the IST day overwrites that day’s row.',
     slots: APP_STORE_SYNC_SLOTS,
     oncePerDay: true,
   },
