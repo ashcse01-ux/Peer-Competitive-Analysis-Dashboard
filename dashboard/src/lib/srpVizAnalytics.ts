@@ -342,16 +342,18 @@ export function buildOperatorRankHeatmap(obs: SrpObservation[], rows?: RedbusSrp
   const out = [...byOp.entries()].map(([operator, list]) => {
     const total = list.length || 1
     const bands: Record<string, number> = {}
+    const bandCounts: Record<string, number> = {}
     for (const band of SRP_RANK_BANDS) {
-      bands[band.id] = list.length
-        ? (list.filter(o => band.test(o.rank)).length / total) * 100
-        : 0
+      const count = list.filter(o => band.test(o.rank)).length
+      bandCounts[band.id] = count
+      bands[band.id] = list.length ? (count / total) * 100 : 0
     }
     const top10 = list.length ? topNVisibility(list, 10) ?? 0 : 0
     return {
       operator,
       operatorDisplay: list[0]?.operatorDisplay ?? displayOperatorName(operator),
       bands,
+      bandCounts,
       top10,
       n: list.length,
     }

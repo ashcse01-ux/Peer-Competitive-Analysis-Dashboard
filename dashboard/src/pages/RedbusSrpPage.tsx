@@ -1,15 +1,17 @@
 import React, { useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Star } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Download, Star } from 'lucide-react'
 import SrpScraperTestFilterBar, { type SrpAppliedFilters } from '../components/SrpScraperTestFilterBar'
 import SrpAnalyticsPanel from '../components/SrpAnalyticsPanel'
 import SrpOperatorAnalysisTable from '../components/SrpOperatorAnalysisTable'
 import FreshbusRouteLeadershipMatrix from '../components/FreshbusRouteLeadershipMatrix'
+import ExperienceKpiPanel from '../components/ExperienceKpiPanel'
 import PlayRatingMedal, { podiumRowClass, type PodiumRank } from '../components/PlayRatingMedal'
 import { ServiceViewToggle, type ServiceViewLimit, resolveOperatorLimit } from '../components/OperatorViewToggle'
 import { useMarketplaceFilters } from '../context/MarketplaceFilterContext'
 import { useRedbusSrp, type RedbusSrpEntry } from '../api'
 import { redbusSrpRouteLabel } from '../lib/redbusRoutes'
 import { matchesBusTypeFilter, matchesRatingFilter, type BusTypeBucket, type RatingBucket } from '../lib/srpFilters'
+import { downloadListingsCsv, downloadListingsExcel } from '../lib/listingExport'
 import { cx } from '../lib/insights'
 
 function isFreshBus(name: string) {
@@ -174,6 +176,7 @@ export default function RedbusSrpPage() {
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [servicesLimit, setServicesLimit] = useState<ServiceViewLimit>(10)
+  const [downloadOpen, setDownloadOpen] = useState(false)
 
   const routeObj = filters.selectedRoutes[0]
   const routeString =
@@ -260,20 +263,7 @@ export default function RedbusSrpPage() {
     return new Set(ranked.slice(0, n).map(r => r.service_key))
   }, [filteredBase, servicesLimit])
 
-  const tagColumns = useMemo(() => {
-    const set = new Set<string>(DEFAULT_TAG_COLUMNS)
-    filteredBase.forEach(row => {
-      if (Array.isArray(row.tags)) {
-        row.tags.forEach((t: any) => {
-          const name = t.tagmsg || t.label || t.name || t.tag_id
-          if (name && typeof name === 'string' && name.trim()) {
-            set.add(name.trim())
-          }
-        })
-      }
-    })
-    return Array.from(set)
-  }, [filteredBase])
+  const tagColumns = DEFAULT_TAG_COLUMNS
 
   const visibleListings = useMemo(() => {
     if (servicesLimit === 'all' || filteredData.length <= 10) return filteredData
@@ -314,6 +304,14 @@ export default function RedbusSrpPage() {
         />
       ) : null}
 
+      {!isLoading && !error ? (
+        <ExperienceKpiPanel
+          rows={filteredBase}
+          startDate={filters.customStart}
+          endDate={filters.customEnd}
+        />
+      ) : null}
+
       <section className="srp-listings-panel">
         <div className="srp-listings-panel__head">
           <div>
@@ -330,6 +328,46 @@ export default function RedbusSrpPage() {
               total={filteredData.length}
               onChange={setServicesLimit}
             />
+            {!isLoading && !error && filteredData.length > 0 ? (
+              <div className="srp-dl">
+                <button
+                  type="button"
+                  className="srp-dl__btn"
+                  aria-expanded={downloadOpen}
+                  onClick={() => setDownloadOpen(o => !o)}
+                >
+                  <Download size={14} strokeWidth={2.4} />
+                  Download
+                  <ChevronDown size={14} />
+                </button>
+                {downloadOpen ? (
+                  <div className="srp-dl__menu" role="menu">
+                    <button
+                      type="button"
+                      className="srp-dl__opt"
+                      role="menuitem"
+                      onClick={() => {
+                        downloadListingsCsv(filteredData, filters.customStart, filters.customEnd)
+                        setDownloadOpen(false)
+                      }}
+                    >
+                      CSV (.csv)
+                    </button>
+                    <button
+                      type="button"
+                      className="srp-dl__opt"
+                      role="menuitem"
+                      onClick={() => {
+                        downloadListingsExcel(filteredData, filters.customStart, filters.customEnd)
+                        setDownloadOpen(false)
+                      }}
+                    >
+                      Excel (.xls)
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <span className="srp-listings-count">
               <strong>{visibleListings.length}</strong>
               {filteredData.length > visibleListings.length ? ` of ${filteredData.length}` : ''} service

@@ -298,7 +298,6 @@ function InteractiveKpiCell({
   standing: DimensionStanding
   onOpenDetail: (t: DetailTarget) => void
 }) {
-  const [hover, setHover] = useState(false)
   const interactive = column.competitive
 
   if (!interactive) {
@@ -311,20 +310,14 @@ function InteractiveKpiCell({
   return (
     <button
       type="button"
-      className={cx('fb-lead-kpi-btn', hover && 'fb-lead-kpi-btn--hover')}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onFocus={() => setHover(true)}
-      onBlur={() => setHover(false)}
+      className="fb-lead-kpi-btn"
       onClick={() => onOpenDetail({ routeLabel, column, standing })}
       aria-label={`${column.label} on ${routeLabel}. Hover for summary, click for full ranking.`}
     >
       <SummaryCell standing={standing} column={column} />
-      {hover ? (
-        <div className="fb-lead-tip-wrap" role="tooltip">
-          <TooltipBody routeLabel={routeLabel} column={column} standing={standing} />
-        </div>
-      ) : null}
+      <div className="fb-lead-tip-wrap" role="tooltip">
+        <TooltipBody routeLabel={routeLabel} column={column} standing={standing} />
+      </div>
     </button>
   )
 }
@@ -358,7 +351,8 @@ export default function FreshbusRouteLeadershipMatrix({ rows }: Props) {
           <h3 className="srp-listings-panel__title">FreshBus Route Leadership Matrix</h3>
           <p className="srp-listings-panel__sub">
             Compact peer summary · hover any KPI for context · click for full ranking · Leadership =
-            FreshBus #1 count / {LEADERSHIP_DIM_COUNT}
+            FreshBus #1 count / {LEADERSHIP_DIM_COUNT}. Amenity % = one pooled rate per operator
+            (mentions ÷ ratings on buses with 100+ ratings; skip cards where tags exceed ratings).
           </p>
         </div>
         <span className="srp-listings-count">
@@ -412,6 +406,7 @@ export default function FreshbusRouteLeadershipMatrix({ rows }: Props) {
         <span>🥉 FreshBus #3</span>
         <span>Peers need 3+ services for official #1</span>
         <span>FreshBus always retained (1–2 services = Limited data)</span>
+        <span>Amenity % = pooled mentions ÷ ratings; buses need 100+ ratings; tags cannot exceed ratings</span>
       </div>
 
       {detail ? <DetailModal target={detail} onClose={() => setDetail(null)} /> : null}

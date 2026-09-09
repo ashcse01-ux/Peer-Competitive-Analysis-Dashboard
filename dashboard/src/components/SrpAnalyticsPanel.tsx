@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -142,8 +142,19 @@ export default function SrpAnalyticsPanel({
     pricePos: 10,
   })
 
-  const setChartLimit = (key: ChartKey) => (next: OperatorViewLimit) => {
-    setLimits(prev => ({ ...prev, [key]: next }))
+  const [flippedHeatCell, setFlippedHeatCell] = useState<string | null>(null)
+  const heatFlipTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (heatFlipTimer.current) clearTimeout(heatFlipTimer.current)
+    }
+  }, [])
+
+  const flipHeatCell = (id: string) => {
+    if (heatFlipTimer.current) clearTimeout(heatFlipTimer.current)
+    setFlippedHeatCell(id)
+    heatFlipTimer.current = setTimeout(() => setFlippedHeatCell(null), 2500)
   }
 
   const obs = useMemo(() => expandObservations(rows, startDate, endDate), [rows, startDate, endDate])
@@ -175,6 +186,10 @@ export default function SrpAnalyticsPanel({
   const takeFor = <T,>(key: ChartKey, list: T[]) =>
     list.slice(0, resolveOperatorLimit(limits[key], list.length))
 
+  const setChartLimit = (key: ChartKey) => (next: OperatorViewLimit) => {
+    setLimits(prev => ({ ...prev, [key]: next }))
+  }
+
   const scopeMeta = (key: ChartKey) => {
     const lim = limits[key]
     return {
@@ -202,7 +217,7 @@ export default function SrpAnalyticsPanel({
   const priceOccScope = scopeMeta('priceOcc')
   const pricePosScope = scopeMeta('pricePos')
 
-  const chartHeight = (count: number) => Math.max(280, count * 30 + 16)
+  const chartHeight = (count: number) => Math.min(720, Math.max(280, count * 30 + 16))
 
   if (!startDate || !endDate) {
     return <div className="srp-viz-empty-block">Apply filters to load SRP analytics.</div>
@@ -259,7 +274,7 @@ export default function SrpAnalyticsPanel({
         >
           <div className={cx('srp-viz-chart-scroll', avgSrpScope.open && 'srp-viz-chart-scroll--open')}>
             <div className="srp-viz-chart srp-viz-chart--ops" style={{ height: chartHeight(avgSrpChart.length) }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" debounce={80} minWidth={0}>
                 <BarChart data={avgSrpChart} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
                   <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
@@ -276,7 +291,7 @@ export default function SrpAnalyticsPanel({
                       ]
                     }}
                   />
-                  <Bar dataKey="medianSrp" name="Median SRP" radius={[0, 6, 6, 0]}>
+                  <Bar dataKey="medianSrp" name="Median SRP" radius={[0, 6, 6, 0]} isAnimationActive={false}>
                     {avgSrpChart.map((r, i) => (
                       <Cell key={r.operator} fill={i === 0 ? '#D4AF37' : FB_BLUE} />
                     ))}
@@ -296,7 +311,7 @@ export default function SrpAnalyticsPanel({
         >
           <div className={cx('srp-viz-chart-scroll', serviceCountScope.open && 'srp-viz-chart-scroll--open')}>
             <div className="srp-viz-chart srp-viz-chart--ops" style={{ height: chartHeight(serviceCountChart.length) }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" debounce={80} minWidth={0}>
                 <BarChart data={serviceCountChart} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
                   <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
@@ -310,7 +325,7 @@ export default function SrpAnalyticsPanel({
                       ]
                     }}
                   />
-                  <Bar dataKey="serviceCount" name="Services" fill={FB_BLUE} radius={[0, 6, 6, 0]} />
+                  <Bar dataKey="serviceCount" name="Services" fill={FB_BLUE} radius={[0, 6, 6, 0]} isAnimationActive={false} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -320,7 +335,7 @@ export default function SrpAnalyticsPanel({
         <ChartCard
           className="srp-viz-span-7"
           title="Operator SRP Position"
-          description={`SRP rank-band mix — ${rankHeatScope.label} by service count.`}
+          description={`SRP rank-band mix — ${rankHeatScope.label} by service count. Click a cell to see the count.`}
           empty={!rankHeat.length ? 'No operator SRP distribution available.' : null}
           action={rankHeatScope.toggle}
         >
@@ -340,11 +355,28 @@ export default function SrpAnalyticsPanel({
                     <td className="srp-viz-heat__op">{row.operatorDisplay}</td>
                     {SRP_RANK_BANDS.map(b => {
                       const pct = row.bands[b.id]
+                      const count = row.bandCounts[b.id] ?? 0
+                      const cellId = `${row.operator}::${b.id}`
+                      const flipped = flippedHeatCell === cellId
                       return (
                         <td key={b.id}>
-                          <div className="srp-viz-heat__cell" style={heatBg(pct)} title={`${pct.toFixed(1)}%`}>
-                            {pct >= 0.5 ? `${pct.toFixed(0)}%` : '·'}
-                          </div>
+                          <button
+                            type="button"
+                            className={cx('srp-viz-heat__flip', flipped && 'srp-viz-heat__flip--on')}
+                            style={heatBg(pct)}
+                            title={flipped ? `${count} listings` : `${pct.toFixed(1)}% · click for count`}
+                            aria-pressed={flipped}
+                            onClick={() => flipHeatCell(cellId)}
+                          >
+                            <span className="srp-viz-heat__flip-inner">
+                              <span className="srp-viz-heat__flip-face srp-viz-heat__flip-face--front">
+                                {pct >= 0.5 ? `${pct.toFixed(0)}%` : '·'}
+                              </span>
+                              <span className="srp-viz-heat__flip-face srp-viz-heat__flip-face--back">
+                                {count}
+                              </span>
+                            </span>
+                          </button>
                         </td>
                       )
                     })}
@@ -364,7 +396,7 @@ export default function SrpAnalyticsPanel({
         >
           <div className={cx('srp-viz-chart-scroll', visibilityScope.open && 'srp-viz-chart-scroll--open')}>
             <div className="srp-viz-chart srp-viz-chart--ops" style={{ height: chartHeight(rankingBars.length) }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" debounce={80} minWidth={0}>
                 <BarChart data={rankingBars} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
                   <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
@@ -372,15 +404,16 @@ export default function SrpAnalyticsPanel({
                   <Tooltip
                     formatter={(v: number, _n, p) => {
                       const row = p?.payload
+                      const n = Number(v)
                       return [
-                        `${v.toFixed(1)}%`,
+                        Number.isFinite(n) ? `${n.toFixed(1)}%` : '—',
                         `Top-10 · ${row?.serviceCount ?? 0} services · Median SRP ${
                           row?.medianSrp != null ? `#${row.medianSrp.toFixed(1)}` : '—'
                         }`,
                       ]
                     }}
                   />
-                  <Bar dataKey="top10" name="Top-10 visibility" radius={[0, 6, 6, 0]}>
+                  <Bar dataKey="top10" name="Top-10 visibility" radius={[0, 6, 6, 0]} isAnimationActive={false}>
                     {rankingBars.map((r, i) => (
                       <Cell key={r.operator} fill={i === 0 ? '#D4AF37' : FB_BLUE} />
                     ))}
@@ -399,7 +432,7 @@ export default function SrpAnalyticsPanel({
           action={priceOccScope.toggle}
         >
           <div className="srp-viz-chart srp-viz-chart--tall">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" debounce={80} minWidth={0}>
               <ScatterChart margin={{ top: 12, right: 16, left: 4, bottom: 8 }}>
                 <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
                 <XAxis
@@ -439,7 +472,8 @@ export default function SrpAnalyticsPanel({
                   cursor={{ strokeDasharray: '3 3' }}
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null
-                    const p = payload[0].payload
+                    const p = payload[0]?.payload
+                    if (!p) return null
                     const mp = priceOccGuides.medianPrice
                     const mo = priceOccGuides.medianOcc
                     let quadrant = ''
@@ -462,7 +496,7 @@ export default function SrpAnalyticsPanel({
                     )
                   }}
                 />
-                <Scatter name="Operators" data={priceOcc} fillOpacity={0.85}>
+                <Scatter name="Operators" data={priceOcc} fillOpacity={0.85} isAnimationActive={false}>
                   {priceOcc.map(r => (
                     <Cell key={r.operator} fill={r.freshbus ? '#D4AF37' : FB_BLUE} />
                   ))}

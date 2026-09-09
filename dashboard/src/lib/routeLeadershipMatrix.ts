@@ -4,6 +4,14 @@ import { redbusRouteKey, redbusSrpRouteLabel } from './redbusRoutes'
 
 /** Peers need this many services to qualify as an official benchmark. */
 export const MIN_SERVICES_FOR_OFFICIAL_RANK = 3
+/**
+ * Amenity KPI — one rule for every operator:
+ * 1. Only buses with this many ratings.
+ * 2. Drop the bus if tag mentions exceed ratings (broken / mixed bases).
+ * 3. Operator score = pooled mentions ÷ pooled ratings (not an average of %).
+ */
+const AMENITY_MIN_RATINGS_PER_SERVICE = 100
+const AMENITY_MIN_RATINGS_FOR_OFFICIAL = 300
 
 export type MatrixDimId =
   | 'srp'
@@ -11,13 +19,13 @@ export type MatrixDimId =
   | 'avgReviews'
   | 'occupancy'
   | 'punctuality'
-  | 'driving'
-  | 'seat_comfort'
-  | 'staff_behavior'
   | 'cleanliness'
+  | 'staff_behavior'
+  | 'driving'
   | 'ac'
-  | 'rest_stop_hygiene'
+  | 'seat_comfort'
   | 'live_tracking'
+  | 'rest_stop_hygiene'
 
 export type ConfidenceLevel = 'limited' | 'moderate' | 'high' | 'insufficient'
 
@@ -28,9 +36,10 @@ export interface MatrixColumn {
   counted: boolean
   /** Competitive ranked column vs supporting value-only */
   competitive: boolean
-  format: 'srp' | 'rating' | 'reviews' | 'occupancy' | 'score'
+  format: 'srp' | 'rating' | 'reviews' | 'occupancy' | 'score' | 'mention'
   direction?: 'higher' | 'lower'
-  tagId?: string
+  /** Service-listing tagmsg, e.g. "Staff behavior" */
+  listingTag?: string
 }
 
 export const LEADERSHIP_COLUMNS: MatrixColumn[] = [
@@ -57,6 +66,78 @@ export const LEADERSHIP_COLUMNS: MatrixColumn[] = [
     competitive: true,
     format: 'occupancy',
     direction: 'higher',
+  },
+  {
+    id: 'punctuality',
+    label: 'Punctuality',
+    counted: true,
+    competitive: true,
+    format: 'mention',
+    direction: 'higher',
+    listingTag: 'Punctuality',
+  },
+  {
+    id: 'cleanliness',
+    label: 'Cleanliness',
+    counted: true,
+    competitive: true,
+    format: 'mention',
+    direction: 'higher',
+    listingTag: 'Cleanliness',
+  },
+  {
+    id: 'staff_behavior',
+    label: 'Staff behavior',
+    counted: true,
+    competitive: true,
+    format: 'mention',
+    direction: 'higher',
+    listingTag: 'Staff behavior',
+  },
+  {
+    id: 'driving',
+    label: 'Driving',
+    counted: true,
+    competitive: true,
+    format: 'mention',
+    direction: 'higher',
+    listingTag: 'Driving',
+  },
+  {
+    id: 'ac',
+    label: 'AC',
+    counted: true,
+    competitive: true,
+    format: 'mention',
+    direction: 'higher',
+    listingTag: 'AC',
+  },
+  {
+    id: 'seat_comfort',
+    label: 'Seat Comfort',
+    counted: true,
+    competitive: true,
+    format: 'mention',
+    direction: 'higher',
+    listingTag: 'Seat Comfort',
+  },
+  {
+    id: 'live_tracking',
+    label: 'Live tracking',
+    counted: true,
+    competitive: true,
+    format: 'mention',
+    direction: 'higher',
+    listingTag: 'Live tracking',
+  },
+  {
+    id: 'rest_stop_hygiene',
+    label: 'Rest stop hygiene',
+    counted: true,
+    competitive: true,
+    format: 'mention',
+    direction: 'higher',
+    listingTag: 'Rest stop hygiene',
   },
 ]
 
@@ -108,6 +189,22 @@ function parseReviews(raw: string | null | undefined): number | null {
   if (!raw) return null
   const n = Number(String(raw).replace(/[^\d]/g, ''))
   return Number.isFinite(n) && n > 0 ? n : null
+}
+
+function listingTagCount(row: RedbusSrpEntry, listingTag: string): number | null {
+  if (!Array.isArray(row.tags)) return null
+  const want = listingTag.trim().toLowerCase()
+  const match = row.tags.find((t: { tagmsg?: string; label?: string; name?: string; tagName?: string }) => {
+    const name = t.tagmsg || t.label || t.name || t.tagName || ''
+    return String(name).trim().toLowerCase() === want
+  })
+  if (!match) return 0
+  const raw =
+    (match as { NoOfUsers?: number; noOfUsers?: number; count?: number }).NoOfUsers ??
+    (match as { noOfUsers?: number }).noOfUsers ??
+    (match as { count?: number }).count
+  const cnt = Number(raw)
+  return Number.isFinite(cnt) && cnt >= 0 ? cnt : 0
 }
 
 function mean(values: number[]): number | null {
@@ -188,6 +285,7 @@ interface OpAgg {
   ratings: number[]
   reviews: number[]
   occ: number[]
+  tagPool: Record<string, { mentions: number; ratings: number; services: number }>
 }
 
 function aggregateByRoute(rows: RedbusSrpEntry[]) {
@@ -205,6 +303,7 @@ function aggregateByRoute(rows: RedbusSrpEntry[]) {
         ratings: [],
         reviews: [],
         occ: [],
+        tagPool: {},
       })
     }
     const agg = ops.get(row.operator)!
@@ -218,20 +317,39 @@ function aggregateByRoute(rows: RedbusSrpEntry[]) {
     if (row.occupancy_pct != null && Number.isFinite(Number(row.occupancy_pct))) {
       agg.occ.push(Number(row.occupancy_pct))
     }
+    if (reviews != null && reviews >= AMENITY_MIN_RATINGS_PER_SERVICE) {
+      for (const col of LEADERSHIP_COLUMNS) {
+        if (!col.listingTag) continue
+        const mentions = listingTagCount(row, col.listingTag)
+        if (mentions == null) continue
+        if (mentions > reviews) continue
+        if (!agg.tagPool[col.id]) {
+          agg.tagPool[col.id] = { mentions: 0, ratings: 0, services: 0 }
+        }
+        agg.tagPool[col.id].mentions += mentions
+        agg.tagPool[col.id].ratings += reviews
+        agg.tagPool[col.id].services += 1
+      }
+    }
   }
   return byRoute
 }
 
-function tagScore100(tagOp: RedbusTagOperator, tagId: string): number | null {
-  const hit = tagOp.tags.find(t => t.tag_id === tagId)
-  if (!hit || !Number.isFinite(hit.score)) return null
-  return Math.round(Math.min(5, Math.max(0, hit.score)) * 20)
+function listingAmenityScore(agg: OpAgg, dimId: MatrixDimId): { rate: number; ratingBase: number; services: number } | null {
+  const pool = agg.tagPool[dimId]
+  if (!pool || pool.ratings <= 0 || pool.services <= 0) return null
+  return {
+    rate: (100 * pool.mentions) / pool.ratings,
+    ratingBase: pool.ratings,
+    services: pool.services,
+  }
 }
 
 interface MetricCandidate {
   operator: string
   value: number
   serviceCount: number
+  ratingBase?: number
 }
 
 function toStanding(
@@ -261,6 +379,7 @@ function toStanding(
 function buildCompetitiveStanding(
   candidates: MetricCandidate[],
   direction: 'higher' | 'lower',
+  opts?: { minRatingBase?: number },
 ): DimensionStanding {
   const valid = candidates.filter(c => Number.isFinite(c.value))
   if (!valid.length) {
@@ -273,12 +392,15 @@ function buildCompetitiveStanding(
     }
   }
 
-  const eligible = sortByValue(
-    valid.filter(c => c.serviceCount >= MIN_SERVICES_FOR_OFFICIAL_RANK),
-    direction,
-  )
+  const isOfficialPeer = (c: MetricCandidate) => {
+    if (c.serviceCount < MIN_SERVICES_FOR_OFFICIAL_RANK) return false
+    if (opts?.minRatingBase != null && (c.ratingBase ?? 0) < opts.minRatingBase) return false
+    return true
+  }
+
+  const eligible = sortByValue(valid.filter(isOfficialPeer), direction)
   const insufficientPeers = sortByValue(
-    valid.filter(c => !isFreshBus(c.operator) && c.serviceCount < MIN_SERVICES_FOR_OFFICIAL_RANK),
+    valid.filter(c => !isFreshBus(c.operator) && !isOfficialPeer(c)),
     direction,
   )
   const freshbusCand = valid.find(c => isFreshBus(c.operator)) ?? null
@@ -366,7 +488,7 @@ function emptyStanding(): DimensionStanding {
 
 export function buildRouteLeadershipMatrix(
   rows: RedbusSrpEntry[],
-  tagOperators: RedbusTagOperator[] = [],
+  _tagOperators: RedbusTagOperator[] = [],
 ): RouteLeadershipRow[] {
   const byRoute = aggregateByRoute(rows)
   const out: RouteLeadershipRow[] = []
@@ -405,16 +527,21 @@ export function buildRouteLeadershipMatrix(
     }
 
     for (const col of LEADERSHIP_COLUMNS) {
-      if (!col.tagId || !col.direction) continue
+      if (!col.listingTag || !col.direction) continue
       const candidates: MetricCandidate[] = []
       for (const o of operators) {
-        const tagOp = matchTagOperator(o.operator, tagOperators)
-        if (!tagOp) continue
-        const score = tagScore100(tagOp, col.tagId)
-        if (score == null) continue
-        candidates.push({ operator: o.operator, value: score, serviceCount: o.serviceCount })
+        const hit = listingAmenityScore(o, col.id)
+        if (!hit) continue
+        candidates.push({
+          operator: o.operator,
+          value: hit.rate,
+          serviceCount: hit.services,
+          ratingBase: hit.ratingBase,
+        })
       }
-      dimensions[col.id] = buildCompetitiveStanding(candidates, col.direction)
+      dimensions[col.id] = buildCompetitiveStanding(candidates, col.direction, {
+        minRatingBase: AMENITY_MIN_RATINGS_FOR_OFFICIAL,
+      })
     }
 
     for (const col of LEADERSHIP_COLUMNS) {
@@ -457,6 +584,8 @@ export function formatMatrixValue(format: MatrixColumn['format'], value: number)
     case 'reviews':
       return Math.round(value).toLocaleString('en-IN')
     case 'occupancy':
+      return `${(Math.round(value * 10) / 10).toFixed(1)}%`
+    case 'mention':
       return `${(Math.round(value * 10) / 10).toFixed(1)}%`
     case 'score':
       return `${Math.round(value)}`

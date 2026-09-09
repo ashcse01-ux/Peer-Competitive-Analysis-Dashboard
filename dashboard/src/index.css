@@ -964,7 +964,10 @@
   }
 
   .srp-listings-scroll {
-    overflow-x: auto;
+    overflow: auto;
+    max-height: min(70vh, 720px);
+    overflow-anchor: none;
+    overscroll-behavior: contain;
   }
 
   .srp-listings-table thead th {
@@ -1122,7 +1125,7 @@
   }
 
   .fb-lead-table {
-    min-width: 1520px;
+    min-width: 2480px;
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
@@ -1296,6 +1299,7 @@
   }
 
   .fb-lead-tip-wrap {
+    display: none;
     position: absolute;
     z-index: 40;
     left: 50%;
@@ -1304,6 +1308,11 @@
     pointer-events: none;
     min-width: 240px;
     max-width: 280px;
+  }
+
+  .fb-lead-kpi-btn:hover .fb-lead-tip-wrap,
+  .fb-lead-kpi-btn:focus-visible .fb-lead-tip-wrap {
+    display: block;
   }
 
   .fb-lead-tip {
@@ -1591,6 +1600,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.9rem;
+    overflow-anchor: none;
   }
 
   .srp-viz-kpis {
@@ -1987,6 +1997,8 @@
   .srp-viz-chart {
     width: 100%;
     height: 240px;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .srp-viz-chart--tall {
@@ -2083,6 +2095,65 @@
     white-space: nowrap;
     padding-right: 0.5rem;
     min-width: 7rem;
+  }
+
+  .srp-viz-heat__flip {
+    min-width: 3.2rem;
+    min-height: 1.85rem;
+    width: 100%;
+    display: block;
+    border: 0;
+    padding: 0;
+    border-radius: 8px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 750;
+    font-size: inherit;
+    font-family: inherit;
+    color: inherit;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
+    perspective: 640px;
+    background-clip: padding-box;
+  }
+
+  .srp-viz-heat__flip:hover {
+    filter: brightness(1.06);
+  }
+
+  .srp-viz-heat__flip-inner {
+    position: relative;
+    display: block;
+    width: 100%;
+    min-height: 1.85rem;
+    transform-style: preserve-3d;
+    transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .srp-viz-heat__flip--on {
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+    font-weight: 850;
+  }
+
+  .srp-viz-heat__flip--on .srp-viz-heat__flip-inner {
+    transform: rotateY(180deg);
+  }
+
+  .srp-viz-heat__flip-face {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.15rem 0.2rem;
+    min-height: 1.85rem;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  .srp-viz-heat__flip-face--back {
+    position: absolute;
+    inset: 0;
+    transform: rotateY(180deg);
   }
 
   .srp-viz-heat__cell {
@@ -3325,7 +3396,11 @@
   .srp-table--workbook thead {
     position: sticky;
     top: 0;
-    z-index: 5;
+    z-index: 16;
+  }
+
+  .srp-table--workbook thead th {
+    background-color: var(--bg-elevated);
   }
 
   .srp-thead-band th {
@@ -3340,16 +3415,19 @@
   .srp-th-band {
     text-align: center;
     color: var(--text-secondary);
-    background: var(--bg-elevated) !important;
+    background-color: var(--bg-elevated) !important;
+    background-image: none !important;
   }
 
   .srp-th-band--month {
-    background: linear-gradient(180deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.04)) !important;
+    background-color: var(--bg-elevated) !important;
+    background-image: linear-gradient(180deg, rgba(16, 185, 129, 0.16), rgba(16, 185, 129, 0.1)) !important;
     color: #047857;
   }
 
   .srp-th-band--weeks {
-    background: linear-gradient(180deg, rgba(251, 188, 4, 0.16), rgba(251, 188, 4, 0.05)) !important;
+    background-color: var(--bg-elevated) !important;
+    background-image: linear-gradient(180deg, rgba(251, 188, 4, 0.2), rgba(251, 188, 4, 0.1)) !important;
     color: #92400e;
   }
 
@@ -4211,7 +4289,36 @@
   .data-table thead th {
     padding-top: 0.35rem;
     padding-bottom: 1rem;
-    background: linear-gradient(180deg, rgba(12, 77, 195, 0.04), transparent);
+    background-color: var(--bg-elevated);
+    background-image: linear-gradient(180deg, rgba(12, 77, 195, 0.06), rgba(12, 77, 195, 0.04));
+  }
+
+  /* Opaque sticky headers — later .data-table rules must not wipe these to transparent */
+  .data-table.fb-lead-table thead th,
+  .data-table.srp-listings-table thead th,
+  .data-table.srp-op-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    background-color: var(--bg-elevated);
+    background-image: linear-gradient(180deg, rgba(12, 77, 195, 0.07), rgba(12, 77, 195, 0.07));
+    box-shadow: 0 1px 0 var(--border-subtle);
+  }
+
+  .data-table.fb-lead-table thead .fb-lead-sticky,
+  .data-table.srp-op-table thead .srp-op-sticky {
+    z-index: 14;
+    background-color: var(--bg-elevated);
+    background-image: linear-gradient(180deg, rgba(12, 77, 195, 0.07), rgba(12, 77, 195, 0.07));
+  }
+
+  [data-theme="dark"] .data-table thead th,
+  [data-theme="dark"] .data-table.fb-lead-table thead th,
+  [data-theme="dark"] .data-table.srp-listings-table thead th,
+  [data-theme="dark"] .data-table.srp-op-table thead th,
+  [data-theme="dark"] .data-table.fb-lead-table thead .fb-lead-sticky,
+  [data-theme="dark"] .data-table.srp-op-table thead .srp-op-sticky {
+    background-image: linear-gradient(180deg, rgba(77, 163, 255, 0.08), rgba(77, 163, 255, 0.06));
   }
 
   .data-table tbody tr {
@@ -4381,5 +4488,149 @@
     outline: 2px solid var(--neon-blue);
     outline-offset: 2px;
     border-radius: 2px;
+  }
+
+  .exp-kpi-panel .srp-viz-card {
+    overflow: visible;
+  }
+
+  .exp-kpi-panel .srp-viz-card__head {
+    flex-wrap: wrap;
+  }
+
+  .exp-kpi-viz {
+    padding: 0 1rem 1rem;
+  }
+
+  .exp-kpi-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.45rem;
+    max-width: min(100%, 42rem);
+  }
+
+  .exp-kpi-pills {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.28rem;
+  }
+
+  .exp-kpi-pill {
+    appearance: none;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    border-radius: 999px;
+    padding: 0.28rem 0.62rem;
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    line-height: 1.2;
+  }
+
+  .exp-kpi-pill:hover {
+    border-color: rgba(12, 77, 195, 0.35);
+    color: #0a3fa0;
+  }
+
+  .exp-kpi-pill--on {
+    background: rgba(12, 77, 195, 0.08);
+    box-shadow: 0 0 0 1px rgba(12, 77, 195, 0.12);
+  }
+
+  .exp-kpi-heat .srp-viz-heat__op {
+    min-width: 11rem;
+    white-space: normal;
+  }
+
+  .exp-kpi-heat__route {
+    display: block;
+    font-size: 0.62rem;
+    font-weight: 650;
+    color: var(--text-muted);
+  }
+
+  .exp-kpi-heat__fb {
+    color: #b8860b;
+    font-weight: 850;
+  }
+
+  .exp-kpi-heat-scroll {
+    max-height: min(62vh, 640px);
+    overflow: auto;
+  }
+
+  .exp-kpi-footnote {
+    margin: 0;
+    padding: 0 1.1rem 1rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .srp-dl {
+    position: relative;
+  }
+
+  .srp-dl__btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 2.05rem;
+    padding: 0 0.85rem;
+    border-radius: 999px;
+    border: 1px solid rgba(12, 77, 195, 0.22);
+    background: linear-gradient(180deg, #fff, #eef4ff);
+    color: #0a3fa0;
+    font-size: 0.75rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(12, 77, 195, 0.08);
+  }
+
+  .srp-dl__btn:hover {
+    border-color: rgba(12, 77, 195, 0.4);
+  }
+
+  .srp-dl__menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 20;
+    min-width: 10.5rem;
+    padding: 0.3rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-elevated);
+    box-shadow: 0 12px 28px rgba(15, 29, 53, 0.14);
+  }
+
+  .srp-dl__opt {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    border-radius: 8px;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 750;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+
+  .srp-dl__opt:hover {
+    background: rgba(12, 77, 195, 0.08);
+    color: #0a3fa0;
+  }
+
+  [data-theme="dark"] .srp-dl__btn {
+    background: linear-gradient(180deg, rgba(77, 163, 255, 0.16), rgba(77, 163, 255, 0.06));
+    border-color: rgba(77, 163, 255, 0.35);
+    color: #9ec9ff;
   }
 }
