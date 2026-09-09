@@ -83,6 +83,7 @@ def init_db():
         ("seats_available", "INTEGER"),
         ("seat_capacity", "INTEGER"),
         ("occupancy_pct", "REAL"),
+        ("route_id", "TEXT"),
     ):
         if col not in existing:
             cursor.execute(f"ALTER TABLE bus_listings ADD COLUMN {col} {decl}")
@@ -161,11 +162,14 @@ def extract_bus_details(filepath: str, route: str, date: str, scraped_at: str) -
             if m:
                 seats_available = int(m.group(1))
 
+        card_id = str(card.get("id") or "").strip()
+
         capacity = seat_capacity_for_bus_type(bus_type)
         occ = occupancy_pct(capacity, seats_available)
 
         master_list.append({
             "route": route,
+            "route_id": card_id or None,
             "travel_date": date,
             "srp_rank": rank,
             "operator": operator,
@@ -229,11 +233,12 @@ def _ingest_html_files(html_files: list[str], delete_travel_dates: list[str] | N
 
     upsert_sql = """
         INSERT INTO bus_listings (
-            route, travel_date, srp_rank, operator, timing,
+            route, route_id, travel_date, srp_rank, operator, timing,
             rating, reviews, final_fare, bus_type, duration, scraped_at,
             seats_available, seat_capacity, occupancy_pct
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(route, travel_date, srp_rank, operator, timing) DO UPDATE SET
+            route_id = COALESCE(excluded.route_id, bus_listings.route_id),
             rating = excluded.rating,
             reviews = excluded.reviews,
             final_fare = excluded.final_fare,
@@ -267,7 +272,7 @@ def _ingest_html_files(html_files: list[str], delete_travel_dates: list[str] | N
             cursor.execute(
                 upsert_sql,
                 (
-                    r["route"], r["travel_date"], r["srp_rank"], r["operator"], r["timing"],
+                    r["route"], r["route_id"], r["travel_date"], r["srp_rank"], r["operator"], r["timing"],
                     r["rating"], r["reviews"], r["final_fare"], r["bus_type"], r["duration"], r["scraped_at"],
                     r["seats_available"], r["seat_capacity"], r["occupancy_pct"],
                 ),

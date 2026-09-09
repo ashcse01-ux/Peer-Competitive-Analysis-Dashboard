@@ -175,6 +175,7 @@ def run_scrape(
     headed: bool = False,
     force: bool = False,
     run_parse: bool = True,
+    routes_filter: list[tuple[str, str]] | None = None,
     progress_callback: Callable[..., None] | None = None,
 ) -> None:
     """Programmatic scrape entry (safe to call from API sync / CLI)."""
@@ -188,25 +189,30 @@ def run_scrape(
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+    active_routes = ROUTES_LIST
+    if routes_filter:
+        norm_filter = {(r[0].lower(), r[1].lower()) for r in routes_filter}
+        active_routes = [r for r in ROUTES_LIST if (r[0].lower(), r[1].lower()) in norm_filter]
+
     print("=" * 60)
     print("  RedBus Scraper")
     print(f"  Travel Date : {travel_date} (stamp: {date_stamp})")
-    print(f"  Routes      : {len(ROUTES_LIST)}")
+    print(f"  Routes      : {len(active_routes)}")
     print(f"  Mode        : {'Headed' if headed else 'Headless'}")
     print(f"  Force       : {force}")
     print(f"  Stop signal : 'End of list' text")
     print(f"  Output      : {OUTPUT_DIR}")
     print("=" * 60)
 
-    if not ROUTES_LIST:
+    if not active_routes:
         print("No routes configuration found. Exiting.")
         return
 
-    total = len(ROUTES_LIST)
+    total = len(active_routes)
     driver = create_driver(headed=headed)
 
     try:
-        for i, route in enumerate(ROUTES_LIST, 1):
+        for i, route in enumerate(active_routes, 1):
             origin_name, dest_name = route
 
             origin_id = CITIES_MAP.get(origin_name)
@@ -227,7 +233,7 @@ def run_scrape(
             filepath = os.path.join(OUTPUT_DIR, filename)
 
             print(f"\n{'─' * 60}")
-            print(f"  [{i}/{len(ROUTES_LIST)}] {route_label}")
+            print(f"  [{i}/{total}] {route_label}")
             print(f"{'─' * 60}")
 
             if progress_callback:
@@ -255,7 +261,7 @@ def run_scrape(
             if progress_callback:
                 progress_callback(i, total, route_label, "route_done")
 
-            if i < len(ROUTES_LIST):
+            if i < total:
                 time.sleep(3)
 
     except KeyboardInterrupt:

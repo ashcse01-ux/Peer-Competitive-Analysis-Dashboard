@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { RedbusSrpEntry } from '../api'
-import { useRedbusTags } from '../api'
 import {
   LEADERSHIP_COLUMNS,
   LEADERSHIP_DIM_COUNT,
@@ -344,11 +343,10 @@ function LeadershipBadge({ row }: { row: RouteLeadershipRow }) {
 }
 
 export default function FreshbusRouteLeadershipMatrix({ rows }: Props) {
-  const { data: tagData, isLoading: tagsLoading } = useRedbusTags()
   const [detail, setDetail] = useState<DetailTarget | null>(null)
   const matrix = useMemo(
-    () => buildRouteLeadershipMatrix(rows, tagData?.operators ?? []),
-    [rows, tagData?.operators],
+    () => buildRouteLeadershipMatrix(rows, []),
+    [rows],
   )
 
   if (!rows.length) return null
@@ -364,7 +362,6 @@ export default function FreshbusRouteLeadershipMatrix({ rows }: Props) {
           </p>
         </div>
         <span className="srp-listings-count">
-          {tagsLoading ? 'Loading tags… · ' : null}
           <strong>{matrix.length}</strong> route{matrix.length === 1 ? '' : 's'}
         </span>
       </div>

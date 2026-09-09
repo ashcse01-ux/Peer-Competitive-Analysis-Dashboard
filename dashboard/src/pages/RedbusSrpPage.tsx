@@ -29,8 +29,44 @@ function formatRating(raw: string | null | undefined): string {
   return (Math.round(n * 100) / 100).toFixed(2)
 }
 
-type SortKey = 'route' | 'operator' | 'timing' | 'duration' | 'busType' | 'price' | 'occupancy' | 'rating' | 'reviews' | 'srpRank'
+type SortKey =
+  | 'route'
+  | 'operator'
+  | 'timing'
+  | 'duration'
+  | 'busType'
+  | 'price'
+  | 'occupancy'
+  | 'rating'
+  | 'reviews'
+  | 'srpRank'
+  | string
+
 type SortDir = 'asc' | 'desc'
+
+const DEFAULT_TAG_COLUMNS = [
+  'Punctuality',
+  'Cleanliness',
+  'Staff behavior',
+  'Driving',
+  'AC',
+  'Seat Comfort',
+  'Live tracking',
+  'Rest stop hygiene',
+]
+
+function getTagCount(row: RedbusSrpEntry, tagName: string): number {
+  if (!Array.isArray(row.tags)) return Number.NEGATIVE_INFINITY
+  const match = row.tags.find((t: any) => {
+    const name = t.tagmsg || t.label || t.name || t.tagName || ''
+    return String(name).trim().toLowerCase() === tagName.trim().toLowerCase()
+  })
+  if (!match) return Number.NEGATIVE_INFINITY
+  const rawCount =
+    match.NoOfUsers ?? match.noOfUsers ?? match.count ?? match.review_count ?? match.score
+  const cnt = Number(rawCount)
+  return Number.isFinite(cnt) ? cnt : Number.NEGATIVE_INFINITY
+}
 
 function rowSrpRank(row: { snapshots?: Record<string, number> }): number | null {
   const slots = Object.values(row.snapshots || {})
@@ -74,6 +110,10 @@ function reviewsNumber(raw: string | null | undefined): number {
 }
 
 function sortValue(row: RedbusSrpEntry, key: SortKey): number | string {
+  if (key.startsWith('tag:')) {
+    const tagName = key.replace('tag:', '')
+    return getTagCount(row, tagName)
+  }
   switch (key) {
     case 'route':
       return (row.route || '').toLowerCase()
@@ -97,6 +137,8 @@ function sortValue(row: RedbusSrpEntry, key: SortKey): number | string {
       const rank = rowSrpRank(row)
       return rank == null ? Number.POSITIVE_INFINITY : rank
     }
+    default:
+      return 0
   }
 }
 
@@ -218,6 +260,21 @@ export default function RedbusSrpPage() {
     return new Set(ranked.slice(0, n).map(r => r.service_key))
   }, [filteredBase, servicesLimit])
 
+  const tagColumns = useMemo(() => {
+    const set = new Set<string>(DEFAULT_TAG_COLUMNS)
+    filteredBase.forEach(row => {
+      if (Array.isArray(row.tags)) {
+        row.tags.forEach((t: any) => {
+          const name = t.tagmsg || t.label || t.name || t.tag_id
+          if (name && typeof name === 'string' && name.trim()) {
+            set.add(name.trim())
+          }
+        })
+      }
+    })
+    return Array.from(set)
+  }, [filteredBase])
+
   const visibleListings = useMemo(() => {
     if (servicesLimit === 'all' || filteredData.length <= 10) return filteredData
     return filteredData.filter(row => topServiceKeys.has(row.service_key))
@@ -288,7 +345,7 @@ export default function RedbusSrpPage() {
 
         {!isLoading && !error && (
           <div className="srp-listings-scroll">
-            <table className="data-table srp-listings-table min-w-[1100px]">
+            <table className="data-table srp-listings-table min-w-[1400px]">
               <thead>
                 <tr>
                   <SortableTh label="Route" sortKey="route" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
@@ -313,12 +370,22 @@ export default function RedbusSrpPage() {
                     onSort={handleSort}
                   />
                   <SortableTh label="Price" sortKey="price" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  {tagColumns.map(tag => (
+                    <SortableTh
+                      key={tag}
+                      label={tag}
+                      sortKey={`tag:${tag}`}
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={handleSort}
+                    />
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {visibleListings.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-8 text-center text-theme-muted">
+                    <td colSpan={10 + tagColumns.length} className="py-8 text-center text-theme-muted">
                       No data found for the selected filters.
                     </td>
                   </tr>
@@ -377,6 +444,14 @@ export default function RedbusSrpPage() {
                         <td className="tabular-nums font-medium">{ratingsCount}</td>
                         <td className="tabular-nums font-bold">{formatOccupancyPct(row.occupancy_pct)}</td>
                         <td className="font-semibold tabular-nums">{row.price || ''}</td>
+                        {tagColumns.map(tag => {
+                          const count = getTagCount(row, tag)
+                          return (
+                            <td key={tag} className="tabular-nums font-medium text-center">
+                              {count >= 0 ? count : '—'}
+                            </td>
+                          )
+                        })}
                       </tr>
                     )
                   })
