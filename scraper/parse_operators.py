@@ -10,6 +10,7 @@ Occupancy is derived from vacant seats on the card and bus-type capacity:
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sqlite3
@@ -168,6 +169,14 @@ def extract_bus_details(filepath: str, route: str, date: str, scraped_at: str) -
         capacity = seat_capacity_for_bus_type(bus_type)
         occ = occupancy_pct(capacity, seats_available)
 
+        # Extract offerStrip / tag pills from HTML if present
+        card_tags = []
+        tag_elements = card.find_all(class_=lambda c: c and ("offerStrip" in c or "ratingTag" in c or "tagPill" in c or "offerTrip" in c))
+        for t_el in tag_elements:
+            t_text = t_el.get_text().strip()
+            if t_text:
+                card_tags.append({"tagmsg": t_text})
+
         master_list.append({
             "route": route,
             "route_id": card_id or None,
@@ -184,6 +193,7 @@ def extract_bus_details(filepath: str, route: str, date: str, scraped_at: str) -
             "seats_available": seats_available,
             "seat_capacity": capacity,
             "occupancy_pct": occ,
+            "tags": json.dumps(card_tags) if card_tags else None,
         })
         rank += 1
 
@@ -308,7 +318,92 @@ def _ingest_html_files(html_files: list[str], delete_travel_dates: list[str] | N
     print(f"  Database updated: {DB_FILE}")
     print(f"  Inserted: {total_inserted}  Updated: {total_updated}  Deleted: {deleted}")
     print(f"{'=' * 60}")
+
+    # After HTML parsing, fetch live ratings tags from RedBus API
+    fetch_ratings_from_api()
+
     return {"inserted": total_inserted, "updated": total_updated, "deleted": deleted}
+
+
+def fetch_ratings_from_api():
+    """
+    Fetch raw Tags (NoOfUsers) from https://www.redbus.in/rpw/api/ratings?routeId=...
+    for every distinct route_id in bus_listings and store directly in the tags column.
+    """
+    import urllib.request
+    import time as _time
+
+    conn = sqlite3.connect(DB_FILE, timeout=30.0)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT DISTINCT route_id FROM bus_listings "
+        "WHERE route_id IS NOT NULL AND route_id != ''"
+    )
+    route_ids = [r[0] for r in cursor.fetchall()]
+
+    if not route_ids:
+        print("No route_ids found in bus_listings — skipping API fetch.")
+        conn.close()
+        return
+
+    print(f"\n{'=' * 60}")
+    print(f"  Fetching live ratings from RedBus API for {len(route_ids)} route IDs")
+    print(f"{'=' * 60}")
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/126.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json",
+    }
+
+    success = 0
+    failed = 0
+
+    for i, rid in enumerate(route_ids, 1):
+        url = f"https://www.redbus.in/rpw/api/ratings?routeId={rid}"
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                api_tags = data.get("Tags", [])
+                if api_tags:
+                    formatted = [
+                        {
+                            "tagmsg": t.get("tagmsg"),
+                            "NoOfUsers": t.get("NoOfUsers"),
+                            "noOfUsers": t.get("NoOfUsers"),
+                            "count": t.get("NoOfUsers"),
+                            "tagId": t.get("tagId"),
+                        }
+                        for t in api_tags
+                        if t.get("tagmsg")
+                    ]
+                    cursor.execute(
+                        "UPDATE bus_listings SET tags = ? WHERE route_id = ?",
+                        (json.dumps(formatted), rid),
+                    )
+                    success += 1
+                else:
+                    failed += 1
+        except Exception:
+            failed += 1
+
+        if i % 50 == 0:
+            conn.commit()
+            print(f"  Progress: {i}/{len(route_ids)} (ok={success}, fail={failed})")
+
+        # Small delay to avoid rate limiting
+        _time.sleep(0.15)
+
+    conn.commit()
+    conn.close()
+
+    print(f"\n  API fetch done: {success} updated, {failed} failed/empty")
+    print(f"{'=' * 60}")
 
 
 if __name__ == "__main__":
