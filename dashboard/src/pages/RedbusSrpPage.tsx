@@ -58,9 +58,14 @@ function normalizeTagLabel(name: string) {
 function getTagCount(row: RedbusSrpEntry, tagName: string): number {
   if (!Array.isArray(row.tags)) return Number.NEGATIVE_INFINITY
   const want = normalizeTagLabel(tagName)
+  const isSeatComfortCol = want === 'seat/sleep comfort' || want === 'seat comfort'
+
   const match = row.tags.find((t: any) => {
     const name = t.tagmsg || t.label || t.name || t.tagName || ''
-    return normalizeTagLabel(String(name)) === want
+    const norm = normalizeTagLabel(String(name))
+    if (norm === want) return true
+    if (isSeatComfortCol && (norm === 'seat/sleep comfort' || norm === 'seat comfort')) return true
+    return false
   })
   if (!match) return Number.NEGATIVE_INFINITY
   const rawCount =
