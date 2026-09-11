@@ -89,7 +89,7 @@ function QualityPopover({ kpis }: { kpis: SrpFilterKpis }) {
               )
             })}
           </ul>
-          <p>Customer mention rate (%) — nulls excluded.</p>
+          <p>Customer user tag count (NoOfUsers) — nulls excluded.</p>
         </div>
       ) : null}
     </div>

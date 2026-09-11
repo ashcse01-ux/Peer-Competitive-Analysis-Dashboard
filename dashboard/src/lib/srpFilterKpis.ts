@@ -92,14 +92,11 @@ function tagMentions(row: RedbusSrpEntry, tags: readonly string[]): number | nul
   return Number.isFinite(cnt) && cnt >= 0 ? cnt : null
 }
 
-/** Mention rate 0–100. Null when tag or ratings base is missing / invalid. */
+/** Mention user count. Null when tag is missing / invalid. */
 export function qualityRate(row: RedbusSrpEntry, tags: readonly string[]): number | null {
   const mentions = tagMentions(row, tags)
   if (mentions == null) return null
-  const ratings = parseReviewsValue(row.reviews)
-  if (ratings == null) return null
-  if (mentions > ratings) return null
-  return (100 * mentions) / ratings
+  return mentions
 }
 
 function mean(values: number[]): number | null {

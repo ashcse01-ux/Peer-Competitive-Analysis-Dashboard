@@ -41,15 +41,14 @@ type SortKey =
 type SortDir = 'asc' | 'desc'
 
 const DEFAULT_TAG_COLUMNS = [
-  'Punctuality',
-  'Staff behavior',
-  'Driving',
-  'Seat / Sleep Comfort',
   'Cleanliness',
-  'AC',
-  'Live tracking',
+  'Staff behavior',
   'Rest stop hygiene',
-  'Seat Comfort',
+  'Punctuality',
+  'Live tracking',
+  'Driving',
+  'AC',
+  'Seat / Sleep Comfort',
 ]
 
 function normalizeTagLabel(name: string) {
