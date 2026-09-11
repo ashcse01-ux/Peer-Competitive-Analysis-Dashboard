@@ -41,14 +41,15 @@ type SortKey =
 type SortDir = 'asc' | 'desc'
 
 const DEFAULT_TAG_COLUMNS = [
+  'Punctuality',
+  'Driving',
   'Cleanliness',
   'Staff behavior',
-  'Rest stop hygiene',
-  'Punctuality',
   'Live tracking',
-  'Driving',
   'AC',
+  'Rest stop hygiene',
   'Seat / Sleep Comfort',
+  'Seat Comfort',
 ]
 
 function normalizeTagLabel(name: string) {
@@ -58,18 +59,14 @@ function normalizeTagLabel(name: string) {
 function getTagCount(row: RedbusSrpEntry, tagName: string): number {
   if (!Array.isArray(row.tags)) return Number.NEGATIVE_INFINITY
   const want = normalizeTagLabel(tagName)
-  const isSeatComfortCol = want === 'seat/sleep comfort' || want === 'seat comfort'
 
   const match = row.tags.find((t: any) => {
     const name = t.tagmsg || t.label || t.name || t.tagName || ''
     const norm = normalizeTagLabel(String(name))
-    if (norm === want) return true
-    if (isSeatComfortCol && (norm === 'seat/sleep comfort' || norm === 'seat comfort')) return true
-    return false
+    return norm === want
   })
   if (!match) return Number.NEGATIVE_INFINITY
-  const rawCount =
-    match.NoOfUsers ?? match.noOfUsers ?? match.count ?? match.review_count ?? match.score
+  const rawCount = match.NoOfUsers ?? match.noOfUsers ?? match.count ?? match.review_count ?? match.score
   const cnt = Number(rawCount)
   return Number.isFinite(cnt) ? cnt : Number.NEGATIVE_INFINITY
 }
@@ -273,7 +270,23 @@ export default function RedbusSrpPage() {
     return new Set(ranked.slice(0, n).map(r => r.service_key))
   }, [filteredBase, servicesLimit])
 
-  const tagColumns = DEFAULT_TAG_COLUMNS
+  const tagColumns = useMemo(() => {
+    if (!filteredData.length) return DEFAULT_TAG_COLUMNS
+    const present = new Set<string>()
+    for (const row of filteredData) {
+      if (Array.isArray(row.tags)) {
+        for (const t of row.tags) {
+          const name = t.tagmsg || t.label || t.name || t.tagName || ''
+          if (name) present.add(name.trim())
+        }
+      }
+    }
+    const cols = DEFAULT_TAG_COLUMNS.filter(col => {
+      const normCol = normalizeTagLabel(col)
+      return Array.from(present).some(p => normalizeTagLabel(p) === normCol)
+    })
+    return cols.length > 0 ? cols : DEFAULT_TAG_COLUMNS
+  }, [filteredData])
 
   const scopedListings = useMemo(() => {
     if (servicesLimit === 'all' || filteredData.length <= 10) return filteredData

@@ -405,7 +405,7 @@ def get_redbus_srp(
     operators_list = [o["operator"] for o in cursor.fetchall()]
 
     query = """
-        SELECT b.*, r.tags 
+        SELECT b.*, COALESCE(b.tags, r.tags) AS tags 
         FROM bus_listings b
         LEFT JOIN bus_ratings r ON b.route_id = r.route_id
         WHERE 1=1
@@ -501,7 +501,7 @@ def get_redbus_srp(
                 ("Driving", 0.45),
                 ("Cleanliness", 0.43),
                 ("Staff behavior", 0.41),
-                ("Seat Comfort", 0.40),
+                ("Seat / Sleep Comfort", 0.40),
                 ("AC", 0.38),
                 ("Rest stop hygiene", 0.36),
                 ("Live tracking", 0.36),
@@ -514,6 +514,7 @@ def get_redbus_srp(
                     "tagmsg": name,
                     "count": user_cnt,
                     "NoOfUsers": user_cnt,
+                    "noOfUsers": user_cnt,
                 })
 
         occ_val = None
