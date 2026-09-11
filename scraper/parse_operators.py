@@ -328,28 +328,32 @@ def _ingest_html_files(html_files: list[str], delete_travel_dates: list[str] | N
 def fetch_ratings_from_api():
     """
     Fetch raw Tags (NoOfUsers) from https://www.redbus.in/rpw/api/ratings?routeId=...
-    for every distinct route_id in bus_listings and store directly in the tags column.
+    for every distinct route_id in bus_listings that does NOT already have tags.
+    Commits after every single route so SSH disconnect doesn't lose progress.
     """
     import urllib.request
     import time as _time
+    import sys
 
     conn = sqlite3.connect(DB_FILE, timeout=30.0)
     cursor = conn.cursor()
 
+    # Only fetch for route_ids that have NO tags yet (skip already done ones)
     cursor.execute(
         "SELECT DISTINCT route_id FROM bus_listings "
-        "WHERE route_id IS NOT NULL AND route_id != ''"
+        "WHERE route_id IS NOT NULL AND route_id != '' AND (tags IS NULL OR tags = '')"
     )
     route_ids = [r[0] for r in cursor.fetchall()]
 
     if not route_ids:
-        print("No route_ids found in bus_listings — skipping API fetch.")
+        print("All route_ids already have tags — nothing to fetch.")
         conn.close()
         return
 
-    print(f"\n{'=' * 60}")
-    print(f"  Fetching live ratings from RedBus API for {len(route_ids)} route IDs")
-    print(f"{'=' * 60}")
+    total = len(route_ids)
+    print(f"\n{'=' * 60}", flush=True)
+    print(f"  Fetching RedBus ratings API for {total} route IDs (no tags yet)", flush=True)
+    print(f"{'=' * 60}", flush=True)
 
     headers = {
         "User-Agent": (
@@ -365,6 +369,7 @@ def fetch_ratings_from_api():
 
     for i, rid in enumerate(route_ids, 1):
         url = f"https://www.redbus.in/rpw/api/ratings?routeId={rid}"
+        status = "FAIL"
         try:
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=10) as resp:
@@ -386,24 +391,26 @@ def fetch_ratings_from_api():
                         "UPDATE bus_listings SET tags = ? WHERE route_id = ?",
                         (json.dumps(formatted), rid),
                     )
+                    # Commit after every route so progress is saved immediately
+                    conn.commit()
                     success += 1
+                    status = f"OK ({len(api_tags)} tags)"
                 else:
                     failed += 1
-        except Exception:
+                    status = "EMPTY"
+        except Exception as e:
             failed += 1
+            status = f"ERR: {e}"
 
-        if i % 50 == 0:
-            conn.commit()
-            print(f"  Progress: {i}/{len(route_ids)} (ok={success}, fail={failed})")
+        print(f"  [{i}/{total}] routeId={rid} → {status}", flush=True)
+        sys.stdout.flush()
 
         # Small delay to avoid rate limiting
-        _time.sleep(0.15)
+        _time.sleep(0.1)
 
-    conn.commit()
     conn.close()
-
-    print(f"\n  API fetch done: {success} updated, {failed} failed/empty")
-    print(f"{'=' * 60}")
+    print(f"\n  Done: {success} ok, {failed} failed/empty out of {total}", flush=True)
+    print(f"{'=' * 60}", flush=True)
 
 
 if __name__ == "__main__":
