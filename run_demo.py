@@ -475,6 +475,7 @@ def get_redbus_srp(
                                     "tagmsg": msg,
                                     "count": cnt_val,
                                     "NoOfUsers": cnt_val,
+                                    "noOfUsers": cnt_val,
                                     "tagId": item.get("tagId"),
                                 })
                 elif isinstance(parsed, list):
