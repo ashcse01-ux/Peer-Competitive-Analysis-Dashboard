@@ -17,9 +17,11 @@ function xmlEscape(value: string | number | null | undefined): string {
 
 function tagCount(row: RedbusSrpEntry, tagName: string): string {
   if (!Array.isArray(row.tags)) return ''
+  const want = tagName.trim().toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ')
   const match = row.tags.find((t: { tagmsg?: string; label?: string; name?: string; tagName?: string }) => {
     const name = t.tagmsg || t.label || t.name || t.tagName || ''
-    return String(name).trim().toLowerCase() === tagName.trim().toLowerCase()
+    const n = String(name).trim().toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ')
+    return n === want
   })
   if (!match) return ''
   const raw =
@@ -45,7 +47,6 @@ const HEADERS = [
   'SRP Rank',
   'Rating',
   'Total No. of Ratings',
-  'Occupancy %',
   'Price',
   ...EXPERIENCE_KPIS.map(k => k.label),
 ]
@@ -60,9 +61,14 @@ function rowValues(row: RedbusSrpEntry): string[] {
     srpRank(row),
     row.rating && row.rating !== '0' ? row.rating : '',
     row.reviews ? String(row.reviews).replace(/[^\d]/g, '') : '',
-    row.occupancy_pct != null && Number.isFinite(Number(row.occupancy_pct)) ? String(row.occupancy_pct) : '',
     row.price || '',
-    ...EXPERIENCE_KPIS.map(k => tagCount(row, k.listingTags[0])),
+    ...EXPERIENCE_KPIS.map(k => {
+      for (const tag of k.listingTags) {
+        const v = tagCount(row, tag)
+        if (v) return v
+      }
+      return ''
+    }),
   ]
 }
 

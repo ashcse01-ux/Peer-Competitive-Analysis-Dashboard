@@ -27,7 +27,7 @@ export default function CompetitiveScatter({ rows }: Props) {
     reviews: r.reviewCount,
     rating: r.overallRating,
     rank: r.competitiveRank,
-    fill: isFreshBus(r.name) ? '#FBBC04' : operatorColor(r.name),
+    fill: isFreshBus(r.name) ? '#FFEA20' : operatorColor(r.name),
     z: isFreshBus(r.name) ? 120 : 70,
   }))
 

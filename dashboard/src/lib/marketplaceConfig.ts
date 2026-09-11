@@ -79,7 +79,7 @@ export function operatorSlug(name: string) {
 }
 
 export function operatorColor(name: string): string {
-  if (isFreshBus(name)) return '#FBBC04'
+  if (isFreshBus(name)) return '#FFEA20'
   const palette = ['#0c4dc3', '#7c3aed', '#0891b2', '#dc2626', '#059669', '#ea580c', '#4f46e5', '#be185d']
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0
@@ -97,7 +97,7 @@ export const TRACKED_PEER_OPERATORS = [
     id: 'freshbus',
     label: 'FreshBus',
     shortLabel: 'FreshBus',
-    accent: '#FBBC04',
+    accent: '#FFEA20',
     match: (name: string) => /fresh\s*bus/i.test(name),
   },
   {

@@ -30,7 +30,7 @@ export const PLAY_TOPIC_LABELS: Record<PlayTopicKey, string> = {
 
 export const FB_BLUE = '#0c4dc3'
 export const FB_BLUE_DARK = '#0a3fa0'
-export const FB_YELLOW = '#FBBC04'
+export const FB_YELLOW = '#FFEA20'
 
 /** Topics with a real score from scraped / review-derived Play Store data. */
 export function availablePlayTopicKeys(

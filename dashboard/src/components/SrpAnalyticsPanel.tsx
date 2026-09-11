@@ -4,28 +4,16 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  ReferenceLine,
   ResponsiveContainer,
-  Scatter,
-  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
-  ZAxis,
 } from 'recharts'
 import type { RedbusSrpEntry } from '../api'
 import {
-  buildDepartureOccupancyHeatmap,
-  buildOperatorPriceOccupancy,
-  buildOperatorPricePositioning,
   buildOperatorRankHeatmap,
   buildOperatorVisibilityRanking,
-  computeKpis,
   expandObservations,
-  formatInr,
-  formatPct1,
-  formatRating1,
-  priceOccupancyMedians,
   SRP_RANK_BANDS,
 } from '../lib/srpVizAnalytics'
 import { type BusTypeBucket, type RatingBucket } from '../lib/srpFilters'
@@ -35,7 +23,6 @@ import OperatorViewToggle, {
   resolveOperatorLimit,
   type OperatorViewLimit,
 } from './OperatorViewToggle'
-import { Bus, IndianRupee, Percent, Star, Eye, Users } from 'lucide-react'
 
 interface Props {
   rows: RedbusSrpEntry[]
@@ -78,30 +65,6 @@ function ChartCard({
   )
 }
 
-function KpiCard({
-  label,
-  value,
-  icon,
-  accent,
-}: {
-  label: string
-  value: string
-  icon: React.ReactNode
-  accent?: string
-}) {
-  return (
-    <div className="srp-viz-kpi" style={{ ['--kpi-accent' as string]: accent || FB_BLUE }}>
-      <div className="srp-viz-kpi__top">
-        <p className="srp-viz-kpi__label">{label}</p>
-        <span className="srp-viz-kpi__icon" aria-hidden>
-          {icon}
-        </span>
-      </div>
-      <p className="srp-viz-kpi__value">{value}</p>
-    </div>
-  )
-}
-
 function heatBg(pct: number | null, max = 100): React.CSSProperties {
   if (pct == null) return { background: 'transparent', color: 'var(--text-muted)' }
   const t = Math.min(1, Math.max(0, pct / max))
@@ -113,33 +76,17 @@ function heatBg(pct: number | null, max = 100): React.CSSProperties {
   }
 }
 
-function occHeatBg(pct: number | null): React.CSSProperties {
-  if (pct == null) return { background: 'transparent' }
-  const t = Math.min(1, Math.max(0, pct / 100))
-  const r = Math.round(245 + (12 - 245) * t)
-  const g = Math.round(158 + (77 - 158) * t)
-  const b = Math.round(11 + (195 - 11) * t)
-  return {
-    background: `rgba(${r}, ${g}, ${b}, ${0.15 + t * 0.55})`,
-    color: t > 0.55 ? '#0f1d35' : 'var(--text-primary)',
-    fontWeight: 750,
-  }
-}
-
 export default function SrpAnalyticsPanel({
   rows,
   startDate,
   endDate,
 }: Props) {
-  type ChartKey = 'avgSrp' | 'serviceCount' | 'rankHeat' | 'visibility' | 'priceOcc' | 'pricePos'
+  type ChartKey = 'avgSrp' | 'serviceCount' | 'rankHeat'
 
   const [limits, setLimits] = useState<Record<ChartKey, OperatorViewLimit>>({
     avgSrp: 10,
     serviceCount: 10,
     rankHeat: 10,
-    visibility: 10,
-    priceOcc: 10,
-    pricePos: 10,
   })
 
   const [flippedHeatCell, setFlippedHeatCell] = useState<string | null>(null)
@@ -158,7 +105,6 @@ export default function SrpAnalyticsPanel({
   }
 
   const obs = useMemo(() => expandObservations(rows, startDate, endDate), [rows, startDate, endDate])
-  const kpis = useMemo(() => computeKpis(rows, obs), [rows, obs])
 
   const rankingAll = useMemo(
     () => buildOperatorVisibilityRanking(obs, rows, Number.POSITIVE_INFINITY),
@@ -176,11 +122,6 @@ export default function SrpAnalyticsPanel({
       (a, b) => (count.get(b.operator) ?? 0) - (count.get(a.operator) ?? 0) || a.operatorDisplay.localeCompare(b.operatorDisplay),
     )
   }, [obs, rows, rankingAll])
-
-  const pricePosAll = useMemo(() => buildOperatorPricePositioning(rows), [rows])
-  const priceOccAll = useMemo(() => buildOperatorPriceOccupancy(rows), [rows])
-  const depHeat = useMemo(() => buildDepartureOccupancyHeatmap(obs), [obs])
-  const priceOccGuides = useMemo(() => priceOccupancyMedians(priceOccAll), [priceOccAll])
 
   const operatorTotal = rankingAll.length
   const takeFor = <T,>(key: ChartKey, list: T[]) =>
@@ -201,23 +142,19 @@ export default function SrpAnalyticsPanel({
 
   const avgSrpChart = takeFor('avgSrp', byServices.filter(r => r.medianSrp != null))
   const serviceCountChart = takeFor('serviceCount', byServices)
-  const rankingBars = takeFor('visibility', byServices)
   const rankHeat = takeFor('rankHeat', rankHeatAll)
-  const pricePos = takeFor('pricePos', pricePosAll)
-  const priceOcc = takeFor('priceOcc', priceOccAll)
-  const maxPrice = useMemo(
-    () => Math.max(...pricePosAll.map(r => r.max ?? 0), 1),
-    [pricePosAll],
-  )
 
   const avgSrpScope = scopeMeta('avgSrp')
   const serviceCountScope = scopeMeta('serviceCount')
   const rankHeatScope = scopeMeta('rankHeat')
-  const visibilityScope = scopeMeta('visibility')
-  const priceOccScope = scopeMeta('priceOcc')
-  const pricePosScope = scopeMeta('pricePos')
+  /** Dense/flat cells only for View All — Top 25 keeps Top 10 typography + flip. */
+  const rankHeatAllMode = limits.rankHeat === 'all'
 
-  const chartHeight = (count: number) => Math.min(720, Math.max(280, count * 30 + 16))
+  /** Full content height so View All can scroll; never crush hundreds of Y ticks into ~720px. */
+  const chartHeight = (count: number) => {
+    const row = count > 25 ? 22 : 30
+    return Math.max(280, count * row + 24)
+  }
 
   if (!startDate || !endDate) {
     return <div className="srp-viz-empty-block">Apply filters to load SRP analytics.</div>
@@ -225,45 +162,6 @@ export default function SrpAnalyticsPanel({
 
   return (
     <div className="srp-viz">
-      <div className="srp-viz-kpis">
-        <KpiCard
-          label="Total Services"
-          value={kpis.totalServices.toLocaleString('en-IN')}
-          icon={<Bus size={16} strokeWidth={2.4} />}
-          accent="#0c4dc3"
-        />
-        <KpiCard
-          label="Median Price"
-          value={formatInr(kpis.medianPrice)}
-          icon={<IndianRupee size={16} strokeWidth={2.4} />}
-          accent="#0a3fa0"
-        />
-        <KpiCard
-          label="Avg Occupancy"
-          value={formatPct1(kpis.avgOccupancy)}
-          icon={<Percent size={16} strokeWidth={2.4} />}
-          accent="#0369a1"
-        />
-        <KpiCard
-          label="Market Rating"
-          value={kpis.weightedRating != null ? `${formatRating1(kpis.weightedRating)} ★` : '—'}
-          icon={<Star size={16} strokeWidth={2.4} />}
-          accent="#ca8a04"
-        />
-        <KpiCard
-          label="Top-10 Visibility"
-          value={formatPct1(kpis.top10Visibility)}
-          icon={<Eye size={16} strokeWidth={2.4} />}
-          accent="#1d4ed8"
-        />
-        <KpiCard
-          label="Active Operators"
-          value={kpis.activeOperators.toLocaleString('en-IN')}
-          icon={<Users size={16} strokeWidth={2.4} />}
-          accent="#4338ca"
-        />
-      </div>
-
       <div className="srp-viz-grid">
         <ChartCard
           className="srp-viz-span-6"
@@ -333,14 +231,21 @@ export default function SrpAnalyticsPanel({
         </ChartCard>
 
         <ChartCard
-          className="srp-viz-span-7"
+          className="srp-viz-span-12"
           title="Operator SRP Position"
           description={`SRP rank-band mix — ${rankHeatScope.label} by service count. Click a cell to see the count.`}
           empty={!rankHeat.length ? 'No operator SRP distribution available.' : null}
           action={rankHeatScope.toggle}
         >
-          <div className={cx('srp-viz-heat-scroll', rankHeatScope.open && 'srp-viz-heat-scroll--open')}>
-            <table className="srp-viz-heat">
+          <div
+            className={cx(
+              'srp-viz-heat-scroll',
+              rankHeatScope.open && 'srp-viz-heat-scroll--open',
+            )}
+          >
+            <table
+              className={cx('srp-viz-heat', rankHeatAllMode && 'srp-viz-heat--dense')}
+            >
               <thead>
                 <tr>
                   <th>Operator</th>
@@ -352,12 +257,31 @@ export default function SrpAnalyticsPanel({
               <tbody>
                 {rankHeat.map(row => (
                   <tr key={row.operator}>
-                    <td className="srp-viz-heat__op">{row.operatorDisplay}</td>
+                    <td className="srp-viz-heat__op" title={row.operatorDisplay}>
+                      {row.operatorDisplay}
+                    </td>
                     {SRP_RANK_BANDS.map(b => {
                       const pct = row.bands[b.id]
                       const count = row.bandCounts[b.id] ?? 0
                       const cellId = `${row.operator}::${b.id}`
                       const flipped = flippedHeatCell === cellId
+                      /* View All only: skip 3D flips — they rupture overflow with hundreds of rows. */
+                      if (rankHeatAllMode) {
+                        return (
+                          <td key={b.id}>
+                            <button
+                              type="button"
+                              className={cx('srp-viz-heat__cell', flipped && 'srp-viz-heat__cell--on')}
+                              style={heatBg(pct)}
+                              title={flipped ? `${count} listings` : `${pct.toFixed(1)}% · click for count`}
+                              aria-pressed={flipped}
+                              onClick={() => flipHeatCell(cellId)}
+                            >
+                              {flipped ? count : pct >= 0.5 ? `${pct.toFixed(0)}%` : '·'}
+                            </button>
+                          </td>
+                        )
+                      }
                       return (
                         <td key={b.id}>
                           <button
@@ -377,209 +301,6 @@ export default function SrpAnalyticsPanel({
                               </span>
                             </span>
                           </button>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </ChartCard>
-
-        <ChartCard
-          className="srp-viz-span-5"
-          title="Operator SRP Visibility"
-          description={`Share of services in Top-10 SRP — ${visibilityScope.label} by service count.`}
-          empty={!rankingBars.length ? 'No operators to rank for Top-10 visibility.' : null}
-          action={visibilityScope.toggle}
-        >
-          <div className={cx('srp-viz-chart-scroll', visibilityScope.open && 'srp-viz-chart-scroll--open')}>
-            <div className="srp-viz-chart srp-viz-chart--ops" style={{ height: chartHeight(rankingBars.length) }}>
-              <ResponsiveContainer width="100%" height="100%" debounce={80} minWidth={0}>
-                <BarChart data={rankingBars} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
-                  <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
-                  <YAxis type="category" dataKey="operatorDisplay" width={128} tick={{ fontSize: 11 }} interval={0} />
-                  <Tooltip
-                    formatter={(v: number, _n, p) => {
-                      const row = p?.payload
-                      const n = Number(v)
-                      return [
-                        Number.isFinite(n) ? `${n.toFixed(1)}%` : '—',
-                        `Top-10 · ${row?.serviceCount ?? 0} services · Median SRP ${
-                          row?.medianSrp != null ? `#${row.medianSrp.toFixed(1)}` : '—'
-                        }`,
-                      ]
-                    }}
-                  />
-                  <Bar dataKey="top10" name="Top-10 visibility" radius={[0, 6, 6, 0]} isAnimationActive={false}>
-                    {rankingBars.map((r, i) => (
-                      <Cell key={r.operator} fill={i === 0 ? '#D4AF37' : FB_BLUE} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </ChartCard>
-
-        <ChartCard
-          className="srp-viz-span-7"
-          title="Price vs Occupancy"
-          description={`Each bubble = one operator (median price × avg occupancy). Bubble size = service count. Dashed lines = market medians — ${priceOccScope.label} by services.`}
-          empty={!priceOcc.length ? 'Not enough operators with both price and occupancy.' : null}
-          action={priceOccScope.toggle}
-        >
-          <div className="srp-viz-chart srp-viz-chart--tall">
-            <ResponsiveContainer width="100%" height="100%" debounce={80} minWidth={0}>
-              <ScatterChart margin={{ top: 12, right: 16, left: 4, bottom: 8 }}>
-                <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
-                <XAxis
-                  type="number"
-                  dataKey="price"
-                  name="Median price"
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={v => `₹${Number(v).toLocaleString('en-IN')}`}
-                />
-                <YAxis
-                  type="number"
-                  dataKey="occupancy"
-                  name="Avg occupancy"
-                  unit="%"
-                  domain={[0, 100]}
-                  tick={{ fontSize: 11 }}
-                  width={42}
-                />
-                <ZAxis type="number" dataKey="serviceCount" range={[60, 280]} />
-                {priceOccGuides.medianPrice != null ? (
-                  <ReferenceLine
-                    x={priceOccGuides.medianPrice}
-                    stroke="var(--text-muted)"
-                    strokeDasharray="4 4"
-                    label={{ value: 'Med price', position: 'insideTopRight', fontSize: 10, fill: 'var(--text-muted)' }}
-                  />
-                ) : null}
-                {priceOccGuides.medianOcc != null ? (
-                  <ReferenceLine
-                    y={priceOccGuides.medianOcc}
-                    stroke="var(--text-muted)"
-                    strokeDasharray="4 4"
-                    label={{ value: 'Med occ', position: 'insideTopLeft', fontSize: 10, fill: 'var(--text-muted)' }}
-                  />
-                ) : null}
-                <Tooltip
-                  cursor={{ strokeDasharray: '3 3' }}
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null
-                    const p = payload[0]?.payload
-                    if (!p) return null
-                    const mp = priceOccGuides.medianPrice
-                    const mo = priceOccGuides.medianOcc
-                    let quadrant = ''
-                    if (mp != null && mo != null) {
-                      const hiP = p.price >= mp
-                      const hiO = p.occupancy >= mo
-                      if (hiP && hiO) quadrant = 'Premium + filling'
-                      else if (!hiP && hiO) quadrant = 'Value + filling'
-                      else if (hiP && !hiO) quadrant = 'Premium + soft fill'
-                      else quadrant = 'Value + soft fill'
-                    }
-                    return (
-                      <div className="srp-viz-tip">
-                        <p className="srp-viz-tip__title">{p.operatorDisplay}</p>
-                        <p>Median price {formatInr(p.price)}</p>
-                        <p>Avg occupancy {formatPct1(p.occupancy)}</p>
-                        <p>{p.serviceCount} services</p>
-                        {quadrant ? <p className="srp-viz-tip__title">{quadrant}</p> : null}
-                      </div>
-                    )
-                  }}
-                />
-                <Scatter name="Operators" data={priceOcc} fillOpacity={0.85} isAnimationActive={false}>
-                  {priceOcc.map(r => (
-                    <Cell key={r.operator} fill={r.freshbus ? '#D4AF37' : FB_BLUE} />
-                  ))}
-                </Scatter>
-              </ScatterChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="srp-viz-quad-legend">
-            <span>Gold = FreshBus</span>
-            <span>Larger bubble = more services</span>
-            <span>Above/right of dashed lines = above market median</span>
-          </div>
-        </ChartCard>
-
-        <ChartCard
-          className="srp-viz-span-5"
-          title="Operator Price Positioning"
-          description={`P25 · Median · P75 price band — ${pricePosScope.label} by priced service count.`}
-          empty={!pricePos.length ? 'Not enough priced services for operator positioning.' : null}
-          action={pricePosScope.toggle}
-        >
-          <div className={cx('srp-viz-price-list', pricePosScope.open && 'srp-viz-price-list--open')}>
-            {pricePos.map(r => {
-              const left = ((r.p25 ?? 0) / maxPrice) * 100
-              const width = Math.max((((r.p75 ?? 0) - (r.p25 ?? 0)) / maxPrice) * 100, 1.5)
-              const mid = ((r.median ?? 0) / maxPrice) * 100
-              return (
-                <div
-                  key={r.operator}
-                  className="srp-viz-price-row"
-                  title={`P25 ${formatInr(r.p25)} · Median ${formatInr(r.median)} · P75 ${formatInr(r.p75)} · n=${r.n}`}
-                >
-                  <span className="srp-viz-price-row__name">
-                    {r.operatorDisplay}
-                    <span className="srp-viz-price-row__n">{r.n}</span>
-                  </span>
-                  <div className="srp-viz-price-row__track">
-                    <span className="srp-viz-price-row__iqr" style={{ left: `${left}%`, width: `${width}%` }} />
-                    <span className="srp-viz-price-row__median" style={{ left: `${mid}%` }} />
-                  </div>
-                  <span className="srp-viz-price-row__val tabular-nums">{formatInr(r.median)}</span>
-                </div>
-              )
-            })}
-          </div>
-        </ChartCard>
-
-        <ChartCard
-          className="srp-viz-span-12"
-          title="Departure Window Occupancy"
-          description="Median observed occupancy by departure window and day of week."
-          empty={!depHeat.enoughData ? 'Not enough observations for a reliable departure-window view.' : null}
-        >
-          <div className="srp-viz-heat-scroll">
-            <table className="srp-viz-heat srp-viz-heat--dow">
-              <thead>
-                <tr>
-                  <th>Day</th>
-                  {depHeat.buckets.map(b => (
-                    <th key={b.id}>{b.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {depHeat.days.map(dow => (
-                  <tr key={dow}>
-                    <td className="srp-viz-heat__op">{dow}</td>
-                    {depHeat.buckets.map(b => {
-                      const cell = depHeat.cells.find(c => c.dow === dow && c.bucketId === b.id)
-                      const occ = cell?.occupancy ?? null
-                      return (
-                        <td key={b.id}>
-                          <div
-                            className="srp-viz-heat__cell"
-                            style={occHeatBg(occ)}
-                            title={
-                              occ == null
-                                ? 'No data'
-                                : `${dow} ${b.label}: ${occ.toFixed(1)}% · ${cell?.n ?? 0} services`
-                            }
-                          >
-                            {occ == null ? '' : `${occ.toFixed(0)}%`}
-                          </div>
                         </td>
                       )
                     })}

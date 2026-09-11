@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import type { RedbusSrpEntry } from '../api'
 import {
   LEADERSHIP_COLUMNS,
@@ -9,6 +10,7 @@ import {
   freshbusMedal,
   type DimensionStanding,
   type MatrixColumn,
+  type MatrixDimId,
   type OperatorStanding,
   type RouteLeadershipRow,
 } from '../lib/routeLeadershipMatrix'
@@ -24,8 +26,76 @@ interface DetailTarget {
   standing: DimensionStanding
 }
 
+type SortKey = 'route' | 'leadership' | MatrixDimId
+type SortDir = 'asc' | 'desc'
+
 function servicesNote(n: number): string {
   return n === 1 ? '1 service' : `${n} services`
+}
+
+function sortMetric(row: RouteLeadershipRow, key: SortKey): number | string | null {
+  if (key === 'route') return row.routeLabel.toLowerCase()
+  if (key === 'leadership') return row.freshbusLeadWins
+  const col = LEADERSHIP_COLUMNS.find(c => c.id === key)
+  const dim = row.dimensions[key]
+  if (!col || !dim) return null
+  if (!col.competitive) return dim.supportingValue
+  return dim.freshbus?.value ?? null
+}
+
+function compareRows(a: RouteLeadershipRow, b: RouteLeadershipRow, key: SortKey, dir: SortDir): number {
+  const av = sortMetric(a, key)
+  const bv = sortMetric(b, key)
+  const aMissing = av == null || av === ''
+  const bMissing = bv == null || bv === ''
+  if (aMissing && bMissing) return a.routeLabel.localeCompare(b.routeLabel)
+  if (aMissing) return 1
+  if (bMissing) return -1
+
+  let cmp = 0
+  if (typeof av === 'string' && typeof bv === 'string') {
+    cmp = av.localeCompare(bv)
+  } else {
+    cmp = Number(av) - Number(bv)
+  }
+  if (cmp === 0) cmp = a.routeLabel.localeCompare(b.routeLabel)
+  return dir === 'asc' ? cmp : -cmp
+}
+
+function SortableTh({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+  className,
+}: {
+  label: string
+  sortKey: SortKey
+  activeKey: SortKey
+  dir: SortDir
+  onSort: (key: SortKey) => void
+  className?: string
+}) {
+  const active = activeKey === sortKey
+  const Icon = active ? (dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+  return (
+    <th className={className}>
+      <button
+        type="button"
+        className={cx('srp-sort-th', active && 'srp-sort-th--active')}
+        onClick={() => onSort(sortKey)}
+      >
+        <span className="srp-sort-th__label">{label}</span>
+        <Icon
+          size={14}
+          strokeWidth={2.5}
+          className={cx('srp-sort-th__icon', !active && 'srp-sort-th__idle')}
+          aria-hidden
+        />
+      </button>
+    </th>
+  )
 }
 
 function FreshBusLine({
@@ -337,10 +407,29 @@ function LeadershipBadge({ row }: { row: RouteLeadershipRow }) {
 
 export default function FreshbusRouteLeadershipMatrix({ rows }: Props) {
   const [detail, setDetail] = useState<DetailTarget | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey>('route')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
   const matrix = useMemo(
     () => buildRouteLeadershipMatrix(rows, []),
     [rows],
   )
+
+  const sortedMatrix = useMemo(
+    () => [...matrix].sort((a, b) => compareRows(a, b, sortKey, sortDir)),
+    [matrix, sortKey, sortDir],
+  )
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortKey(key)
+    // SRP: lower is better → default asc; leadership / most KPIs: higher is better → desc
+    if (key === 'srp' || key === 'route') setSortDir('asc')
+    else setSortDir('desc')
+  }
 
   if (!rows.length) return null
 
@@ -356,31 +445,51 @@ export default function FreshbusRouteLeadershipMatrix({ rows }: Props) {
           </p>
         </div>
         <span className="srp-listings-count">
-          <strong>{matrix.length}</strong> route{matrix.length === 1 ? '' : 's'}
+          <strong>{sortedMatrix.length}</strong> route{sortedMatrix.length === 1 ? '' : 's'}
         </span>
       </div>
 
-      {!matrix.length ? (
+      {!sortedMatrix.length ? (
         <div className="p-8 text-center text-theme-muted">No FreshBus services in the selected filters.</div>
       ) : (
         <div className="srp-listings-scroll fb-lead-scroll">
           <table className="data-table fb-lead-table">
             <thead>
               <tr>
-                <th className="fb-lead-sticky">Route</th>
-                <th>FreshBus Leadership</th>
+                <SortableTh
+                  label="Route"
+                  sortKey="route"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  className="fb-lead-sticky fb-lead-sticky--route"
+                />
+                <SortableTh
+                  label="FreshBus Leadership"
+                  sortKey="leadership"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  className="fb-lead-sticky fb-lead-sticky--lead"
+                />
                 {LEADERSHIP_COLUMNS.map(col => (
-                  <th key={col.id} className={cx(!col.counted && 'fb-lead-th--support')}>
-                    {col.label}
-                  </th>
+                  <SortableTh
+                    key={col.id}
+                    label={col.label}
+                    sortKey={col.id}
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    className={cx(!col.counted && 'fb-lead-th--support')}
+                  />
                 ))}
               </tr>
             </thead>
             <tbody>
-              {matrix.map(row => (
+              {sortedMatrix.map(row => (
                 <tr key={row.routeKey}>
-                  <td className="fb-lead-sticky fb-lead-route">{row.routeLabel}</td>
-                  <td>
+                  <td className="fb-lead-sticky fb-lead-sticky--route fb-lead-route">{row.routeLabel}</td>
+                  <td className="fb-lead-sticky fb-lead-sticky--lead">
                     <LeadershipBadge row={row} />
                   </td>
                   {LEADERSHIP_COLUMNS.map(col => (
@@ -399,15 +508,6 @@ export default function FreshbusRouteLeadershipMatrix({ rows }: Props) {
           </table>
         </div>
       )}
-
-      <div className="fb-lead-legend">
-        <span>🥇 FreshBus #1</span>
-        <span>🥈 FreshBus #2</span>
-        <span>🥉 FreshBus #3</span>
-        <span>Peers need 3+ services for official #1</span>
-        <span>FreshBus always retained (1–2 services = Limited data)</span>
-        <span>Amenity % = pooled mentions ÷ ratings; buses need 100+ ratings; tags cannot exceed ratings</span>
-      </div>
 
       {detail ? <DetailModal target={detail} onClose={() => setDetail(null)} /> : null}
     </section>

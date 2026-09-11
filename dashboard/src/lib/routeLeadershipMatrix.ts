@@ -17,28 +17,25 @@ export type MatrixDimId =
   | 'srp'
   | 'rating'
   | 'avgReviews'
-  | 'occupancy'
   | 'punctuality'
-  | 'cleanliness'
   | 'staff_behavior'
   | 'driving'
+  | 'seat_sleep_comfort'
+  | 'cleanliness'
   | 'ac'
-  | 'seat_comfort'
   | 'live_tracking'
   | 'rest_stop_hygiene'
+  | 'seat_comfort'
 
 export type ConfidenceLevel = 'limited' | 'moderate' | 'high' | 'insufficient'
 
 export interface MatrixColumn {
   id: MatrixDimId
   label: string
-  /** Counts toward FreshBus Leadership X/11 */
   counted: boolean
-  /** Competitive ranked column vs supporting value-only */
   competitive: boolean
-  format: 'srp' | 'rating' | 'reviews' | 'occupancy' | 'score' | 'mention'
+  format: 'srp' | 'rating' | 'reviews' | 'score' | 'mention'
   direction?: 'higher' | 'lower'
-  /** Service-listing tagmsg, e.g. "Staff behavior" */
   listingTag?: string
 }
 
@@ -54,18 +51,10 @@ export const LEADERSHIP_COLUMNS: MatrixColumn[] = [
   },
   {
     id: 'avgReviews',
-    label: 'Avg Total No. of Ratings',
+    label: 'Avg Ratings',
     counted: false,
     competitive: false,
     format: 'reviews',
-  },
-  {
-    id: 'occupancy',
-    label: 'Occupancy %',
-    counted: true,
-    competitive: true,
-    format: 'occupancy',
-    direction: 'higher',
   },
   {
     id: 'punctuality',
@@ -102,6 +91,15 @@ export const LEADERSHIP_COLUMNS: MatrixColumn[] = [
     format: 'mention',
     direction: 'higher',
     listingTag: 'Driving',
+  },
+  {
+    id: 'seat_sleep_comfort',
+    label: 'Seat / Sleep Comfort',
+    counted: true,
+    competitive: true,
+    format: 'mention',
+    direction: 'higher',
+    listingTag: 'Seat / Sleep Comfort',
   },
   {
     id: 'ac',
@@ -193,10 +191,11 @@ function parseReviews(raw: string | null | undefined): number | null {
 
 function listingTagCount(row: RedbusSrpEntry, listingTag: string): number | null {
   if (!Array.isArray(row.tags)) return null
-  const want = listingTag.trim().toLowerCase()
+  const want = listingTag.trim().toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ')
   const match = row.tags.find((t: { tagmsg?: string; label?: string; name?: string; tagName?: string }) => {
     const name = t.tagmsg || t.label || t.name || t.tagName || ''
-    return String(name).trim().toLowerCase() === want
+    const n = String(name).trim().toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ')
+    return n === want
   })
   if (!match) return 0
   const raw =
@@ -284,7 +283,6 @@ interface OpAgg {
   srps: number[]
   ratings: number[]
   reviews: number[]
-  occ: number[]
   tagPool: Record<string, { mentions: number; ratings: number; services: number }>
 }
 
@@ -302,7 +300,6 @@ function aggregateByRoute(rows: RedbusSrpEntry[]) {
         srps: [],
         ratings: [],
         reviews: [],
-        occ: [],
         tagPool: {},
       })
     }
@@ -314,9 +311,6 @@ function aggregateByRoute(rows: RedbusSrpEntry[]) {
     if (rating != null) agg.ratings.push(rating)
     const reviews = parseReviews(row.reviews)
     if (reviews != null) agg.reviews.push(reviews)
-    if (row.occupancy_pct != null && Number.isFinite(Number(row.occupancy_pct))) {
-      agg.occ.push(Number(row.occupancy_pct))
-    }
     if (reviews != null && reviews >= AMENITY_MIN_RATINGS_PER_SERVICE) {
       for (const col of LEADERSHIP_COLUMNS) {
         if (!col.listingTag) continue
@@ -508,13 +502,8 @@ export function buildRouteLeadershipMatrix(
       .map(o => ({ operator: o.operator, value: mean(o.ratings), serviceCount: o.serviceCount }))
       .filter((o): o is MetricCandidate => o.value != null)
 
-    const occCandidates: MetricCandidate[] = operators
-      .map(o => ({ operator: o.operator, value: mean(o.occ), serviceCount: o.serviceCount }))
-      .filter((o): o is MetricCandidate => o.value != null)
-
     dimensions.srp = buildCompetitiveStanding(srpCandidates, 'lower')
     dimensions.rating = buildCompetitiveStanding(ratingCandidates, 'higher')
-    dimensions.occupancy = buildCompetitiveStanding(occCandidates, 'higher')
 
     const fbAgg = operators.find(o => isFreshBus(o.operator))
     const fbReviews = fbAgg ? mean(fbAgg.reviews) : null
@@ -583,8 +572,6 @@ export function formatMatrixValue(format: MatrixColumn['format'], value: number)
       return (Math.round(value * 100) / 100).toFixed(2)
     case 'reviews':
       return Math.round(value).toLocaleString('en-IN')
-    case 'occupancy':
-      return `${(Math.round(value * 10) / 10).toFixed(1)}%`
     case 'mention':
       return `${(Math.round(value * 10) / 10).toFixed(1)}%`
     case 'score':

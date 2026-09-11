@@ -41,7 +41,6 @@ type SortKey =
   | 'top10'
   | 'avgRating'
   | 'avgReviews'
-  | 'avgOccupancy'
   | 'avgPrice'
   | 'avgSrp'
   | 'leaderScore'
@@ -54,11 +53,6 @@ type SortDir = 'asc' | 'desc'
 function formatMoney(value: number | null): string {
   if (value == null) return '—'
   return `₹${Math.round(value).toLocaleString('en-IN')}`
-}
-
-function formatPct(value: number | null): string {
-  if (value == null) return '—'
-  return `${value % 1 === 0 ? value.toFixed(0) : value.toFixed(1)}%`
 }
 
 function formatRating(value: number | null): string {
@@ -255,7 +249,6 @@ export default function SrpOperatorAnalysisTable({ rows, startDate, endDate, rou
         key === 'top10' ||
         key === 'avgRating' ||
         key === 'avgReviews' ||
-        key === 'avgOccupancy' ||
         key === 'avgPrice' ||
         key === 'leaderScore'
       setSortDir(defaultDesc ? 'desc' : 'asc')
@@ -353,10 +346,6 @@ export default function SrpOperatorAnalysisTable({ rows, startDate, endDate, rou
           av = sortNumber(a.avgReviews, 'low')
           bv = sortNumber(b.avgReviews, 'low')
           break
-        case 'avgOccupancy':
-          av = sortNumber(a.avgOccupancy, 'low')
-          bv = sortNumber(b.avgOccupancy, 'low')
-          break
         case 'avgPrice':
           av = sortNumber(a.avgPrice, 'low')
           bv = sortNumber(b.avgPrice, 'low')
@@ -442,7 +431,6 @@ export default function SrpOperatorAnalysisTable({ rows, startDate, endDate, rou
                 <SortableTh label="Services in Top 10" sortKey="top10" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortableTh label="Avg Rating" sortKey="avgRating" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortableTh label="Avg Total No. of Ratings" sortKey="avgReviews" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortableTh label={'Avg Occupancy\u00A0%'} sortKey="avgOccupancy" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortableTh label="Avg Price" sortKey="avgPrice" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                 {dynCols.map(col => {
                   if (col.kind === 'period-avg') {
@@ -566,7 +554,6 @@ export default function SrpOperatorAnalysisTable({ rows, startDate, endDate, rou
                   <td className="tabular-nums font-semibold">{row.top10Services}</td>
                   <td className="tabular-nums">{formatRating(row.avgRating)}</td>
                   <td className="tabular-nums">{formatReviews(row.avgReviews)}</td>
-                  <td className="tabular-nums font-semibold">{formatPct(row.avgOccupancy)}</td>
                   <td className="tabular-nums font-semibold">{formatMoney(row.avgPrice)}</td>
                   {dynCols.map(col => (
                     <td key={String(col.sortKey)} className="srp-op-dyn">

@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Download, Star } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Download, Search, Star, X } from 'lucide-react'
 import SrpScraperTestFilterBar, { type SrpAppliedFilters } from '../components/SrpScraperTestFilterBar'
 import SrpAnalyticsPanel from '../components/SrpAnalyticsPanel'
 import SrpOperatorAnalysisTable from '../components/SrpOperatorAnalysisTable'
 import FreshbusRouteLeadershipMatrix from '../components/FreshbusRouteLeadershipMatrix'
 import ExperienceKpiPanel from '../components/ExperienceKpiPanel'
+import SrpFilterKpiStrip from '../components/SrpFilterKpiStrip'
 import PlayRatingMedal, { podiumRowClass, type PodiumRank } from '../components/PlayRatingMedal'
 import { ServiceViewToggle, type ServiceViewLimit, resolveOperatorLimit } from '../components/OperatorViewToggle'
 import { useMarketplaceFilters } from '../context/MarketplaceFilterContext'
@@ -16,12 +17,6 @@ import { cx } from '../lib/insights'
 
 function isFreshBus(name: string) {
   return /fresh\s*bus/i.test(name)
-}
-
-function formatOccupancyPct(value: number | null | undefined) {
-  if (value == null || Number.isNaN(Number(value))) return ''
-  const pct = Number(value)
-  return `${pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1)}%`
 }
 
 function formatRating(raw: string | null | undefined): string {
@@ -38,7 +33,6 @@ type SortKey =
   | 'duration'
   | 'busType'
   | 'price'
-  | 'occupancy'
   | 'rating'
   | 'reviews'
   | 'srpRank'
@@ -48,20 +42,26 @@ type SortDir = 'asc' | 'desc'
 
 const DEFAULT_TAG_COLUMNS = [
   'Punctuality',
-  'Cleanliness',
   'Staff behavior',
   'Driving',
+  'Seat / Sleep Comfort',
+  'Cleanliness',
   'AC',
-  'Seat Comfort',
   'Live tracking',
   'Rest stop hygiene',
+  'Seat Comfort',
 ]
+
+function normalizeTagLabel(name: string) {
+  return name.trim().toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ')
+}
 
 function getTagCount(row: RedbusSrpEntry, tagName: string): number {
   if (!Array.isArray(row.tags)) return Number.NEGATIVE_INFINITY
+  const want = normalizeTagLabel(tagName)
   const match = row.tags.find((t: any) => {
     const name = t.tagmsg || t.label || t.name || t.tagName || ''
-    return String(name).trim().toLowerCase() === tagName.trim().toLowerCase()
+    return normalizeTagLabel(String(name)) === want
   })
   if (!match) return Number.NEGATIVE_INFINITY
   const rawCount =
@@ -129,8 +129,6 @@ function sortValue(row: RedbusSrpEntry, key: SortKey): number | string {
       return (row.bus_type || '').toLowerCase()
     case 'price':
       return priceNumber(row.price)
-    case 'occupancy':
-      return row.occupancy_pct == null ? Number.NEGATIVE_INFINITY : Number(row.occupancy_pct)
     case 'rating':
       return ratingNumber(row.rating)
     case 'reviews':
@@ -177,6 +175,7 @@ export default function RedbusSrpPage() {
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [servicesLimit, setServicesLimit] = useState<ServiceViewLimit>(10)
   const [downloadOpen, setDownloadOpen] = useState(false)
+  const [listingSearch, setListingSearch] = useState('')
 
   const routeObj = filters.selectedRoutes[0]
   const routeString =
@@ -193,6 +192,13 @@ export default function RedbusSrpPage() {
     filters.customStart,
     filters.customEnd,
   )
+
+  const srpOperatorOptions = useMemo(() => {
+    if (!data?.data?.length) return []
+    return [...new Set(data.data.map(r => r.operator).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b),
+    )
+  }, [data])
 
   const handleApplied = (next: SrpAppliedFilters) => {
     setBusTypes(next.busTypes)
@@ -265,17 +271,45 @@ export default function RedbusSrpPage() {
 
   const tagColumns = DEFAULT_TAG_COLUMNS
 
-  const visibleListings = useMemo(() => {
+  const scopedListings = useMemo(() => {
     if (servicesLimit === 'all' || filteredData.length <= 10) return filteredData
     return filteredData.filter(row => topServiceKeys.has(row.service_key))
   }, [filteredData, servicesLimit, topServiceKeys])
+
+  const visibleListings = useMemo(() => {
+    const q = listingSearch.trim().toLowerCase()
+    if (!q) return scopedListings
+    return scopedListings.filter(row => {
+      const rank = rowSrpRank(row)
+      const haystack = [
+        row.route,
+        row.operator,
+        row.timing,
+        row.duration,
+        row.bus_type,
+        row.price,
+        row.rating,
+        row.reviews,
+        rank != null ? String(rank) : '',
+        rank != null ? `#${rank}` : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [scopedListings, listingSearch])
 
   const servicesScopeLabel =
     servicesLimit === 'all' ? 'all services' : `Top ${servicesLimit} services by SRP`
 
   return (
     <div className="analytics-page flex flex-col gap-5">
-      <SrpScraperTestFilterBar onApplied={handleApplied} />
+      <SrpScraperTestFilterBar onApplied={handleApplied} operatorOptions={srpOperatorOptions} />
+
+      {!isLoading && !error ? (
+        <SrpFilterKpiStrip filteredRows={filteredBase} />
+      ) : null}
 
       {!isLoading && !error ? (
         <SrpAnalyticsPanel
@@ -323,6 +357,26 @@ export default function RedbusSrpPage() {
           </div>
           <div className="srp-listings-panel__meta">
             {isFetching && !isLoading ? <span className="srp-listings-live">Refreshing…</span> : null}
+            <label className="srp-listings-search">
+              <Search size={14} strokeWidth={2.4} aria-hidden />
+              <input
+                type="search"
+                value={listingSearch}
+                onChange={e => setListingSearch(e.target.value)}
+                placeholder="Search listings…"
+                aria-label="Search service listings"
+              />
+              {listingSearch ? (
+                <button
+                  type="button"
+                  className="srp-listings-search__clear"
+                  aria-label="Clear search"
+                  onClick={() => setListingSearch('')}
+                >
+                  <X size={13} strokeWidth={2.5} />
+                </button>
+              ) : null}
+            </label>
             <ServiceViewToggle
               value={servicesLimit}
               total={filteredData.length}
@@ -370,8 +424,14 @@ export default function RedbusSrpPage() {
             ) : null}
             <span className="srp-listings-count">
               <strong>{visibleListings.length}</strong>
-              {filteredData.length > visibleListings.length ? ` of ${filteredData.length}` : ''} service
+              {scopedListings.length > visibleListings.length
+                ? ` of ${scopedListings.length}`
+                : filteredData.length > scopedListings.length
+                  ? ` of ${filteredData.length}`
+                  : ''}{' '}
+              service
               {visibleListings.length === 1 ? '' : 's'}
+              {listingSearch.trim() ? ' matched' : ''}
             </span>
           </div>
         </div>
@@ -400,13 +460,6 @@ export default function RedbusSrpPage() {
                     dir={sortDir}
                     onSort={handleSort}
                   />
-                  <SortableTh
-                    label={'Occupancy\u00A0%'}
-                    sortKey="occupancy"
-                    activeKey={sortKey}
-                    dir={sortDir}
-                    onSort={handleSort}
-                  />
                   <SortableTh label="Price" sortKey="price" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                   {tagColumns.map(tag => (
                     <SortableTh
@@ -423,8 +476,10 @@ export default function RedbusSrpPage() {
               <tbody>
                 {visibleListings.length === 0 ? (
                   <tr>
-                    <td colSpan={10 + tagColumns.length} className="py-8 text-center text-theme-muted">
-                      No data found for the selected filters.
+                    <td colSpan={9 + tagColumns.length} className="py-8 text-center text-theme-muted">
+                      {listingSearch.trim()
+                        ? 'No listings match your search.'
+                        : 'No data found for the selected filters.'}
                     </td>
                   </tr>
                 ) : (
@@ -480,7 +535,6 @@ export default function RedbusSrpPage() {
                           )}
                         </td>
                         <td className="tabular-nums font-medium">{ratingsCount}</td>
-                        <td className="tabular-nums font-bold">{formatOccupancyPct(row.occupancy_pct)}</td>
                         <td className="font-semibold tabular-nums">{row.price || ''}</td>
                         {tagColumns.map(tag => {
                           const count = getTagCount(row, tag)

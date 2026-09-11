@@ -33,7 +33,7 @@ export default function HighestRatedCard({
         <p className="eyebrow" style={{ color: FB_BLUE }}>Peer leader</p>
         <span
           className="flex h-11 w-11 items-center justify-center rounded-2xl text-[#0f1d35] shadow-lg"
-          style={{ background: FB_YELLOW, boxShadow: '0 10px 28px rgba(251,188,4,0.4)' }}
+          style={{ background: FB_YELLOW, boxShadow: '0 10px 28px rgba(255,234,32,0.4)' }}
         >
           <Trophy size={22} strokeWidth={2.4} />
         </span>

@@ -148,7 +148,7 @@ export default function DateRangeBar({ value, onChange, availableDates = [], cla
             type="button"
             onClick={applyCustom}
             className="ml-1 rounded-full px-4 py-1.5 text-xs font-extrabold text-[#0c4dc3] shadow-sm"
-            style={{ background: `linear-gradient(135deg, ${FB_YELLOW}, #ffc800)` }}
+            style={{ background: `var(--fb-yellow)` }}
           >
             Go
           </button>

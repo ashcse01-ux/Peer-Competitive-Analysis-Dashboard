@@ -55,7 +55,7 @@ export default function RedbusOperatorsPage() {
       x: p.medianFare,
       y: p.avgSrp,
       z: Math.max(50, p.activeServices * 20),
-      fill: p.isFreshBus ? '#FBBC04' : brand.accent,
+      fill: p.isFreshBus ? '#FFEA20' : brand.accent,
     }))
 
   return (

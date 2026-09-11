@@ -81,7 +81,7 @@ export default function TopicChampionsBoard({
         </div>
         <div
           className="rounded-full px-3 py-1.5 text-xs font-extrabold text-[#0f1d35]"
-          style={{ background: FB_YELLOW, boxShadow: '0 6px 18px rgba(251,188,4,0.35)' }}
+          style={{ background: FB_YELLOW, boxShadow: '0 6px 18px rgba(255,234,32,0.35)' }}
         >
           {count} topic{count === 1 ? '' : 's'} — peer crown
         </div>

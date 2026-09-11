@@ -17,13 +17,14 @@ export const AMENITY_MIN_RATINGS = 100
 
 export type ExperienceKpiId =
   | 'punctuality'
-  | 'cleanliness'
   | 'staff_behaviour'
   | 'driving'
+  | 'seat_sleep_comfort'
+  | 'cleanliness'
   | 'ac'
-  | 'seat_comfort'
   | 'live_tracking'
   | 'rest_stop_hygiene'
+  | 'seat_comfort'
 
 export interface ExperienceKpiDef {
   id: ExperienceKpiId
@@ -34,11 +35,16 @@ export interface ExperienceKpiDef {
 
 export const EXPERIENCE_KPIS: ExperienceKpiDef[] = [
   { id: 'punctuality', label: 'Punctuality', listingTags: ['Punctuality'], color: '#0c4dc3' },
-  { id: 'cleanliness', label: 'Cleanliness', listingTags: ['Cleanliness'], color: '#0284c7' },
   { id: 'staff_behaviour', label: 'Staff Behaviour', listingTags: ['Staff behavior', 'Staff behaviour'], color: '#4f46e5' },
   { id: 'driving', label: 'Driving', listingTags: ['Driving'], color: '#d97706' },
+  {
+    id: 'seat_sleep_comfort',
+    label: 'Seat / Sleep Comfort',
+    listingTags: ['Seat / Sleep Comfort', 'Seat/Sleep Comfort', 'Seat / Sleep Comfort'],
+    color: '#be185d',
+  },
+  { id: 'cleanliness', label: 'Cleanliness', listingTags: ['Cleanliness'], color: '#0284c7' },
   { id: 'ac', label: 'AC', listingTags: ['AC'], color: '#0e7490' },
-  { id: 'seat_comfort', label: 'Seat Comfort', listingTags: ['Seat Comfort', 'Seat comfort'], color: '#7c3aed' },
   { id: 'live_tracking', label: 'Live Tracking', listingTags: ['Live tracking', 'Live Tracking'], color: '#2563eb' },
   {
     id: 'rest_stop_hygiene',
@@ -46,6 +52,7 @@ export const EXPERIENCE_KPIS: ExperienceKpiDef[] = [
     listingTags: ['Rest stop hygiene', 'Rest Stop Hygiene'],
     color: '#0f766e',
   },
+  { id: 'seat_comfort', label: 'Seat Comfort', listingTags: ['Seat Comfort', 'Seat comfort'], color: '#7c3aed' },
 ]
 
 export const OPERATOR_SERIES_COLORS = [
@@ -105,10 +112,13 @@ function parsePrice(raw: string | null | undefined): number | null {
 
 function listingMentions(row: RedbusSrpEntry, kpi: ExperienceKpiDef): number | null {
   if (!Array.isArray(row.tags)) return null
-  const wants = new Set(kpi.listingTags.map(t => t.trim().toLowerCase()))
+  const wants = new Set(
+    kpi.listingTags.map(t => t.trim().toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ')),
+  )
   const match = row.tags.find((t: { tagmsg?: string; label?: string; name?: string; tagName?: string }) => {
     const name = t.tagmsg || t.label || t.name || t.tagName || ''
-    return wants.has(String(name).trim().toLowerCase())
+    const n = String(name).trim().toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ')
+    return wants.has(n)
   })
   if (!match) return null
   const raw =

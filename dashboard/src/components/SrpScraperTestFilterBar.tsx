@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useIsFetching } from '@tanstack/react-query'
-import { Filter, Search, X } from 'lucide-react'
+import { ArrowRight, X } from 'lucide-react'
 import MultiSelectOperatorDropdown from './MultiSelectOperatorDropdown'
 import { useMarketplaceFilters } from '../context/MarketplaceFilterContext'
 import {
@@ -31,6 +31,7 @@ export interface SrpAppliedFilters {
 
 interface Props {
   onApplied?: (filters: SrpAppliedFilters) => void
+  operatorOptions?: string[]
 }
 
 type PeriodChoice = 'yesterday' | 'today' | 'tomorrow' | 'last7days' | 'mtd' | 'custom'
@@ -52,7 +53,7 @@ function rangeForPeriod(period: PeriodChoice, start: string, end: string) {
   return { startDate: r.startDate, endDate: r.endDate }
 }
 
-export default function SrpScraperTestFilterBar({ onApplied }: Props) {
+export default function SrpScraperTestFilterBar({ onApplied, operatorOptions }: Props) {
   const isFetching = useIsFetching({ queryKey: ['redbus-srp'] })
   const isLoading = isFetching > 0
   const {
@@ -81,22 +82,32 @@ export default function SrpScraperTestFilterBar({ onApplied }: Props) {
   const [busTypes, setBusTypes] = useState<BusTypeBucket[]>([])
   const [ratingFilters, setRatingFilters] = useState<RatingBucket[]>([])
 
-  const localAvailableOperators = useMemo(() => {
+  const catalogOperators = useMemo(() => {
     const catalog = marketplaceRoutesJson as Record<string, string[]>
     if (localRouteKey === ALL_ROUTES_VALUE) {
       const set = new Set<string>()
       for (const ops of Object.values(catalog)) ops.forEach(o => set.add(o))
-      return [...set].sort()
+      return [...set].sort((a, b) => a.localeCompare(b))
     }
     const ops = catalog[localRouteKey] || []
-    return [...ops].sort()
+    return [...ops].sort((a, b) => a.localeCompare(b))
   }, [localRouteKey])
 
-  const routeLabel = useMemo(() => {
-    if (localRouteKey === ALL_ROUTES_VALUE) return 'All routes'
-    const pair = REDBUS_ROUTE_PAIRS.find(([o, d]) => redbusRouteKey(o, d) === localRouteKey)
-    return pair ? redbusSrpRouteLabel(pair[0], pair[1]) : localRouteKey
-  }, [localRouteKey])
+  const localAvailableOperators = useMemo(() => {
+    if (operatorOptions && operatorOptions.length > 0) {
+      return [...operatorOptions].sort((a, b) => a.localeCompare(b))
+    }
+    return catalogOperators
+  }, [operatorOptions, catalogOperators])
+
+  useEffect(() => {
+    if (!localAvailableOperators.length) return
+    setOperators(prev => {
+      if (!prev.length) return prev
+      const next = prev.filter(o => localAvailableOperators.includes(o))
+      return next.length === prev.length ? prev : next
+    })
+  }, [localAvailableOperators])
 
   const activeChips = useMemo(() => {
     const chips: { key: string; label: string; onClear: () => void }[] = []
@@ -154,131 +165,113 @@ export default function SrpScraperTestFilterBar({ onApplied }: Props) {
       setSelectedRouteKeys([localRouteKey])
     }
     setSelectedOperators(operators)
-    onApplied?.({
-      busTypes,
-      ratingFilters,
-    })
+    onApplied?.({ busTypes, ratingFilters })
   }
 
   return (
-    <section className="srp-filter-shell">
-      <div className="srp-filter-shell__glow" aria-hidden />
-      <div className="srp-filter-shell__inner">
-        <div className="srp-filter-toolbar">
-          <div className="srp-filter-toolbar__title">
-            <Filter size={15} strokeWidth={2.5} />
-            <div>
-              <p className="srp-filter-toolbar__heading">Query filters</p>
-              <p className="srp-filter-toolbar__sub">{routeLabel}</p>
-            </div>
+    <section className="rb-stage rb-stage--filters" aria-label="Query filters">
+      <div className="rb-stage-filters__intro">
+        <h2 className="rb-stage-filters__title">Query filters</h2>
+        {activeChips.length > 0 ? (
+          <button type="button" className="rb-stage-filters__reset" onClick={clearRefine}>
+            Clear
+          </button>
+        ) : null}
+      </div>
+
+      <div className="rb-stage-scope">
+        <label className="rb-stage-field">
+          <span className="rb-stage-field__label">Route</span>
+          <div className="rb-stage-field__control rb-stage-field__control--select">
+            <select
+              value={localRouteKey}
+              onChange={e => {
+                setLocalRouteKey(e.target.value)
+                setOperators([])
+              }}
+            >
+              <option value={ALL_ROUTES_VALUE}>All routes</option>
+              {REDBUS_ROUTE_PAIRS.map(([o, d]) => (
+                <option key={redbusRouteKey(o, d)} value={redbusRouteKey(o, d)}>
+                  {redbusSrpRouteLabel(o, d)}
+                </option>
+              ))}
+            </select>
           </div>
-          {activeChips.length > 0 ? (
-            <button type="button" className="srp-filter-clear" onClick={clearRefine}>
-              Clear filters
-            </button>
-          ) : null}
-        </div>
+        </label>
 
-        <div className="srp-filter-sections">
-          <div className="srp-filter-section">
-            <div className="srp-filter-grid srp-filter-grid--scope">
-              <label className="srp-field">
-                <span className="srp-field__label">Route</span>
-                <div className="srp-field__control srp-field__control--select">
-                  <select
-                    value={localRouteKey}
-                    onChange={e => {
-                      setLocalRouteKey(e.target.value)
-                      setOperators([])
-                    }}
-                  >
-                    <option value={ALL_ROUTES_VALUE}>All</option>
-                    {REDBUS_ROUTE_PAIRS.map(([o, d]) => (
-                      <option key={redbusRouteKey(o, d)} value={redbusRouteKey(o, d)}>
-                        {redbusSrpRouteLabel(o, d)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </label>
-
-              <div className="srp-field">
-                <span className="srp-field__label">Operator</span>
-                <div className="srp-field__control srp-field__control--dropdown">
-                  <div className="srp-field__dropdown-wrap">
-                    <MultiSelectOperatorDropdown
-                      label=""
-                      options={localAvailableOperators}
-                      selected={operators}
-                      onChange={setOperators}
-                      searchPlaceholder="Search operators…"
-                      maxTriggerWidth={400}
-                      panelWidth={400}
-                      compact={false}
-                      emptySummary="All"
-                      className="srp-operator-dd"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="srp-filter-section">
-            <div className="srp-filter-grid srp-filter-grid--refine">
-              <div className="srp-field">
-                <span className="srp-field__label">Bus type</span>
-                <div className="srp-field__control srp-field__control--dropdown">
-                  <div className="srp-field__dropdown-wrap">
-                    <MultiSelectOperatorDropdown
-                      label=""
-                      options={BUS_TYPE_IDS}
-                      selected={busTypes}
-                      onChange={next => setBusTypes(next as BusTypeBucket[])}
-                      formatOption={busTypeLabel}
-                      maxTriggerWidth={400}
-                      panelWidth={280}
-                      compact={false}
-                      showSearch={false}
-                      emptySummary="All"
-                      className="srp-bus-type-dd"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="srp-field">
-                <span className="srp-field__label">Rating</span>
-                <div className="srp-field__control srp-field__control--dropdown">
-                  <div className="srp-field__dropdown-wrap">
-                    <MultiSelectOperatorDropdown
-                      label=""
-                      options={RATING_BUCKET_IDS}
-                      selected={ratingFilters}
-                      onChange={next => setRatingFilters(next as RatingBucket[])}
-                      formatOption={ratingBucketLabel}
-                      maxTriggerWidth={400}
-                      panelWidth={280}
-                      compact={false}
-                      showSearch={false}
-                      emptySummary="All"
-                      className="srp-rating-dd"
-                    />
-                  </div>
-                </div>
-              </div>
+        <div className="rb-stage-field">
+          <span className="rb-stage-field__label">Operator</span>
+          <div className="rb-stage-field__control rb-stage-field__control--dropdown">
+            <div className="rb-stage-field__dropdown">
+              <MultiSelectOperatorDropdown
+                label=""
+                options={localAvailableOperators}
+                selected={operators}
+                onChange={setOperators}
+                searchPlaceholder="Search operators…"
+                maxTriggerWidth={420}
+                panelWidth={420}
+                compact={false}
+                emptySummary="All operators"
+                className="srp-operator-dd"
+              />
             </div>
           </div>
         </div>
 
-        <div className="srp-period-block">
-          <span className="srp-field__label">Travel period</span>
-          <div className="srp-period-pills" role="group" aria-label="Period">
+        <div className="rb-stage-field">
+          <span className="rb-stage-field__label">Bus type</span>
+          <div className="rb-stage-field__control rb-stage-field__control--dropdown">
+            <div className="rb-stage-field__dropdown">
+              <MultiSelectOperatorDropdown
+                label=""
+                options={BUS_TYPE_IDS}
+                selected={busTypes}
+                onChange={next => setBusTypes(next as BusTypeBucket[])}
+                formatOption={busTypeLabel}
+                maxTriggerWidth={280}
+                panelWidth={280}
+                compact={false}
+                showSearch={false}
+                emptySummary="All types"
+                className="srp-bus-type-dd"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="rb-stage-field">
+          <span className="rb-stage-field__label">Rating</span>
+          <div className="rb-stage-field__control rb-stage-field__control--dropdown">
+            <div className="rb-stage-field__dropdown">
+              <MultiSelectOperatorDropdown
+                label=""
+                options={RATING_BUCKET_IDS}
+                selected={ratingFilters}
+                onChange={next => setRatingFilters(next as RatingBucket[])}
+                formatOption={ratingBucketLabel}
+                maxTriggerWidth={280}
+                panelWidth={280}
+                compact={false}
+                showSearch={false}
+                emptySummary="All ratings"
+                className="srp-rating-dd"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rb-stage-period-row">
+        <div className="rb-stage-period-block">
+          <span className="rb-stage-field__label">Travel period</span>
+          <div className="rb-stage-period" role="group" aria-label="Travel period">
             {PERIOD_OPTIONS.map(p => (
               <button
                 key={p.id}
                 type="button"
-                className={cx('srp-period-pill', periodChoice === p.id && 'srp-period-pill--on')}
+                className={cx('rb-stage-period__pill', periodChoice === p.id && 'rb-stage-period__pill--on')}
                 onClick={() => applyPeriod(p.id)}
                 aria-pressed={periodChoice === p.id}
               >
@@ -286,43 +279,41 @@ export default function SrpScraperTestFilterBar({ onApplied }: Props) {
               </button>
             ))}
           </div>
-
-          {periodChoice === 'custom' ? (
-            <div className="srp-filter-grid srp-filter-grid--dates">
-              <label className="srp-field">
-                <span className="srp-field__label">Start date</span>
-                <div className="srp-field__control">
-                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
-                </div>
-              </label>
-              <label className="srp-field">
-                <span className="srp-field__label">End date</span>
-                <div className="srp-field__control">
-                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
-                </div>
-              </label>
-            </div>
-          ) : null}
         </div>
 
-        {activeChips.length > 0 ? (
-          <div className="srp-active-chips" aria-label="Active filters">
-            {activeChips.map(chip => (
-              <button key={chip.key} type="button" className="srp-active-chip" onClick={chip.onClear}>
-                <span>{chip.label}</span>
-                <X size={12} strokeWidth={2.5} />
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="srp-filter-actions">
-          <button type="button" onClick={handleApply} disabled={isLoading} className="srp-btn-primary">
-            <Search size={15} strokeWidth={2.5} />
-            {isLoading ? 'Loading…' : 'Apply filters'}
-          </button>
-        </div>
+        <button type="button" onClick={handleApply} disabled={isLoading} className="rb-stage-apply">
+          <span>{isLoading ? 'Loading…' : 'Apply filters'}</span>
+          <ArrowRight size={16} strokeWidth={2.5} />
+        </button>
       </div>
+
+      {periodChoice === 'custom' ? (
+        <div className="rb-stage-custom">
+          <label className="rb-stage-field">
+            <span className="rb-stage-field__label">Start date</span>
+            <div className="rb-stage-field__control">
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            </div>
+          </label>
+          <label className="rb-stage-field">
+            <span className="rb-stage-field__label">End date</span>
+            <div className="rb-stage-field__control">
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+            </div>
+          </label>
+        </div>
+      ) : null}
+
+      {activeChips.length > 0 ? (
+        <div className="rb-stage-chips" aria-label="Active filters">
+          {activeChips.map(chip => (
+            <button key={chip.key} type="button" className="rb-stage-chip" onClick={chip.onClear}>
+              <span>{chip.label}</span>
+              <X size={12} strokeWidth={2.5} />
+            </button>
+          ))}
+        </div>
+      ) : null}
     </section>
   )
 }

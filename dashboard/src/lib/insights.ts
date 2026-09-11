@@ -1,6 +1,6 @@
 export const OPERATOR_COLOR_MAP: Record<string, string> = {
   freshbus: '#0c4dc3',
-  neugo: '#FBBC04',
+  neugo: '#FFEA20',
   flixbus: '#16a34a',
   zingbus: '#7c3aed',
   yolobus: '#7c3aed',
