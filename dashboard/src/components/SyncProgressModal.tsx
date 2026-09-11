@@ -21,7 +21,7 @@ export default function SyncProgressModal({ isOpen, onClose }: SyncProgressModal
     status: 'idle',
     step: 'idle',
     completed_routes: 0,
-    total_routes: 24,
+    total_routes: 28,
     current_route: '',
     logs: [],
   })
@@ -35,9 +35,9 @@ export default function SyncProgressModal({ isOpen, onClose }: SyncProgressModal
         status: 'running',
         step: 'scraping',
         completed_routes: 0,
-        total_routes: 24,
+        total_routes: 28,
         current_route: 'Initializing scraper engine...',
-        logs: ['🚀 Initialized Marketplace Scraper for 24 Redbus routes'],
+        logs: ['🚀 Initialized Marketplace Scraper for 28 Redbus routes'],
       })
       setIsStarting(true)
       fetch('/api/v1/refresh/redbus', { method: 'POST' })

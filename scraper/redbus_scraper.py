@@ -236,11 +236,34 @@ def run_scrape(
             print(f"  [{i}/{total}] {route_label}")
             print(f"{'─' * 60}")
 
+            status_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scraper_status.json")
+
+            def update_status_file(curr: int, tot: int, label: str, step_msg: str):
+                pct = int(round((curr / tot) * 100)) if tot else 0
+                payload = {
+                    "status": "running",
+                    "step": "scraping",
+                    "completed_routes": curr,
+                    "total_routes": tot,
+                    "current_route": label,
+                    "progress_pct": pct,
+                    "logs": [f"[{curr}/{tot}] {step_msg}: {label}"],
+                    "updated_at": datetime.now().isoformat()
+                }
+                try:
+                    with open(status_file, "w", encoding="utf-8") as sf:
+                        json.dump(payload, sf, indent=2)
+                except Exception:
+                    pass
+
+            update_status_file(i - 1, total, route_label, "Scraping route")
+
             if progress_callback:
                 progress_callback(i - 1, total, route_label, "scraping")
 
             if not force and os.path.exists(filepath) and os.path.getsize(filepath) > 0:
                 print(f"      Skip: File already exists and is non-empty: {filename}")
+                update_status_file(i, total, route_label, "Route finished (cached)")
                 if progress_callback:
                     progress_callback(i, total, route_label, "route_done")
                 continue
@@ -258,6 +281,7 @@ def run_scrape(
 
             save_html(driver, filepath)
 
+            update_status_file(i, total, route_label, "Route finished")
             if progress_callback:
                 progress_callback(i, total, route_label, "route_done")
 

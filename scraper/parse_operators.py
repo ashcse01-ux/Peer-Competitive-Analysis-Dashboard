@@ -84,6 +84,7 @@ def init_db():
         ("seat_capacity", "INTEGER"),
         ("occupancy_pct", "REAL"),
         ("route_id", "TEXT"),
+        ("tags", "TEXT"),
     ):
         if col not in existing:
             cursor.execute(f"ALTER TABLE bus_listings ADD COLUMN {col} {decl}")
@@ -235,8 +236,8 @@ def _ingest_html_files(html_files: list[str], delete_travel_dates: list[str] | N
         INSERT INTO bus_listings (
             route, route_id, travel_date, srp_rank, operator, timing,
             rating, reviews, final_fare, bus_type, duration, scraped_at,
-            seats_available, seat_capacity, occupancy_pct
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            seats_available, seat_capacity, occupancy_pct, tags
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(route, travel_date, srp_rank, operator, timing) DO UPDATE SET
             route_id = COALESCE(excluded.route_id, bus_listings.route_id),
             rating = excluded.rating,
@@ -247,7 +248,8 @@ def _ingest_html_files(html_files: list[str], delete_travel_dates: list[str] | N
             scraped_at = excluded.scraped_at,
             seats_available = excluded.seats_available,
             seat_capacity = excluded.seat_capacity,
-            occupancy_pct = excluded.occupancy_pct
+            occupancy_pct = excluded.occupancy_pct,
+            tags = COALESCE(excluded.tags, bus_listings.tags)
     """
 
     for filename in html_files:
@@ -272,9 +274,22 @@ def _ingest_html_files(html_files: list[str], delete_travel_dates: list[str] | N
             cursor.execute(
                 upsert_sql,
                 (
-                    r["route"], r["route_id"], r["travel_date"], r["srp_rank"], r["operator"], r["timing"],
-                    r["rating"], r["reviews"], r["final_fare"], r["bus_type"], r["duration"], r["scraped_at"],
-                    r["seats_available"], r["seat_capacity"], r["occupancy_pct"],
+                    r["route"],
+                    r.get("route_id"),
+                    r["travel_date"],
+                    r["srp_rank"],
+                    r["operator"],
+                    r["timing"],
+                    r["rating"],
+                    r["reviews"],
+                    r["final_fare"],
+                    r["bus_type"],
+                    r["duration"],
+                    r["scraped_at"],
+                    r["seats_available"],
+                    r["seat_capacity"],
+                    r["occupancy_pct"],
+                    r.get("tags"),
                 ),
             )
             if existed:

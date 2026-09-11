@@ -751,7 +751,7 @@ def redbus_status():
         "status": "idle",
         "step": "idle",
         "completed_routes": 0,
-        "total_routes": 24,
+        "total_routes": 28,
         "current_route": "",
         "logs": []
     }
@@ -784,9 +784,9 @@ def refresh_redbus(collection_date: Optional[str] = Query(None), force: bool = Q
         "status": "running",
         "step": "scraping",
         "completed_routes": 0,
-        "total_routes": 24,
+        "total_routes": 28,
         "current_route": "Starting fresh sync...",
-        "logs": ["🚀 Starting fresh scraper sync for all 24 routes..."],
+        "logs": ["🚀 Starting fresh scraper sync for all 28 routes..."],
         "updated_at": datetime.now(tz=timezone.utc).isoformat()
     }
     try:

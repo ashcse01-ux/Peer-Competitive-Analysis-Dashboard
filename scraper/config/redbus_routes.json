@@ -10,7 +10,8 @@
     "Madurai": 126,
     "Coimbatore": 141,
     "Erode": 236,
-    "Eluru": 246
+    "Eluru": 246,
+    "Guntur": 131
   },
   "routes": [
     ["Vijayawada", "Visakhapatnam"],
@@ -35,7 +36,11 @@
     ["Tirupati", "Vijayawada"],
     ["Coimbatore", "Bangalore"],
     ["Bangalore", "Coimbatore"],
-    ["Madurai", "Coimbatore"],
-    ["Coimbatore", "Madurai"]
+    ["Guntur", "Hyderabad"],
+    ["Hyderabad", "Guntur"],
+    ["Hyderabad", "Bangalore"],
+    ["Bangalore", "Hyderabad"],
+    ["Visakhapatnam", "Guntur"],
+    ["Guntur", "Visakhapatnam"]
   ]
 }

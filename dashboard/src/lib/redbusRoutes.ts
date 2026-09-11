@@ -23,6 +23,12 @@ export const REDBUS_ROUTE_PAIRS: readonly (readonly [string, string])[] = [
   ['Tirupati', 'Vijayawada'],
   ['Coimbatore', 'Bangalore'],
   ['Bangalore', 'Coimbatore'],
+  ['Guntur', 'Hyderabad'],
+  ['Hyderabad', 'Guntur'],
+  ['Hyderabad', 'Bangalore'],
+  ['Bangalore', 'Hyderabad'],
+  ['Visakhapatnam', 'Guntur'],
+  ['Guntur', 'Visakhapatnam'],
 ] as const
 
 export function redbusRouteKey(origin: string, destination: string) {
