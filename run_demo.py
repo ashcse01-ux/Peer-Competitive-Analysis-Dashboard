@@ -483,39 +483,8 @@ def get_redbus_srp(
             except Exception:
                 tags_list = []
 
-        if not tags_list:
-            try:
-                rev_num = int(re.sub(r"[^\d]", "", str(reviews or "")))
-            except Exception:
-                rev_num = 180
-            rev_num = max(100, rev_num if rev_num > 0 else 180)
-            try:
-                r_num = float(rating or 4.2)
-            except Exception:
-                r_num = 4.2
-            card_route_id = str(row["route_id"]) if "route_id" in row.keys() and row["route_id"] else ""
-            seed_val = sum(ord(c) for c in f"{op_name}_{card_route_id}_{r_name}_{timing}")
-            mult = max(0.4, min(0.95, r_num / 5.0))
-            tag_defs = [
-                ("Punctuality", 0.52),
-                ("Driving", 0.45),
-                ("Cleanliness", 0.43),
-                ("Staff behavior", 0.41),
-                ("Seat / Sleep Comfort", 0.40),
-                ("AC", 0.38),
-                ("Rest stop hygiene", 0.36),
-                ("Live tracking", 0.36),
-            ]
-            tags_list = []
-            for idx, (name, base_pct) in enumerate(tag_defs):
-                var = (((seed_val * (idx + 1) * 31) % 9 - 4) / 100.0)
-                user_cnt = max(1, int(round(rev_num * max(0.1, min(0.95, base_pct * mult + var)))))
-                tags_list.append({
-                    "tagmsg": name,
-                    "count": user_cnt,
-                    "NoOfUsers": user_cnt,
-                    "noOfUsers": user_cnt,
-                })
+        # Only return real tags stored in DB from RedBus API
+        pass
 
         occ_val = None
         try:
