@@ -34,12 +34,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
-try:
-    import undetected_chromedriver as uc
-    _UC_AVAILABLE = True
-except ImportError:
-    _UC_AVAILABLE = False
-
 
 # ── Configuration ──────────────────────────────────────────────────────────
 
@@ -91,37 +85,6 @@ def build_url(from_city: dict, to_city: dict, date: str) -> str:
 
 
 def create_driver(headed: bool = False) -> webdriver.Chrome:
-    """
-    Create a Chrome driver.
-    Uses undetected-chromedriver when available (bypasses Akamai on Linux servers).
-    Falls back to standard Selenium with anti-detection flags.
-    """
-    if _UC_AVAILABLE:
-        tprint("      🛡  Using undetected-chromedriver")
-        opts = uc.ChromeOptions()
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--disable-gpu")
-        opts.add_argument("--window-size=1920,1080")
-        opts.add_argument("--lang=en-US")
-        opts.add_argument("--disable-extensions")
-        opts.add_argument("--disable-background-networking")
-        opts.add_argument("--disable-default-apps")
-        opts.add_argument("--disable-sync")
-        opts.add_argument("--metrics-recording-only")
-        opts.add_argument("--mute-audio")
-        opts.add_argument("--no-first-run")
-        opts.add_argument("--safebrowsing-disable-auto-update")
-        opts.add_argument("--memory-pressure-off")
-        opts.add_argument("--js-flags=--max-old-space-size=512")
-        if not headed:
-            opts.add_argument("--headless=new")
-        driver = uc.Chrome(options=opts, version_main=None)
-        driver.set_page_load_timeout(60)
-        return driver
-
-    # Fallback: standard Selenium with anti-detection hardening
-    tprint("      ⚠  undetected-chromedriver not installed — using standard Selenium")
     opts = Options()
     if not headed:
         opts.add_argument("--headless=new")
@@ -131,38 +94,20 @@ def create_driver(headed: bool = False) -> webdriver.Chrome:
     opts.add_argument("--disable-blink-features=AutomationControlled")
     opts.add_argument("--window-size=1920,1080")
     opts.add_argument(
-        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     )
-    opts.add_argument("--disable-extensions")
-    opts.add_argument("--disable-infobars")
-    opts.add_argument("--disable-notifications")
-    opts.add_argument("--lang=en-US,en;q=0.9")
-    opts.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
+    opts.add_experimental_option("excludeSwitches", ["enable-automation"])
     opts.add_experimental_option("useAutomationExtension", False)
-    opts.add_experimental_option("prefs", {
-        "credentials_enable_service": False,
-        "profile.password_manager_enabled": False,
-    })
     opts.page_load_strategy = "normal"
 
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=opts)
     driver.set_page_load_timeout(60)
 
-    stealth_js = """
-        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-        Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
-        Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-        Object.defineProperty(navigator, 'platform', {get: () => 'Win32'});
-        window.chrome = { runtime: {} };
-        Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
-        Object.defineProperty(screen, 'width', {get: () => 1920});
-        Object.defineProperty(screen, 'height', {get: () => 1080});
-    """
     driver.execute_cdp_cmd(
         "Page.addScriptToEvaluateOnNewDocument",
-        {"source": stealth_js},
+        {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"},
     )
     return driver
 
@@ -421,8 +366,8 @@ def _scrape_route(
         except Exception as e:
             tprint(f"      ⚠ Nav timeout: {type(e).__name__} (page may still work)")
 
-        tprint(f"      Waiting 15s for page to render...")
-        time.sleep(15)
+        tprint(f"      Waiting 10s for page to render...")
+        time.sleep(10)
 
         tprint(f"      Scrolling until 'End of list' appears...")
         scroll_until_end_of_list(driver)
