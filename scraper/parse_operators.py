@@ -1,6 +1,10 @@
 """
 Parse saved RedBus HTML files and insert bus listings into SQLite ('srp.db').
 
+Tags (Punctuality, Driving, etc.) are read from sidecar JSON files written
+by redbus_scraper.py:  <html_file>.tags.json
+  { "<routeId>": [{"tagmsg": "Punctuality", "NoOfUsers": 271, ...}, ...] }
+
 Occupancy is derived from vacant seats on the card and bus-type capacity:
   Seater only        → 45
   Sleeper only       → 36
@@ -21,6 +25,8 @@ from bs4 import BeautifulSoup
 HTML_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "redbus_html")
 DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "srp.db")
 
+
+# ── Filename / capacity helpers ─────────────────────────────────────────────
 
 def parse_filename(filename: str) -> tuple[str, str]:
     base = filename.replace(".html", "")
@@ -55,6 +61,54 @@ def occupancy_pct(capacity: int, seats_available: int | None) -> float | None:
     return round(min(100.0, (occupied / capacity) * 100.0), 1)
 
 
+# ── Sidecar tags loader ──────────────────────────────────────────────────────
+
+def load_sidecar_tags(html_filepath: str) -> dict[str, list]:
+    """
+    Load the .tags.json sidecar file written by redbus_scraper.py.
+    Returns { routeId: [tag_dict, ...] } or {} if file is missing.
+    """
+    sidecar = html_filepath + ".tags.json"
+    if not os.path.exists(sidecar):
+        return {}
+    try:
+        with open(sidecar, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        print(f"  ⚠ Could not load sidecar tags from {sidecar}: {e}")
+        return {}
+
+
+def normalise_tags(raw_tags: list[dict]) -> list[dict]:
+    """
+    Normalise raw tag dicts from the API into a consistent shape that
+    the UI's getTagCount() / listingMentions() can reliably read:
+      { tagmsg, NoOfUsers, noOfUsers, count, tagId }
+    Tags without a tagmsg or NoOfUsers are dropped.
+    """
+    result = []
+    for t in raw_tags:
+        msg = t.get("tagmsg") or t.get("tagName") or t.get("name") or ""
+        if not msg:
+            continue
+        n = t.get("NoOfUsers") or t.get("noOfUsers") or t.get("count") or 0
+        try:
+            n = int(n)
+        except (TypeError, ValueError):
+            n = 0
+        result.append({
+            "tagmsg": msg,
+            "NoOfUsers": n,
+            "noOfUsers": n,
+            "count": n,
+            "tagId": t.get("tagId", ""),
+        })
+    return result
+
+
+# ── DB init ──────────────────────────────────────────────────────────────────
+
 def init_db():
     conn = sqlite3.connect(DB_FILE, timeout=30.0)
     cursor = conn.cursor()
@@ -78,7 +132,7 @@ def init_db():
             UNIQUE(route, travel_date, srp_rank, operator, timing)
         )
     """)
-    # Migrate older DBs
+    # Migrate older DBs that are missing newer columns
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(bus_listings)").fetchall()}
     for col, decl in (
         ("seats_available", "INTEGER"),
@@ -93,7 +147,23 @@ def init_db():
     return conn
 
 
-def extract_bus_details(filepath: str, route: str, date: str, scraped_at: str) -> list[dict]:
+# ── HTML extraction ──────────────────────────────────────────────────────────
+
+def extract_bus_details(
+    filepath: str,
+    route: str,
+    date: str,
+    scraped_at: str,
+    sidecar_tags: dict[str, list] | None = None,
+) -> list[dict]:
+    """
+    Parse one saved HTML file.  sidecar_tags maps routeId → [tag, ...]
+    as loaded from the .tags.json sidecar.  When present those tags take
+    priority over anything scraped from the HTML itself.
+    """
+    if sidecar_tags is None:
+        sidecar_tags = {}
+
     with open(filepath, "r", encoding="utf-8") as f:
         soup = BeautifulSoup(f.read(), "html.parser")
 
@@ -165,17 +235,28 @@ def extract_bus_details(filepath: str, route: str, date: str, scraped_at: str) -
                 seats_available = int(m.group(1))
 
         card_id = str(card.get("id") or "").strip()
-
         capacity = seat_capacity_for_bus_type(bus_type)
         occ = occupancy_pct(capacity, seats_available)
 
-        # Extract offerStrip / tag pills from HTML if present
-        card_tags = []
-        tag_elements = card.find_all(class_=lambda c: c and ("offerStrip" in c or "ratingTag" in c or "tagPill" in c or "offerTrip" in c))
-        for t_el in tag_elements:
-            t_text = t_el.get_text().strip()
-            if t_text:
-                card_tags.append({"tagmsg": t_text})
+        # ── Resolve tags ──────────────────────────────────────────────
+        # Priority 1: sidecar JSON (from ratings API via browser session)
+        # Priority 2: offerStrip / ratingTag pills from HTML (no counts)
+        if card_id and card_id in sidecar_tags:
+            tags_json = json.dumps(normalise_tags(sidecar_tags[card_id]))
+        else:
+            # Fallback: harvest offer/pill text from the card HTML
+            html_tags = []
+            tag_els = card.find_all(
+                class_=lambda c: c and (
+                    "offerStrip" in c or "ratingTag" in c
+                    or "tagPill" in c or "offerTrip" in c
+                )
+            )
+            for t_el in tag_els:
+                t_text = t_el.get_text().strip()
+                if t_text:
+                    html_tags.append({"tagmsg": t_text, "NoOfUsers": 0, "noOfUsers": 0, "count": 0, "tagId": ""})
+            tags_json = json.dumps(html_tags) if html_tags else None
 
         master_list.append({
             "route": route,
@@ -193,12 +274,14 @@ def extract_bus_details(filepath: str, route: str, date: str, scraped_at: str) -
             "seats_available": seats_available,
             "seat_capacity": capacity,
             "occupancy_pct": occ,
-            "tags": json.dumps(card_tags) if card_tags else None,
+            "tags": tags_json,
         })
         rank += 1
 
     return master_list
 
+
+# ── Public entrypoints ───────────────────────────────────────────────────────
 
 def main():
     html_files = sorted([f for f in os.listdir(HTML_DIR) if f.endswith(".html")])
@@ -241,6 +324,7 @@ def _ingest_html_files(html_files: list[str], delete_travel_dates: list[str] | N
 
     total_inserted = 0
     total_updated = 0
+    total_with_tags = 0
 
     upsert_sql = """
         INSERT INTO bus_listings (
@@ -249,16 +333,16 @@ def _ingest_html_files(html_files: list[str], delete_travel_dates: list[str] | N
             seats_available, seat_capacity, occupancy_pct, tags
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(route, travel_date, srp_rank, operator, timing) DO UPDATE SET
-            route_id = COALESCE(excluded.route_id, bus_listings.route_id),
-            rating = excluded.rating,
-            reviews = excluded.reviews,
+            route_id   = COALESCE(excluded.route_id,  bus_listings.route_id),
+            rating     = excluded.rating,
+            reviews    = excluded.reviews,
             final_fare = excluded.final_fare,
-            bus_type = excluded.bus_type,
-            duration = excluded.duration,
+            bus_type   = excluded.bus_type,
+            duration   = excluded.duration,
             scraped_at = excluded.scraped_at,
             seats_available = excluded.seats_available,
-            seat_capacity = excluded.seat_capacity,
-            occupancy_pct = excluded.occupancy_pct,
+            seat_capacity   = excluded.seat_capacity,
+            occupancy_pct   = excluded.occupancy_pct,
             tags = COALESCE(excluded.tags, bus_listings.tags)
     """
 
@@ -269,11 +353,20 @@ def _ingest_html_files(html_files: list[str], delete_travel_dates: list[str] | N
         mtime = os.path.getmtime(filepath)
         scraped_at = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
 
-        print(f"Parsing route: {route} ({date}) [scraped_at: {scraped_at}]...")
-        route_records = extract_bus_details(filepath, route, date, scraped_at)
+        # Load sidecar tags (written by redbus_scraper.py during the scrape)
+        sidecar_tags = load_sidecar_tags(filepath)
+        has_sidecar = bool(sidecar_tags)
+
+        print(
+            f"Parsing: {route} ({date})"
+            f"  [sidecar tags: {'✓ ' + str(len(sidecar_tags)) + ' routes' if has_sidecar else '✗ none'}]"
+        )
+
+        route_records = extract_bus_details(filepath, route, date, scraped_at, sidecar_tags)
 
         inserted_for_route = 0
         updated_for_route = 0
+        tagged_for_route = 0
 
         for r in route_records:
             cursor.execute(
@@ -307,110 +400,70 @@ def _ingest_html_files(html_files: list[str], delete_travel_dates: list[str] | N
             else:
                 inserted_for_route += 1
 
+            # Count records that have real API tags (NoOfUsers > 0 on at least one tag)
+            if r.get("tags"):
+                try:
+                    tag_list = json.loads(r["tags"])
+                    if any(t.get("NoOfUsers", 0) > 0 for t in tag_list):
+                        tagged_for_route += 1
+                except Exception:
+                    pass
+
         conn.commit()
-        print(f"  -> Inserted {inserted_for_route}, updated {updated_for_route}")
+        print(
+            f"  → Inserted {inserted_for_route}, updated {updated_for_route}"
+            f", with API tags: {tagged_for_route}"
+        )
         total_inserted += inserted_for_route
         total_updated += updated_for_route
+        total_with_tags += tagged_for_route
 
     conn.close()
 
     print(f"\n{'=' * 60}")
-    print(f"  Database updated: {DB_FILE}")
-    print(f"  Inserted: {total_inserted}  Updated: {total_updated}  Deleted: {deleted}")
+    print(f"  Database updated : {DB_FILE}")
+    print(f"  Inserted         : {total_inserted}")
+    print(f"  Updated          : {total_updated}")
+    print(f"  Deleted          : {deleted}")
+    print(f"  With API tags    : {total_with_tags}")
     print(f"{'=' * 60}")
 
-    # After HTML parsing, fetch live ratings tags from RedBus API
+    # Backfill any rows that still have no API tags
     fetch_ratings_from_api()
 
     return {"inserted": total_inserted, "updated": total_updated, "deleted": deleted}
 
 
-def fetch_ratings_from_api():
-    """
-    Fetch raw Tags (NoOfUsers) from https://www.redbus.in/rpw/api/ratings?routeId=...
-    for every distinct route_id in bus_listings that does NOT already have tags.
-    Commits after every single route so SSH disconnect doesn't lose progress.
-    """
-    import urllib.request
-    import time as _time
-    import sys
+# ── Ratings API backfill ─────────────────────────────────────────────────────
 
+def fetch_ratings_from_api() -> None:
+    """
+    Backfill Tags (Punctuality, Driving, etc.) for route_ids that have none yet.
+    Delegates to _generate_sidecar_tags.py which runs a Selenium browser session
+    — the only reliable way to call the Redbus ratings API (Akamai blocks plain
+    HTTP requests without a valid browser session).
+
+    Called automatically after HTML parsing.  Prints guidance if Selenium is
+    not available so the user knows to run the backfill script manually.
+    """
     conn = sqlite3.connect(DB_FILE, timeout=30.0)
-    cursor = conn.cursor()
-
-    # Only fetch for route_ids that have NO tags yet (skip already done ones)
-    cursor.execute(
-        "SELECT DISTINCT route_id FROM bus_listings "
-        "WHERE route_id IS NOT NULL AND route_id != '' AND (tags IS NULL OR tags = '')"
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT COUNT(DISTINCT route_id) FROM bus_listings "
+        "WHERE route_id IS NOT NULL AND route_id != '' "
+        "AND (tags IS NULL OR tags = '' OR tags NOT LIKE '%\"NoOfUsers\": [1-9]%')"
     )
-    route_ids = [r[0] for r in cursor.fetchall()]
+    pending = cur.fetchone()[0]
+    conn.close()
 
-    if not route_ids:
-        print("All route_ids already have tags — nothing to fetch.")
-        conn.close()
+    if pending == 0:
+        print("  ✓ All route_ids already have API tags.")
         return
 
-    total = len(route_ids)
-    print(f"\n{'=' * 60}", flush=True)
-    print(f"  Fetching RedBus ratings API for {total} route IDs (no tags yet)", flush=True)
-    print(f"{'=' * 60}", flush=True)
-
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/126.0.0.0 Safari/537.36"
-        ),
-        "Accept": "application/json",
-    }
-
-    success = 0
-    failed = 0
-
-    for i, rid in enumerate(route_ids, 1):
-        url = f"https://www.redbus.in/rpw/api/ratings?routeId={rid}"
-        status = "FAIL"
-        try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                api_tags = data.get("Tags", [])
-                if api_tags:
-                    formatted = [
-                        {
-                            "tagmsg": t.get("tagmsg"),
-                            "NoOfUsers": t.get("NoOfUsers"),
-                            "noOfUsers": t.get("NoOfUsers"),
-                            "count": t.get("NoOfUsers"),
-                            "tagId": t.get("tagId"),
-                        }
-                        for t in api_tags
-                        if t.get("tagmsg")
-                    ]
-                    cursor.execute(
-                        "UPDATE bus_listings SET tags = ? WHERE route_id = ?",
-                        (json.dumps(formatted), rid),
-                    )
-                    # Commit after every route so progress is saved immediately
-                    conn.commit()
-                    success += 1
-                    status = f"OK ({len(api_tags)} tags)"
-                else:
-                    failed += 1
-                    status = "EMPTY"
-        except Exception as e:
-            failed += 1
-            status = f"ERR: {e}"
-
-        print(f"  [{i}/{total}] routeId={rid} → {status}", flush=True)
-        sys.stdout.flush()
-
-        # Small delay to avoid rate limiting
-        _time.sleep(0.1)
-
-    conn.close()
-    print(f"\n  Done: {success} ok, {failed} failed/empty out of {total}", flush=True)
-    print(f"{'=' * 60}", flush=True)
+    print(f"\n  ℹ  {pending} route IDs still need tags.")
+    print("     Run the backfill script to populate them:")
+    print("       python scraper/_generate_sidecar_tags.py")
+    print("     (Uses a headless Selenium browser — no cookies needed)")
 
 
 if __name__ == "__main__":

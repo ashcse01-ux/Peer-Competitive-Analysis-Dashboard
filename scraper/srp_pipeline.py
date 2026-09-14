@@ -105,6 +105,8 @@ def query_srp_listings(
         except (IndexError, KeyError):
             return default
 
+    import json as _json
+
     services: dict[tuple, dict] = {}
     service_key_counter = 901
     for row in rows:
@@ -121,6 +123,17 @@ def query_srp_listings(
         seats_available = _cell(row, "seats_available")
         seat_capacity = _cell(row, "seat_capacity")
         occupancy = _cell(row, "occupancy_pct")
+
+        # Parse tags JSON → list; prefer rows with real NoOfUsers > 0
+        raw_tags = _cell(row, "tags", None)
+        tags_list: list | None = None
+        if raw_tags:
+            try:
+                parsed = _json.loads(raw_tags)
+                if isinstance(parsed, list) and any(t.get("NoOfUsers", 0) > 0 for t in parsed):
+                    tags_list = parsed
+            except Exception:
+                pass
 
         service_id = (r_name, op_name, timing)
         if service_id not in services:
@@ -144,12 +157,14 @@ def query_srp_listings(
                 "seats_available": seats_available,
                 "seat_capacity": seat_capacity,
                 "occupancy_pct": occupancy,
+                "tags": tags_list,
                 "dates": {},
             }
             service_key_counter += 1
         else:
             prev_dates = services[service_id]["dates"]
-            if not prev_dates or travel_date >= max(prev_dates.keys()):
+            is_newer = not prev_dates or travel_date >= max(prev_dates.keys())
+            if is_newer:
                 services[service_id]["duration"] = duration or services[service_id]["duration"]
                 services[service_id]["bus_type"] = bus_type or services[service_id]["bus_type"]
                 services[service_id]["price"] = final_fare or services[service_id]["price"]
@@ -158,6 +173,9 @@ def query_srp_listings(
                 services[service_id]["seats_available"] = seats_available
                 services[service_id]["seat_capacity"] = seat_capacity
                 services[service_id]["occupancy_pct"] = occupancy
+            # Always take tags from whichever row actually has them
+            if tags_list and not services[service_id].get("tags"):
+                services[service_id]["tags"] = tags_list
 
         services[service_id]["dates"][travel_date] = srp_rank
 
@@ -177,6 +195,7 @@ def query_srp_listings(
             "seats_available": s_data.get("seats_available"),
             "seat_capacity": s_data.get("seat_capacity"),
             "occupancy_pct": s_data.get("occupancy_pct"),
+            "tags": s_data.get("tags"),
             "snapshots": s_data["dates"],
         }
         for date_str, rank in s_data["dates"].items():
