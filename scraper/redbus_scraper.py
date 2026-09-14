@@ -62,7 +62,7 @@ SCROLL_STEP_PX = 600
 SCROLL_PAUSE_SEC = 2
 MAX_SCROLL_DURATION = 300  # 5 minutes max per page
 
-DEFAULT_WORKERS = 3  # parallel Chrome instances
+DEFAULT_WORKERS = 1  # undetected-chromedriver is heavy — run sequentially on servers
 
 # Lock for thread-safe status file writes and console output
 _print_lock = threading.Lock()
@@ -104,6 +104,16 @@ def create_driver(headed: bool = False) -> webdriver.Chrome:
         opts.add_argument("--disable-gpu")
         opts.add_argument("--window-size=1920,1080")
         opts.add_argument("--lang=en-US")
+        opts.add_argument("--disable-extensions")
+        opts.add_argument("--disable-background-networking")
+        opts.add_argument("--disable-default-apps")
+        opts.add_argument("--disable-sync")
+        opts.add_argument("--metrics-recording-only")
+        opts.add_argument("--mute-audio")
+        opts.add_argument("--no-first-run")
+        opts.add_argument("--safebrowsing-disable-auto-update")
+        opts.add_argument("--memory-pressure-off")
+        opts.add_argument("--js-flags=--max-old-space-size=512")
         if not headed:
             opts.add_argument("--headless=new")
         driver = uc.Chrome(options=opts, version_main=None)
