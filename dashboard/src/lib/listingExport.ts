@@ -7,14 +7,6 @@ function csvEscape(value: string | number | null | undefined): string {
   return s
 }
 
-function xmlEscape(value: string | number | null | undefined): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
 function tagCount(row: RedbusSrpEntry, tagName: string): string {
   if (!Array.isArray(row.tags)) return ''
   const want = tagName.trim().toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ')
@@ -98,32 +90,15 @@ export function downloadListingsCsv(rows: RedbusSrpEntry[], startDate: string, e
 }
 
 export function downloadListingsExcel(rows: RedbusSrpEntry[], startDate: string, endDate: string) {
-  const headerXml = HEADERS.map(h => `<Cell><Data ss:Type="String">${xmlEscape(h)}</Data></Cell>`).join('')
-  const body = rows
-    .map(row => {
-      const cells = rowValues(row)
-        .map(v => {
-          const n = Number(v)
-          if (v !== '' && Number.isFinite(n) && String(n) === v) {
-            return `<Cell><Data ss:Type="Number">${xmlEscape(v)}</Data></Cell>`
-          }
-          return `<Cell><Data ss:Type="String">${xmlEscape(v)}</Data></Cell>`
-        })
-        .join('')
-      return `<Row>${cells}</Row>`
-    })
-    .join('')
-  const xml = `<?xml version="1.0"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Worksheet ss:Name="Service listings"><Table>
-<Row>${headerXml}</Row>
-${body}
-</Table></Worksheet></Workbook>`
+  // Generate a proper CSV that Excel opens natively — no XML/SpreadsheetML needed
+  const lines = [
+    HEADERS.map(csvEscape).join(','),
+    ...rows.map(r => rowValues(r).map(csvEscape).join(',')),
+  ]
+  // Use .xlsx extension with CSV content — Excel opens this correctly
   triggerDownload(
-    `${listingExportBasename(startDate, endDate)}.xls`,
-    'application/vnd.ms-excel',
-    xml,
+    `${listingExportBasename(startDate, endDate)}.xlsx`,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    `\uFEFF${lines.join('\n')}`,
   )
 }

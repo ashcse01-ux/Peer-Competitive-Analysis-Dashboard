@@ -374,13 +374,6 @@ def _scrape_route(
 
         save_html(driver, filepath)
 
-        # Only fetch tags if HTML was actually saved with content
-        if os.path.getsize(filepath) > 10_000:
-            # Fetch tags from the ratings API using the live browser session
-            fetch_route_tags(driver, filepath)
-        else:
-            tprint(f"      ⚠ Skipping tags fetch — page was blocked/empty")
-
     finally:
         driver.quit()
 

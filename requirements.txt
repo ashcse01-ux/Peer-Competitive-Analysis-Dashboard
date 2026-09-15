@@ -54,7 +54,6 @@ rich==15.0.0
 rich-toolkit==0.20.3
 safetensors==0.8.0
 selenium==4.46.0
-undetected-chromedriver==3.5.5
 setuptools==83.0.0
 shellingham==1.5.4
 six==1.17.0

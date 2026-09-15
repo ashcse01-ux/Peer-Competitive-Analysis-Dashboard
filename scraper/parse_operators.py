@@ -239,24 +239,12 @@ def extract_bus_details(
         occ = occupancy_pct(capacity, seats_available)
 
         # ── Resolve tags ──────────────────────────────────────────────
-        # Priority 1: sidecar JSON (from ratings API via browser session)
-        # Priority 2: offerStrip / ratingTag pills from HTML (no counts)
+        # Only use sidecar tags (from ratings API) — not HTML fallback
+        # HTML-scraped tags are unreliable (picks up rating numbers as tag text)
         if card_id and card_id in sidecar_tags:
             tags_json = json.dumps(normalise_tags(sidecar_tags[card_id]))
         else:
-            # Fallback: harvest offer/pill text from the card HTML
-            html_tags = []
-            tag_els = card.find_all(
-                class_=lambda c: c and (
-                    "offerStrip" in c or "ratingTag" in c
-                    or "tagPill" in c or "offerTrip" in c
-                )
-            )
-            for t_el in tag_els:
-                t_text = t_el.get_text().strip()
-                if t_text:
-                    html_tags.append({"tagmsg": t_text, "NoOfUsers": 0, "noOfUsers": 0, "count": 0, "tagId": ""})
-            tags_json = json.dumps(html_tags) if html_tags else None
+            tags_json = None
 
         master_list.append({
             "route": route,
