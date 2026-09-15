@@ -12,7 +12,7 @@ import { useMarketplaceFilters } from '../context/MarketplaceFilterContext'
 import { useRedbusSrp, type RedbusSrpEntry } from '../api'
 import { redbusSrpRouteLabel } from '../lib/redbusRoutes'
 import { matchesBusTypeFilter, matchesRatingFilter, type BusTypeBucket, type RatingBucket } from '../lib/srpFilters'
-import { downloadListingsCsv, downloadListingsExcel } from '../lib/listingExport'
+import { downloadListingsCsv } from '../lib/listingExport'
 import { cx } from '../lib/insights'
 
 function isFreshBus(name: string) {
@@ -423,17 +423,6 @@ export default function RedbusSrpPage() {
                       }}
                     >
                       CSV (.csv)
-                    </button>
-                    <button
-                      type="button"
-                      className="srp-dl__opt"
-                      role="menuitem"
-                      onClick={() => {
-                        downloadListingsExcel(filteredData, filters.customStart, filters.customEnd)
-                        setDownloadOpen(false)
-                      }}
-                    >
-                      Excel (.xls)
                     </button>
                   </div>
                 ) : null}
